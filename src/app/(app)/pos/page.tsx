@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { products, categories, discounts } from '@/lib/schema';
+import { products, categories, discounts, shifts } from '@/lib/schema';
 import POSClient from './pos-client';
 import { eq, and, isNull } from 'drizzle-orm';
 
@@ -7,6 +7,7 @@ export default async function POSPage() {
   let productList: any[] = [];
   let categoryList: any[] = [];
   let discountList: any[] = [];
+  let activeShiftId: string | undefined = undefined;
 
   try {
     productList = await db
@@ -23,8 +24,18 @@ export default async function POSPage() {
       .select()
       .from(discounts)
       .where(and(eq(discounts.isActive, 1), isNull(discounts.deletedAt)));
+
+    const activeShifts = await db
+      .select({ id: shifts.id })
+      .from(shifts)
+      .where(isNull(shifts.closedAt))
+      .limit(1);
+
+    if (activeShifts.length > 0) {
+      activeShiftId = activeShifts[0].id;
+    }
   } catch (e) {
-    console.warn('DB query in POS failed (likely DB empty or not setup yet):', e);
+    console.warn('DB query in POS failed:', e);
   }
 
   return (
@@ -33,7 +44,9 @@ export default async function POSPage() {
         initialProducts={productList}
         categories={categoryList}
         discounts={discountList}
+        shiftId={activeShiftId}
       />
     </div>
   );
 }
+

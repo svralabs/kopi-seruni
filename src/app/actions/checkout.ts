@@ -1,9 +1,9 @@
 'use server';
 import { db } from '@/lib/db';
-import { orders, orderItems, stock, stockMovements } from '@/lib/schema';
+import { orders, orderItems, stock, stockMovements, shifts, discounts } from '@/lib/schema';
 import { getSession } from '@/lib/auth-helpers';
 import { calcDiscount, calcTax, calcTotal } from '@/lib/utils';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, isNull, sql } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 
 export interface CheckoutItem {
@@ -17,7 +17,7 @@ export interface CheckoutItem {
 
 export interface CheckoutPayload {
   outletId: string;
-  shiftId: string;
+  shiftId?: string;
   customerName?: string;
   items: CheckoutItem[];
   discountId?: string;
@@ -37,13 +37,44 @@ export async function checkout(payload: CheckoutPayload) {
     0,
   );
 
-  const discountAmount = payload.discountId && payload.discountType && payload.discountValue != null
+  // Sanitize discountId (convert empty string to null)
+  const sanitizedDiscountId =
+    payload.discountId && payload.discountId.trim() !== ''
+      ? payload.discountId.trim()
+      : null;
+
+  const discountAmount = sanitizedDiscountId && payload.discountType && payload.discountValue != null
     ? calcDiscount(subtotal, payload.discountType, payload.discountValue)
     : 0;
 
   const afterDiscount = subtotal - discountAmount;
   const taxAmount = calcTax(afterDiscount, payload.taxRate);
   const total = calcTotal(subtotal, discountAmount, taxAmount);
+
+  // Sanitize shiftId (verify against DB or find active open shift)
+  let sanitizedShiftId: string | null = null;
+  if (payload.shiftId && payload.shiftId.trim() !== '' && payload.shiftId !== 'shf_default') {
+    const [existingShift] = await db
+      .select({ id: shifts.id })
+      .from(shifts)
+      .where(eq(shifts.id, payload.shiftId.trim()))
+      .limit(1);
+    if (existingShift) {
+      sanitizedShiftId = existingShift.id;
+    }
+  }
+
+  // If no valid shift provided, check if an open shift exists in this outlet
+  if (!sanitizedShiftId) {
+    const [activeShift] = await db
+      .select({ id: shifts.id })
+      .from(shifts)
+      .where(and(eq(shifts.outletId, payload.outletId), isNull(shifts.closedAt)))
+      .limit(1);
+    if (activeShift) {
+      sanitizedShiftId = activeShift.id;
+    }
+  }
 
   const orderId = `ord_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
   const now = Math.floor(Date.now() / 1000);
@@ -53,18 +84,18 @@ export async function checkout(payload: CheckoutPayload) {
     await tx.insert(orders).values({
       id: orderId,
       outletId: payload.outletId,
-      shiftId: payload.shiftId,
+      shiftId: sanitizedShiftId,
       kasirId: session.user.id,
-      customerName: payload.customerName ?? null,
+      customerName: payload.customerName && payload.customerName.trim() !== '' ? payload.customerName.trim() : 'Pelanggan Walk-in',
       subtotal,
-      discountId: payload.discountId ?? null,
+      discountId: sanitizedDiscountId,
       discountAmount,
       taxRate: payload.taxRate,
       taxAmount,
       total,
       paymentMethod: payload.paymentMethod,
       status: 'completed',
-      notes: payload.notes ?? null,
+      notes: payload.notes && payload.notes.trim() !== '' ? payload.notes.trim() : null,
       createdAt: now,
     });
 
@@ -79,22 +110,42 @@ export async function checkout(payload: CheckoutPayload) {
         costPrice: item.costPrice,
         quantity: item.quantity,
         subtotal: item.productPrice * item.quantity,
-        notes: item.notes ?? null,
+        notes: item.notes && item.notes.trim() !== '' ? item.notes.trim() : null,
       })),
     );
 
     // 3. Decrement stock + insert movement per item
     for (const item of payload.items) {
-      await tx
-        .update(stock)
-        .set({
-          quantity: sql`quantity - ${item.quantity}`,
-          updatedAt: now,
-        })
+      const existingStock = await tx
+        .select()
+        .from(stock)
         .where(and(
           eq(stock.outletId, payload.outletId),
           eq(stock.productId, item.productId),
-        ));
+        ))
+        .limit(1);
+
+      if (existingStock.length > 0) {
+        await tx
+          .update(stock)
+          .set({
+            quantity: sql`MAX(0, quantity - ${item.quantity})`,
+            updatedAt: now,
+          })
+          .where(and(
+            eq(stock.outletId, payload.outletId),
+            eq(stock.productId, item.productId),
+          ));
+      } else {
+        await tx.insert(stock).values({
+          id: `stk_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`,
+          outletId: payload.outletId,
+          productId: item.productId,
+          quantity: 0,
+          unit: 'pcs',
+          updatedAt: now,
+        });
+      }
 
       await tx.insert(stockMovements).values({
         id: `smv_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`,

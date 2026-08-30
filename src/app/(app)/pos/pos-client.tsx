@@ -43,7 +43,7 @@ export default function POSClient({
   categories,
   discounts,
   outletId = 'out_default',
-  shiftId = 'shf_default',
+  shiftId,
 }: {
   initialProducts: Product[];
   categories: Category[];
@@ -51,6 +51,7 @@ export default function POSClient({
   outletId?: string;
   shiftId?: string;
 }) {
+
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
