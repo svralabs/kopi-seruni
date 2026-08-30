@@ -15,6 +15,10 @@ import {
   Users2,
   Receipt,
   Store,
+  Tag,
+  UserCog,
+  ShoppingBag,
+  Settings,
   BookOpen,
   LogOut,
 } from 'lucide-react';
@@ -24,14 +28,22 @@ const NAV_ITEMS = [
   { href: '/pos', label: 'Kasir POS', icon: UtensilsCrossed },
   { href: '/orders', label: 'Riwayat Transaksi', icon: Receipt },
   { href: '/products', label: 'Produk & Menu', icon: Package },
+  { href: '/discounts', label: 'Diskon & Promo', icon: Tag },
   { href: '/stok', label: 'Stok & Inventori', icon: Warehouse },
+  { href: '/purchases', label: 'Pembelian (PO)', icon: ShoppingBag },
   { href: '/shift', label: 'Shift Kasir', icon: Clock },
   { href: '/expenses', label: 'Pengeluaran', icon: WalletCards },
   { href: '/profit-loss', label: 'Laba Rugi', icon: TrendingUp },
   { href: '/bagi-hasil', label: 'Bagi Hasil', icon: Users2 },
   { href: '/outlets', label: 'Kelola Outlet', icon: Store },
+  { href: '/staff', label: 'Staff & Kasir', icon: UserCog },
+  { href: '/settings', label: 'Pengaturan', icon: Settings },
   { href: '/api-docs', label: 'Dokumentasi API', icon: BookOpen },
 ];
+
+
+
+
 
 
 

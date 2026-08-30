@@ -3,7 +3,8 @@ import { expenses, expenseCategories, outlets } from '@/lib/schema';
 import { formatRupiah, formatDate } from '@/lib/utils';
 import { createExpense } from '@/app/actions/expenses';
 import { desc, eq } from 'drizzle-orm';
-import { Plus, WalletCards, Store, ArrowRight } from 'lucide-react';
+import { Plus, WalletCards, Store, ArrowRight, FileSpreadsheet } from 'lucide-react';
+
 import OutletFilter from '@/components/outlet-filter';
 
 
@@ -53,15 +54,25 @@ export default async function ExpensesPage({
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Export CSV/Excel */}
+          <a
+            href={`/api/export/expenses${outletId !== 'all' ? `?outletId=${outletId}` : ''}`}
+            download
+            className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-2xl border border-[#EBE7DF] hover:bg-[#FAF8F5] text-xs font-bold text-[#2D7A47] shadow-xs transition-colors"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-[#2D7A47]" />
+            <span>Ekspor Excel (.csv)</span>
+          </a>
+
           {/* Outlet Filter */}
           <OutletFilter outlets={allOutlets} selectedOutletId={outletId} />
-
 
           <div className="bg-white px-5 py-2 rounded-2xl border border-[#EBE7DF] shadow-xs text-right">
             <p className="text-[10px] text-[#8E867C] font-semibold uppercase tracking-wider">Total Beban</p>
             <p className="text-lg font-black text-[#964B3B]">{formatRupiah(totalExpense)}</p>
           </div>
         </div>
+
       </div>
 
       {/* Form Bento: Catat Pengeluaran */}
