@@ -4,8 +4,8 @@ import { formatDate } from '@/lib/utils';
 import { adjustStock } from '@/app/actions/stock';
 import { eq, and, isNull, desc, sql } from 'drizzle-orm';
 import { Warehouse, Plus, ArrowDownLeft, ArrowUpRight, RotateCcw, Store } from 'lucide-react';
-import OutletFilter from '@/components/outlet-filter';
 import PaginationControls from '@/components/pagination-controls';
+
 
 export default async function StockPage({
   searchParams,
@@ -74,19 +74,15 @@ export default async function StockPage({
   return (
     <div className="space-y-8">
       {/* Header Bento */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-[#201C1A]">
-            Inventori & Stok Bahan Baku
-          </h1>
-          <p className="text-xs text-[#8E867C] mt-0.5">
-            Manajemen stok masuk, penyesuaian opname fisik, dan log riwayat mutasi per outlet
-          </p>
-        </div>
-
-        {/* Outlet Filter Switcher */}
-        <OutletFilter outlets={allOutlets} selectedOutletId={outletId} showAllOption={false} />
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-[#201C1A]">
+          Inventori & Stok Bahan Baku
+        </h1>
+        <p className="text-xs text-[#8E867C] mt-0.5">
+          Manajemen stok masuk, penyesuaian opname fisik, dan log riwayat mutasi per outlet ({currentOutletName})
+        </p>
       </div>
+
 
       {/* Grid 2 Kolom: Form Input Mutasi & Daftar Sisa Stok */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

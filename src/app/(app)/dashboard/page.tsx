@@ -14,7 +14,7 @@ import {
   Layers,
   Store,
 } from 'lucide-react';
-import OutletFilter from '@/components/outlet-filter';
+
 
 
 export default async function DashboardPage({
@@ -113,45 +113,15 @@ export default async function DashboardPage({
   return (
     <div className="space-y-8">
       {/* Header Bento */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-[#201C1A]">
-            Dashboard Ringkasan Penjualan
-          </h1>
-          <p className="text-xs text-[#8E867C] mt-0.5">
-            Performa finansial, laba kotor, dan operasional kasir multi-outlet Kopi Seruni
-          </p>
-        </div>
-
-        {/* Filter Controls (Outlet & Periode) */}
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Outlet Filter Dropdown */}
-          <OutletFilter outlets={allOutlets} selectedOutletId={outletId} />
-
-
-          {/* Period Filter Tabs */}
-          <div className="flex items-center gap-1 bg-white p-1 rounded-2xl border border-[#EBE7DF] shadow-xs text-xs">
-            {[
-              { key: 'today', label: 'Hari Ini' },
-              { key: '7d', label: '7 Hari' },
-              { key: '30d', label: '30 Hari' },
-              { key: 'all', label: 'Semua' },
-            ].map((t) => (
-              <Link
-                key={t.key}
-                href={`/dashboard?period=${t.key}${outletId !== 'all' ? `&outletId=${outletId}` : ''}`}
-                className={`px-3 py-1.5 rounded-xl font-bold transition-all ${
-                  period === t.key
-                    ? 'bg-[#2E2520] text-white shadow-xs'
-                    : 'text-[#8E867C] hover:text-[#201C1A]'
-                }`}
-              >
-                {t.label}
-              </Link>
-            ))}
-          </div>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-[#201C1A]">
+          Dashboard Ringkasan Penjualan
+        </h1>
+        <p className="text-xs text-[#8E867C] mt-0.5">
+          Performa finansial, laba kotor, dan operasional kasir multi-outlet Kopi Seruni
+        </p>
       </div>
+
 
       {/* KPI Bento Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">

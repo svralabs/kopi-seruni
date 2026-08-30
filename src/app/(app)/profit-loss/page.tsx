@@ -5,7 +5,6 @@ import { sql, eq, and, gte } from 'drizzle-orm';
 import Link from 'next/link';
 import { TrendingUp, Coins, Receipt, WalletCards, BarChart3, Store, FileSpreadsheet } from 'lucide-react';
 
-import OutletFilter from '@/components/outlet-filter';
 
 
 export default async function ProfitLossPage({
@@ -85,7 +84,7 @@ export default async function ProfitLossPage({
   return (
     <div className="space-y-8">
       {/* Header Bento */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-[#201C1A]">
             Laporan Keuangan & Laba Rugi
@@ -95,44 +94,19 @@ export default async function ProfitLossPage({
           </p>
         </div>
 
-        {/* Filter Bar */}
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Export CSV/Excel */}
+        {/* Action Button */}
+        <div>
           <a
             href={`/api/export/profit-loss?period=${period}${outletId !== 'all' ? `&outletId=${outletId}` : ''}`}
             download
-            className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-2xl border border-[#EBE7DF] hover:bg-[#FAF8F5] text-xs font-bold text-[#2D7A47] shadow-xs transition-colors"
+            className="flex items-center gap-2 bg-white px-3.5 py-2.5 rounded-2xl border border-[#EBE7DF] hover:bg-[#FAF8F5] text-xs font-bold text-[#2D7A47] shadow-xs transition-colors"
           >
             <FileSpreadsheet className="w-4 h-4 text-[#2D7A47]" />
             <span>Ekspor Excel (.csv)</span>
           </a>
-
-          {/* Outlet Filter */}
-          <OutletFilter outlets={allOutlets} selectedOutletId={outletId} />
-
-          {/* Period Filter */}
-          <div className="flex items-center gap-1 bg-white p-1 rounded-2xl border border-[#EBE7DF] shadow-xs text-xs">
-            {[
-              { key: 'today', label: 'Hari Ini' },
-              { key: 'this_month', label: 'Bulan Ini' },
-              { key: 'all', label: 'Semua' },
-            ].map((t) => (
-              <Link
-                key={t.key}
-                href={`/profit-loss?period=${t.key}${outletId !== 'all' ? `&outletId=${outletId}` : ''}`}
-                className={`px-3 py-1.5 rounded-xl font-bold transition-all ${
-                  period === t.key
-                    ? 'bg-[#2E2520] text-white shadow-xs'
-                    : 'text-[#8E867C] hover:text-[#201C1A]'
-                }`}
-              >
-                {t.label}
-              </Link>
-            ))}
-          </div>
         </div>
-
       </div>
+
 
       {/* Bento Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">

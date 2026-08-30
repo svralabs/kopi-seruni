@@ -6,7 +6,7 @@ import { desc, eq } from 'drizzle-orm';
 
 import { GeneratePeriodButton, MarkPaidButton, ToggleRuleButton, DeleteRuleButton } from './client-buttons';
 import { Users2, Plus, Percent, BookOpen, Store } from 'lucide-react';
-import OutletFilter from '@/components/outlet-filter';
+
 
 export default async function BagiHasilPage({
   searchParams,
@@ -48,19 +48,15 @@ export default async function BagiHasilPage({
   return (
     <div className="space-y-8">
       {/* Header Bento */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-[#201C1A]">
-            Bagi Hasil & Profit Sharing Multi-Owner
-          </h1>
-          <p className="text-xs text-[#8E867C] mt-0.5">
-            Atur komposisi kepemilikan dan persentase bagi hasil per orang (Owner A, B, C / Investor) khusus cabang terpilih
-          </p>
-        </div>
-
-        {/* Outlet Switcher */}
-        <OutletFilter outlets={allOutlets} selectedOutletId={outletId} showAllOption={false} />
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-[#201C1A]">
+          Bagi Hasil & Profit Sharing Multi-Owner
+        </h1>
+        <p className="text-xs text-[#8E867C] mt-0.5">
+          Atur komposisi kepemilikan dan persentase bagi hasil per orang (Owner A, B, C / Investor) khusus cabang {currentOutletName}
+        </p>
       </div>
+
 
       {/* SECTION 1: Rules Setup Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
