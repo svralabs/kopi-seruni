@@ -3,6 +3,7 @@ import { orders, expenses, orderItems } from '@/lib/schema';
 import { formatRupiah } from '@/lib/utils';
 import { sql, eq } from 'drizzle-orm';
 import Link from 'next/link';
+import { TrendingUp, Coins, Receipt, WalletCards, BarChart3 } from 'lucide-react';
 
 export default async function ProfitLossPage({
   searchParams,
@@ -34,45 +35,45 @@ export default async function ProfitLossPage({
   let totalExpenses = 0;
 
   try {
-    // 1. Total Revenue
-    const revenueQuery = startEpoch > 0
-      ? await db
-          .select({ total: sql<number>`COALESCE(SUM(total), 0)` })
-          .from(orders)
-          .where(sql`status = 'completed' AND created_at >= ${startEpoch}`)
-      : await db
-          .select({ total: sql<number>`COALESCE(SUM(total), 0)` })
-          .from(orders)
-          .where(eq(orders.status, 'completed'));
+    const revenueQuery =
+      startEpoch > 0
+        ? await db
+            .select({ total: sql<number>`COALESCE(SUM(total), 0)` })
+            .from(orders)
+            .where(sql`status = 'completed' AND created_at >= ${startEpoch}`)
+        : await db
+            .select({ total: sql<number>`COALESCE(SUM(total), 0)` })
+            .from(orders)
+            .where(eq(orders.status, 'completed'));
 
     totalRevenue = revenueQuery[0]?.total || 0;
 
-    // 2. Real COGS from order_items
-    const cogsQuery = startEpoch > 0
-      ? await db
-          .select({
-            totalCost: sql<number>`COALESCE(SUM(order_items.cost_price * order_items.quantity), 0)`,
-          })
-          .from(orderItems)
-          .innerJoin(orders, eq(orderItems.orderId, orders.id))
-          .where(sql`orders.status = 'completed' AND orders.created_at >= ${startEpoch}`)
-      : await db
-          .select({
-            totalCost: sql<number>`COALESCE(SUM(cost_price * quantity), 0)`,
-          })
-          .from(orderItems);
+    const cogsQuery =
+      startEpoch > 0
+        ? await db
+            .select({
+              totalCost: sql<number>`COALESCE(SUM(order_items.cost_price * order_items.quantity), 0)`,
+            })
+            .from(orderItems)
+            .innerJoin(orders, eq(orderItems.orderId, orders.id))
+            .where(sql`orders.status = 'completed' AND orders.created_at >= ${startEpoch}`)
+        : await db
+            .select({
+              totalCost: sql<number>`COALESCE(SUM(cost_price * quantity), 0)`,
+            })
+            .from(orderItems);
 
     totalCOGS = cogsQuery[0]?.totalCost || 0;
 
-    // 3. Expenses
-    const expenseQuery = startEpoch > 0
-      ? await db
-          .select({ total: sql<number>`COALESCE(SUM(amount), 0)` })
-          .from(expenses)
-          .where(sql`expense_date >= ${startEpoch}`)
-      : await db
-          .select({ total: sql<number>`COALESCE(SUM(amount), 0)` })
-          .from(expenses);
+    const expenseQuery =
+      startEpoch > 0
+        ? await db
+            .select({ total: sql<number>`COALESCE(SUM(amount), 0)` })
+            .from(expenses)
+            .where(sql`expense_date >= ${startEpoch}`)
+        : await db
+            .select({ total: sql<number>`COALESCE(SUM(amount), 0)` })
+            .from(expenses);
 
     totalExpenses = expenseQuery[0]?.total || 0;
   } catch (e) {
@@ -85,34 +86,38 @@ export default async function ProfitLossPage({
 
   return (
     <div className="space-y-6">
-      {/* Header & Filter */}
+      {/* Header Bento */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-900">Laporan Laba Rugi</h1>
-          <p className="text-sm text-zinc-500">Laporan keuangan & profitabilitas periode: <span className="font-semibold text-zinc-800">{periodLabel}</span></p>
+          <h1 className="text-2xl font-bold tracking-tight text-[#201C1A]">
+            Laporan Laba Rugi
+          </h1>
+          <p className="text-xs text-[#8E867C] mt-0.5">
+            Laporan keuangan & profitabilitas periode: <span className="font-bold text-[#201C1A]">{periodLabel}</span>
+          </p>
         </div>
 
-        <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-zinc-200 shadow-sm text-sm">
+        <div className="flex items-center gap-1.5 bg-white p-1 rounded-2xl border border-[#EBE7DF] shadow-xs text-xs">
           <Link
             href="/profit-loss?period=today"
-            className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
-              period === 'today' ? 'bg-amber-600 text-white' : 'text-zinc-600 hover:text-zinc-900'
+            className={`px-3 py-1.5 rounded-xl font-bold transition-colors ${
+              period === 'today' ? 'bg-[#2E2520] text-white shadow-xs' : 'text-[#7A7268] hover:text-[#201C1A]'
             }`}
           >
             Hari Ini
           </Link>
           <Link
             href="/profit-loss?period=this_month"
-            className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
-              period === 'this_month' ? 'bg-amber-600 text-white' : 'text-zinc-600 hover:text-zinc-900'
+            className={`px-3 py-1.5 rounded-xl font-bold transition-colors ${
+              period === 'this_month' ? 'bg-[#2E2520] text-white shadow-xs' : 'text-[#7A7268] hover:text-[#201C1A]'
             }`}
           >
             Bulan Ini
           </Link>
           <Link
             href="/profit-loss?period=all"
-            className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
-              period === 'all' ? 'bg-amber-600 text-white' : 'text-zinc-600 hover:text-zinc-900'
+            className={`px-3 py-1.5 rounded-xl font-bold transition-colors ${
+              period === 'all' ? 'bg-[#2E2520] text-white shadow-xs' : 'text-[#7A7268] hover:text-[#201C1A]'
             }`}
           >
             Semua
@@ -120,87 +125,94 @@ export default async function ProfitLossPage({
         </div>
       </div>
 
-      {/* Summary KPI Grid */}
+      {/* Summary KPI Bento Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-zinc-200 shadow-sm">
-          <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Total Pendapatan (Omset)</span>
-          <p className="text-2xl font-extrabold text-zinc-900 mt-2">{formatRupiah(totalRevenue)}</p>
+        <div className="bg-white p-5 rounded-3xl border border-[#EBE7DF] shadow-xs">
+          <span className="text-[11px] font-bold text-[#8E867C] uppercase tracking-wider">Pendapatan (Omset)</span>
+          <p className="text-2xl font-black text-[#201C1A] mt-2">{formatRupiah(totalRevenue)}</p>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-zinc-200 shadow-sm">
-          <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Total HPP / Modal Bahan</span>
-          <p className="text-2xl font-extrabold text-zinc-700 mt-2">{formatRupiah(totalCOGS)}</p>
+        <div className="bg-white p-5 rounded-3xl border border-[#EBE7DF] shadow-xs">
+          <span className="text-[11px] font-bold text-[#8E867C] uppercase tracking-wider">Beban Pokok (HPP)</span>
+          <p className="text-2xl font-black text-[#6B635A] mt-2">{formatRupiah(totalCOGS)}</p>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-zinc-200 shadow-sm">
-          <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Laba Kotor (Gross Profit)</span>
-          <p className="text-2xl font-extrabold text-amber-700 mt-2">{formatRupiah(grossProfit)}</p>
+        <div className="bg-white p-5 rounded-3xl border border-[#EBE7DF] shadow-xs">
+          <span className="text-[11px] font-bold text-[#8E867C] uppercase tracking-wider">Laba Kotor (Gross)</span>
+          <p className="text-2xl font-black text-[#54382B] mt-2">{formatRupiah(grossProfit)}</p>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-zinc-200 shadow-sm">
-          <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Laba Bersih (Net Profit)</span>
-          <p className={`text-2xl font-extrabold mt-2 ${netProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+        <div className="bg-white p-5 rounded-3xl border border-[#EBE7DF] shadow-xs">
+          <span className="text-[11px] font-bold text-[#8E867C] uppercase tracking-wider">Laba Bersih (Net)</span>
+          <p className={`text-2xl font-black mt-2 ${netProfit >= 0 ? 'text-[#2D7A47]' : 'text-[#964B3B]'}`}>
             {formatRupiah(netProfit)}
           </p>
-          <span className="text-xs text-zinc-400 font-medium mt-1 inline-block">Margin: {netMargin}%</span>
+          <span className="text-[10px] font-bold text-[#8E867C] mt-1 inline-block">Margin: {netMargin}%</span>
         </div>
       </div>
 
       {/* Financial Statement Card */}
-      <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm p-6 space-y-6">
-        <h3 className="font-bold text-lg text-zinc-900 border-b border-zinc-100 pb-3">
-          Rincian Laba Rugi Standar Akuntansi
-        </h3>
+      <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-xs p-6 space-y-6">
+        <div className="border-b border-[#F0ECE4] pb-4 flex items-center justify-between">
+          <h3 className="font-bold text-base text-[#201C1A]">
+            Rincian Laba Rugi Operasional
+          </h3>
+          <span className="text-xs text-[#8E867C] font-semibold">Standar Finansial POS</span>
+        </div>
 
-        <div className="space-y-4 text-sm">
+        <div className="space-y-4 text-xs">
           {/* Pendapatan */}
           <div>
-            <div className="flex justify-between font-bold text-zinc-900 py-2 border-b border-zinc-100">
+            <div className="flex justify-between font-bold text-[#201C1A] py-2 border-b border-[#F0ECE4]">
               <span>1. PENDAPATAN OPERASIONAL</span>
               <span>{formatRupiah(totalRevenue)}</span>
             </div>
-            <div className="pl-4 py-1.5 flex justify-between text-zinc-600 text-xs">
-              <span>Penjualan Bersih Kasir</span>
+            <div className="pl-4 py-1.5 flex justify-between text-[#7A7268]">
+              <span>Penjualan Menu Kasir Selesai</span>
               <span>{formatRupiah(totalRevenue)}</span>
             </div>
           </div>
 
           {/* HPP */}
           <div>
-            <div className="flex justify-between font-bold text-zinc-900 py-2 border-b border-zinc-100">
-              <span>2. HARGA POKOK PENJUALAN (HPP)</span>
-              <span className="text-zinc-700">({formatRupiah(totalCOGS)})</span>
+            <div className="flex justify-between font-bold text-[#201C1A] py-2 border-b border-[#F0ECE4]">
+              <span>2. HARGA POKOK PENJUALAN (HPP BAHAN)</span>
+              <span className="text-[#6B635A]">({formatRupiah(totalCOGS)})</span>
             </div>
-            <div className="pl-4 py-1.5 flex justify-between text-zinc-600 text-xs">
-              <span>Beban Pokok Bahan Baku & Menu</span>
+            <div className="pl-4 py-1.5 flex justify-between text-[#7A7268]">
+              <span>Beban Modal Produk & Menu</span>
               <span>({formatRupiah(totalCOGS)})</span>
             </div>
           </div>
 
           {/* Laba Kotor */}
-          <div className="bg-zinc-50 p-3 rounded-xl flex justify-between font-bold text-zinc-900">
+          <div className="bg-[#FAF8F5] border border-[#ECE7DE] p-3.5 rounded-2xl flex justify-between font-bold text-[#201C1A]">
             <span>LABA KOTOR (GROSS PROFIT)</span>
-            <span className="text-amber-800">{formatRupiah(grossProfit)}</span>
+            <span className="text-[#54382B] font-black">{formatRupiah(grossProfit)}</span>
           </div>
 
           {/* Beban Pengeluaran */}
           <div>
-            <div className="flex justify-between font-bold text-zinc-900 py-2 border-b border-zinc-100">
-              <span>3. BEBAN OPERASIONAL & UMUM</span>
-              <span className="text-red-600">({formatRupiah(totalExpenses)})</span>
+            <div className="flex justify-between font-bold text-[#201C1A] py-2 border-b border-[#F0ECE4]">
+              <span>3. BEBAN OPERASIONAL & KAS KELUAR</span>
+              <span className="text-[#964B3B]">({formatRupiah(totalExpenses)})</span>
             </div>
-            <div className="pl-4 py-1.5 flex justify-between text-zinc-600 text-xs">
-              <span>Total Pengeluaran Kas Operasional</span>
+            <div className="pl-4 py-1.5 flex justify-between text-[#7A7268]">
+              <span>Pengeluaran Operasional & Kas Kecil</span>
               <span>({formatRupiah(totalExpenses)})</span>
             </div>
           </div>
 
           {/* Laba Bersih Final */}
-          <div className={`p-4 rounded-xl flex justify-between font-extrabold text-lg ${
-            netProfit >= 0 ? 'bg-emerald-50 text-emerald-900 border border-emerald-200' : 'bg-red-50 text-red-900 border border-red-200'
-          }`}>
-            <span>LABA BERSIH (NET PROFIT)</span>
-            <span>{formatRupiah(netProfit)}</span>
+          <div
+            className={`p-5 rounded-2xl flex justify-between font-black text-sm ${
+              netProfit >= 0
+                ? 'bg-[#EBF6EE] text-[#2D7A47] border border-[#D1EBD8]'
+                : 'bg-[#FBEBE8] text-[#964B3B] border border-[#F5C7BE]'
+            }`}
+          >
+            <span>LABA BERSIH FINAL (NET PROFIT)</span>
+            <span className="text-base">{formatRupiah(netProfit)}</span>
           </div>
         </div>
       </div>

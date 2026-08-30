@@ -1,21 +1,33 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { authClient } from '@/lib/auth-client';
+import {
+  LayoutDashboard,
+  UtensilsCrossed,
+  Package,
+  Warehouse,
+  Clock,
+  WalletCards,
+  TrendingUp,
+  Users2,
+  LogOut,
+} from 'lucide-react';
 
 const NAV_ITEMS = [
-  { href: '/dashboard', label: 'Dashboard', icon: '📊' },
-  { href: '/pos', label: 'Kasir POS', icon: '🛒' },
-  { href: '/products', label: 'Produk & Menu', icon: '📦' },
-  { href: '/stok', label: 'Stok & Inventori', icon: '🏬' },
-  { href: '/shift', label: 'Shift Kasir', icon: '🕐' },
-  { href: '/expenses', label: 'Pengeluaran', icon: '💳' },
-  { href: '/profit-loss', label: 'Laba Rugi', icon: '📈' },
-  { href: '/bagi-hasil', label: 'Bagi Hasil', icon: '👥' },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/pos', label: 'Kasir POS', icon: UtensilsCrossed },
+  { href: '/products', label: 'Produk & Menu', icon: Package },
+  { href: '/stok', label: 'Stok & Inventori', icon: Warehouse },
+  { href: '/shift', label: 'Shift Kasir', icon: Clock },
+  { href: '/expenses', label: 'Pengeluaran', icon: WalletCards },
+  { href: '/profit-loss', label: 'Laba Rugi', icon: TrendingUp },
+  { href: '/bagi-hasil', label: 'Bagi Hasil', icon: Users2 },
 ];
 
-export default function Sidebar({ userName = 'Pengguna' }: { userName?: string }) {
+export default function Sidebar({ userName = 'Kasir' }: { userName?: string }) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -26,55 +38,75 @@ export default function Sidebar({ userName = 'Pengguna' }: { userName?: string }
   };
 
   return (
-    <aside className="w-64 bg-zinc-900 text-zinc-100 flex flex-col min-h-screen border-r border-zinc-800 shrink-0">
-      {/* Brand */}
-      <div className="p-6 border-b border-zinc-800 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-amber-600 flex items-center justify-center text-xl shadow-lg">
-          ☕
+    <aside className="w-20 lg:w-60 bg-white border-r border-[#EBE7DF] flex flex-col min-h-screen shrink-0 transition-all">
+      {/* Brand Logo */}
+      <div className="p-4 lg:p-6 border-b border-[#F0ECE4] flex items-center justify-center lg:justify-start gap-3">
+        <div className="relative w-10 h-10 rounded-2xl overflow-hidden bg-[#F7F5F0] border border-[#E8E3DA] p-1 flex items-center justify-center shrink-0 shadow-xs">
+          <Image
+            src="/logo.webp"
+            alt="Toko Kopi Seruni"
+            width={36}
+            height={36}
+            className="object-contain"
+            priority
+          />
         </div>
-        <div>
-          <h1 className="font-bold text-base tracking-wide text-white leading-tight">KOPI SERUNI</h1>
-          <p className="text-xs text-amber-500 font-medium tracking-wider">POS MULTI-OUTLET</p>
+        <div className="hidden lg:block">
+          <h1 className="font-serif font-black text-sm tracking-tight text-[#201C1A] leading-tight">
+            TOKO KOPI
+          </h1>
+          <p className="font-serif text-lg font-bold text-[#54382B] -mt-1 tracking-tight">
+            Seruni
+          </p>
         </div>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
+      {/* Navigation Links */}
+      <nav className="flex-1 p-3 lg:p-4 space-y-1.5 overflow-y-auto">
         {NAV_ITEMS.map((item) => {
-          const isActive = pathname === item.href || pathname?.startsWith(`${item.href}/`);
+          const Icon = item.icon;
+          const isActive =
+            pathname === item.href || (item.href !== '/dashboard' && pathname?.startsWith(`${item.href}/`));
+
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all ${
+              className={`flex items-center justify-center lg:justify-start gap-3.5 px-3 py-3 rounded-2xl font-medium text-sm transition-all duration-200 ${
                 isActive
-                  ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30'
-                  : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60'
+                  ? 'bg-[#2E2520] text-[#FAF8F5] shadow-md shadow-[#2E2520]/15 font-semibold'
+                  : 'text-[#7A7268] hover:text-[#201C1A] hover:bg-[#F5F2EB]'
               }`}
+              title={item.label}
             >
-              <span className="text-lg">{item.icon}</span>
-              <span>{item.label}</span>
+              <Icon
+                className={`w-5 h-5 shrink-0 transition-transform ${
+                  isActive ? 'text-[#EFE9E1]' : 'text-[#8C847B]'
+                }`}
+              />
+              <span className="hidden lg:inline-block tracking-tight text-[13px]">{item.label}</span>
             </Link>
           );
         })}
       </nav>
 
-      {/* User profile & Logout */}
-      <div className="p-4 border-t border-zinc-800 bg-zinc-950/40">
-        <div className="flex items-center justify-between gap-2 px-2 py-2 mb-2">
+      {/* User Info & Logout */}
+      <div className="p-3 lg:p-4 border-t border-[#F0ECE4] bg-[#FAF8F4]">
+        <div className="hidden lg:flex items-center justify-between gap-2 px-2 py-1.5 mb-2">
           <div className="truncate">
-            <p className="text-xs text-zinc-400">Masuk sebagai</p>
-            <p className="text-sm font-medium text-zinc-200 truncate">{userName}</p>
+            <p className="text-[11px] font-medium text-[#9B9489] uppercase tracking-wider">Login</p>
+            <p className="text-xs font-semibold text-[#201C1A] truncate">{userName}</p>
           </div>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800/40">
-            Online
-          </span>
+          <span className="w-2 h-2 rounded-full bg-emerald-500 ring-4 ring-emerald-100" />
         </div>
+
         <button
           onClick={handleLogout}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-red-400 hover:text-red-300 hover:bg-red-950/30 rounded-lg border border-red-900/30 transition-colors"
+          className="w-full flex items-center justify-center lg:justify-start gap-2.5 px-3 py-2.5 text-xs font-semibold text-[#964B3B] hover:text-red-700 hover:bg-[#FBEBE8] rounded-xl border border-[#F3DAD5] transition-colors"
+          title="Keluar"
         >
-          <span>🚪</span> Keluar Akun
+          <LogOut className="w-4 h-4 shrink-0" />
+          <span className="hidden lg:inline">Keluar Akun</span>
         </button>
       </div>
     </aside>

@@ -267,7 +267,8 @@ export const profitSharingLedger = sqliteTable('profit_sharing_ledger', {
 // TYPES (infer dari schema)
 // ================================================================
 export type Outlet = typeof outlets.$inferSelect;
-export type User = typeof users.$inferSelect;
+export type User = typeof user.$inferSelect;
+
 export type UserOutletRole = typeof userOutletRoles.$inferSelect;
 export type AppRole = 'owner' | 'manager' | 'kasir';
 export type Product = typeof products.$inferSelect;

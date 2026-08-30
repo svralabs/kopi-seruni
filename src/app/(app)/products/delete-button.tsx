@@ -2,6 +2,7 @@
 
 import { useTransition } from 'react';
 import { deleteProduct } from '@/app/actions/products';
+import { Trash2 } from 'lucide-react';
 
 export default function DeleteProductButton({ productId }: { productId: string }) {
   const [isPending, startTransition] = useTransition();
@@ -18,9 +19,10 @@ export default function DeleteProductButton({ productId }: { productId: string }
     <button
       onClick={handleDelete}
       disabled={isPending}
-      className="text-xs text-red-600 hover:text-red-800 font-medium disabled:opacity-50"
+      className="p-1.5 rounded-xl text-[#9E968B] hover:text-[#A34730] hover:bg-[#FBEBE8] transition-colors disabled:opacity-50"
+      title="Hapus Produk"
     >
-      {isPending ? 'Menghapus...' : 'Hapus'}
+      <Trash2 className="w-4 h-4" />
     </button>
   );
 }

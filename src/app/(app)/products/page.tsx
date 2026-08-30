@@ -4,6 +4,7 @@ import { formatRupiah } from '@/lib/utils';
 import { isNull, desc } from 'drizzle-orm';
 import Link from 'next/link';
 import DeleteProductButton from './delete-button';
+import { Plus, Coffee, Package, Search } from 'lucide-react';
 
 export default async function ProductsPage() {
   let productList: any[] = [];
@@ -26,85 +27,94 @@ export default async function ProductsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Header Bento */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-900">Manajemen Produk & Menu</h1>
-          <p className="text-sm text-zinc-500">Kelola harga jual, HPP, dan ketersediaan menu</p>
+          <h1 className="text-2xl font-bold tracking-tight text-[#201C1A]">
+            Katalog Produk & Menu
+          </h1>
+          <p className="text-xs text-[#8E867C] mt-0.5">
+            Kelola harga jual, HPP, dan status menu Toko Kopi Seruni
+          </p>
         </div>
 
         <Link
           href="/products/baru"
-          className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-sm transition-colors shadow-sm inline-flex items-center gap-2 self-start"
+          className="px-4 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl text-xs transition-all shadow-xs inline-flex items-center gap-2 self-start"
         >
-          <span>➕</span> Tambah Menu Baru
+          <Plus className="w-4 h-4" />
+          <span>Tambah Menu Baru</span>
         </Link>
       </div>
 
-      <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden">
+      {/* Table Bento Box */}
+      <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-xs overflow-hidden">
         {productList.length === 0 ? (
-          <div className="text-center py-16 text-zinc-400 space-y-2">
-            <span className="text-4xl block">📦</span>
-            <p className="text-sm font-medium">Belum ada produk terdaftar</p>
-            <p className="text-xs text-zinc-400">Klik "Tambah Menu Baru" atau jalankan migrasi data master</p>
+          <div className="text-center py-16 text-[#9E968B] space-y-2">
+            <Package className="w-10 h-10 mx-auto text-[#C8BFB2] stroke-1" />
+            <p className="text-sm font-semibold text-[#665E54]">Belum ada produk terdaftar</p>
+            <p className="text-xs text-[#9E968B]">
+              Klik tombol &quot;Tambah Menu Baru&quot; untuk menambahkan menu
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full text-left text-xs">
               <thead>
-                <tr className="border-b border-zinc-200 bg-zinc-50 text-zinc-500 text-xs font-semibold uppercase">
-                  <th className="py-3.5 px-4">Menu / Produk</th>
-                  <th className="py-3.5 px-4">Kategori</th>
-                  <th className="py-3.5 px-4">Harga Jual</th>
-                  <th className="py-3.5 px-4">HPP (Modal)</th>
-                  <th className="py-3.5 px-4">Status</th>
-                  <th className="py-3.5 px-4 text-right">Aksi</th>
+                <tr className="border-b border-[#F0ECE4] bg-[#FAF8F5] text-[#8E867C] text-[10px] font-bold uppercase tracking-wider">
+                  <th className="py-3.5 px-5">Menu</th>
+                  <th className="py-3.5 px-5">Kategori</th>
+                  <th className="py-3.5 px-5">Harga Jual</th>
+                  <th className="py-3.5 px-5">HPP (Modal)</th>
+                  <th className="py-3.5 px-5">Status</th>
+                  <th className="py-3.5 px-5 text-right">Aksi</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-100">
+              <tbody className="divide-y divide-[#F4F0E8]">
                 {productList.map((prod) => (
-                  <tr key={prod.id} className="hover:bg-zinc-50/70 transition-colors">
-                    <td className="py-3 px-4">
+                  <tr key={prod.id} className="hover:bg-[#FBF9F6] transition-colors">
+                    <td className="py-3 px-5">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-zinc-100 overflow-hidden flex items-center justify-center text-lg shrink-0">
+                        <div className="w-10 h-10 rounded-xl bg-[#F4EFE6] border border-[#E5DFD4] overflow-hidden flex items-center justify-center text-sm shrink-0">
                           {prod.imageUrl ? (
                             <img src={prod.imageUrl} alt={prod.name} className="w-full h-full object-cover" />
                           ) : (
-                            <span>☕</span>
+                            <Coffee className="w-5 h-5 text-[#54382B]" />
                           )}
                         </div>
                         <div>
-                          <p className="font-semibold text-zinc-900">{prod.name}</p>
-                          <p className="text-xs text-zinc-400 font-mono">{prod.id}</p>
+                          <p className="font-bold text-[#201C1A] text-xs">{prod.name}</p>
+                          <p className="text-[10px] text-[#A69E93] font-mono">{prod.id}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="py-3 px-4 text-zinc-600">
+                    <td className="py-3 px-5 text-[#6B635A] font-medium">
                       {prod.categoryId ? categoryMap[prod.categoryId] || 'Lainnya' : '-'}
                     </td>
-                    <td className="py-3 px-4 font-bold text-zinc-900">
+                    <td className="py-3 px-5 font-black text-[#201C1A]">
                       {formatRupiah(prod.price)}
                     </td>
-                    <td className="py-3 px-4 text-zinc-600 font-medium">
+                    <td className="py-3 px-5 text-[#6B635A] font-semibold">
                       {prod.costPrice > 0 ? (
                         formatRupiah(prod.costPrice)
                       ) : (
-                        <span className="text-xs text-amber-600 font-semibold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                        <span className="text-[10px] text-[#96631E] bg-[#FDF4E5] px-2 py-0.5 rounded-lg border border-[#F3E2C2]">
                           Belum diisi
                         </span>
                       )}
                     </td>
-                    <td className="py-3 px-4">
+                    <td className="py-3 px-5">
                       <span
-                        className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${
+                        className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold ${
                           prod.isActive
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-zinc-100 text-zinc-600'
+                            ? 'bg-[#EBF6EE] text-[#2D7A47]'
+                            : 'bg-[#F2ECE4] text-[#7A7268]'
                         }`}
                       >
                         {prod.isActive ? 'Aktif' : 'Nonaktif'}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-right">
+                    <td className="py-3 px-5 text-right">
                       <DeleteProductButton productId={prod.id} />
                     </td>
                   </tr>

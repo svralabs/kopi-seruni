@@ -28,8 +28,12 @@ export default async function ShiftPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-zinc-900">Shift & Rekonsiliasi Kas</h1>
-        <p className="text-sm text-zinc-500">Kelola jam kerja kasir, modal kas kecil, dan cek selisih uang fisik</p>
+        <h1 className="text-2xl font-bold tracking-tight text-[#201C1A]">
+          Shift Kasir & Rekonsiliasi
+        </h1>
+        <p className="text-xs text-[#8E867C] mt-0.5">
+          Kelola sesi buka/tutup kasir, modal kas kecil, dan cek selisih fisik laci
+        </p>
       </div>
 
       <ShiftClient activeShift={activeShift} recentShifts={recentShifts} />

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { authClient } from '@/lib/auth-client';
+import { Mail, Lock, ArrowRight } from 'lucide-react';
 
 export default function LoginForm() {
   const [email, setEmail] = useState('');
@@ -36,47 +37,54 @@ export default function LoginForm() {
   };
 
   return (
-    <form onSubmit={handleLogin} className="space-y-4">
+    <form onSubmit={handleLogin} className="space-y-4 text-xs">
       {error && (
-        <div className="p-3 text-sm text-red-700 bg-red-100 rounded-lg border border-red-200">
+        <div className="p-3 text-xs text-[#964B3B] bg-[#FBEBE8] rounded-2xl border border-[#F5C7BE]">
           {error}
         </div>
       )}
 
       <div>
-        <label className="block text-sm font-medium text-zinc-700 mb-1">
-          Email
+        <label className="block font-bold text-[#4A4238] mb-1.5">
+          Email Kasir / Owner
         </label>
-        <input
-          type="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="kasir@kopiseruni.com"
-          className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-zinc-900 bg-white"
-        />
+        <div className="relative">
+          <Mail className="w-4 h-4 text-[#9E968B] absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="owner@kopiseruni.com"
+            className="w-full pl-10 pr-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
+          />
+        </div>
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-zinc-700 mb-1">
+        <label className="block font-bold text-[#4A4238] mb-1.5">
           Kata Sandi
         </label>
-        <input
-          type="password"
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="••••••••"
-          className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-zinc-900 bg-white"
-        />
+        <div className="relative">
+          <Lock className="w-4 h-4 text-[#9E968B] absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            className="w-full pl-10 pr-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
+          />
+        </div>
       </div>
 
       <button
         type="submit"
         disabled={isLoading}
-        className="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-lg transition-colors shadow-sm disabled:opacity-50"
+        className="w-full py-3 px-4 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl transition-all shadow-md disabled:opacity-50 flex items-center justify-center gap-2 mt-2"
       >
-        {isLoading ? 'Memproses...' : 'Masuk ke POS'}
+        <span>{isLoading ? 'Memverifikasi...' : 'Masuk ke Kasir POS'}</span>
+        <ArrowRight className="w-4 h-4" />
       </button>
     </form>
   );
