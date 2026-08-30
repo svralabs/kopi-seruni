@@ -20,7 +20,6 @@ import {
   UserCog,
   ShoppingBag,
   Settings,
-  BookOpen,
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
@@ -42,7 +41,6 @@ const NAV_ITEMS = [
   { href: '/outlets', label: 'Kelola Outlet', icon: Store },
   { href: '/staff', label: 'Staff & Kasir', icon: UserCog },
   { href: '/settings', label: 'Pengaturan', icon: Settings },
-  { href: '/api-docs', label: 'Dokumentasi API', icon: BookOpen },
 ];
 
 export default function Sidebar({ userName = 'Kasir' }: { userName?: string }) {

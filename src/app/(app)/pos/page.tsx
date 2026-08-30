@@ -60,7 +60,7 @@ export default async function POSPage({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="h-full">
       <POSClient
         initialProducts={productList}
         categories={categoryList}
