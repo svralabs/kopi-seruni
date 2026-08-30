@@ -1,0 +1,19 @@
+#!/bin/sh
+echo "🔍 [Workflow] Menjalankan Typecheck & Unit Tests sebelum commit..."
+
+# 1. Typecheck
+bun run typecheck
+if [ $? -ne 0 ]; then
+  echo "❌ [GAGAL] TypeScript Typecheck menemukan error! Perbaiki sebelum commit."
+  exit 1
+fi
+
+# 2. Fast Unit Tests
+bun run test:unit
+if [ $? -ne 0 ]; then
+  echo "❌ [GAGAL] Unit Test gagal! Perbaiki kode sebelum commit."
+  exit 1
+fi
+
+echo "✅ [Workflow] Typecheck & Unit Test lolos! Melanjutkan commit..."
+exit 0

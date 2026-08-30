@@ -1,0 +1,12 @@
+#!/bin/sh
+echo "🚀 [Workflow] Menjalankan Full Test Suite & E2E Workflow sebelum push ke remote..."
+
+# 1. Typecheck & Full Test Suite (Unit + E2E)
+bun run check
+if [ $? -ne 0 ]; then
+  echo "❌ [GAGAL] E2E Integration Test atau Unit Test gagal! Push dibatalkan."
+  exit 1
+fi
+
+echo "✅ [Workflow] Seluruh Test Suite & E2E berhasil 100%! Melanjutkan git push..."
+exit 0
