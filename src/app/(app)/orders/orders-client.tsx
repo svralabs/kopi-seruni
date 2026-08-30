@@ -22,6 +22,8 @@ import {
   QrCode,
   FileSpreadsheet,
 } from 'lucide-react';
+import PaginationControls from '@/components/pagination-controls';
+
 
 
 export interface OrderWithDetails extends Order {
@@ -36,11 +38,19 @@ export default function OrdersClient({
   initialOrders,
   outlets,
   currentOutletId,
+  pagination,
 }: {
   initialOrders: OrderWithDetails[];
   outlets: Outlet[];
   currentOutletId?: string;
+  pagination?: {
+    currentPage: number;
+    totalPages: number;
+    totalItems: number;
+    pageSize: number;
+  };
 }) {
+
   const router = useRouter();
   const [selectedOutlet, setSelectedOutlet] = useState<string>(currentOutletId || 'all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -387,7 +397,11 @@ export default function OrdersClient({
             </tbody>
           </table>
         </div>
+
+        {/* Backend Pagination Controls */}
+        {pagination && <PaginationControls {...pagination} />}
       </div>
+
 
       {/* ============================================================ */}
       {/* MODAL: PRINT STRUK THERMAL */}

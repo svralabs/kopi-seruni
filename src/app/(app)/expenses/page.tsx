@@ -2,26 +2,43 @@ import { db } from '@/lib/db';
 import { expenses, expenseCategories, outlets } from '@/lib/schema';
 import { formatRupiah, formatDate } from '@/lib/utils';
 import { createExpense } from '@/app/actions/expenses';
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, sql } from 'drizzle-orm';
 import { Plus, WalletCards, Store, ArrowRight, FileSpreadsheet } from 'lucide-react';
-
 import OutletFilter from '@/components/outlet-filter';
-
+import PaginationControls from '@/components/pagination-controls';
 
 export default async function ExpensesPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ outletId?: string }>;
+  searchParams?: Promise<{ outletId?: string; page?: string }>;
 }) {
   const resolvedParams = searchParams ? await searchParams : {};
   const outletId = resolvedParams.outletId || 'all';
+  const page = Math.max(1, Number(resolvedParams.page || 1));
+  const pageSize = 15;
+  const offset = (page - 1) * pageSize;
 
   let allOutlets: any[] = [];
   let expenseList: any[] = [];
   let categoryList: any[] = [];
+  let totalExpense = 0;
+  let totalItems = 0;
+  let totalPages = 1;
 
   try {
     allOutlets = await db.select().from(outlets);
+
+    const condition = outletId !== 'all' ? eq(expenses.outletId, outletId) : undefined;
+
+    // Total expense sum
+    const sumQuery = await db
+      .select({ total: sql<number>`COALESCE(SUM(amount), 0)`, count: sql<number>`COUNT(*)` })
+      .from(expenses)
+      .where(condition);
+
+    totalExpense = Number(sumQuery[0]?.total || 0);
+    totalItems = Number(sumQuery[0]?.count || 0);
+    totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
 
     expenseList = await db
       .select({
@@ -30,15 +47,15 @@ export default async function ExpensesPage({
       })
       .from(expenses)
       .leftJoin(outlets, eq(expenses.outletId, outlets.id))
-      .where(outletId !== 'all' ? eq(expenses.outletId, outletId) : undefined)
-      .orderBy(desc(expenses.expenseDate));
+      .where(condition)
+      .orderBy(desc(expenses.expenseDate))
+      .limit(pageSize)
+      .offset(offset);
 
     categoryList = await db.select().from(expenseCategories);
   } catch (e) {
     console.warn('Error fetching expenses:', e);
   }
-
-  const totalExpense = expenseList.reduce((sum, e) => sum + (e.expense.amount || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -72,7 +89,6 @@ export default async function ExpensesPage({
             <p className="text-lg font-black text-[#964B3B]">{formatRupiah(totalExpense)}</p>
           </div>
         </div>
-
       </div>
 
       {/* Form Bento: Catat Pengeluaran */}
@@ -173,6 +189,14 @@ export default async function ExpensesPage({
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        <PaginationControls
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+        />
       </div>
     </div>
   );

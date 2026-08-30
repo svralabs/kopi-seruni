@@ -13,14 +13,16 @@ export default async function AppLayout({
   const userName = session?.user?.name || 'Kasir / Owner';
 
   return (
-    <div className="flex min-h-screen bg-[#F7F5F0] text-[#1E1B18]">
+    <div className="flex h-screen overflow-hidden bg-[#F7F5F0] text-[#1E1B18]">
+      {/* Fixed sidebar */}
       <Sidebar userName={userName} />
-      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-        <div className="p-4 md:p-6 lg:p-8 flex-1 max-w-[1600px] w-full mx-auto">
+
+      {/* Main scrollable content area */}
+      <main className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
+        <div className="p-4 md:p-6 lg:p-8 flex-1 max-w-[1600px] w-full mx-auto pb-16">
           <Header userId={session?.user?.id} userName={userName} />
           {children}
         </div>
-
       </main>
     </div>
   );
