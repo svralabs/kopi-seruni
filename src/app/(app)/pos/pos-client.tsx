@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { formatRupiah, calcDiscount, calcTax, calcTotal } from '@/lib/utils';
 import { checkout } from '@/app/actions/checkout';
-import type { Product, Category, Discount } from '@/lib/schema';
+import type { Product, Category, Discount, Outlet } from '@/lib/schema';
+import ReceiptModal, { type ReceiptData } from '@/components/receipt-modal';
 import {
   Search,
   Coffee,
@@ -25,6 +27,10 @@ import {
   Printer,
   X,
   Store,
+  Clock,
+  Building2,
+  ArrowRight,
+  AlertCircle,
 } from 'lucide-react';
 
 interface CartItem {
@@ -42,22 +48,30 @@ export default function POSClient({
   initialProducts,
   categories,
   discounts,
-  outletId = 'out_default',
+  allOutlets = [],
+  currentOutlet,
   shiftId,
+  kasirName = 'Kasir Seruni',
 }: {
   initialProducts: Product[];
   categories: Category[];
   discounts: Discount[];
-  outletId?: string;
+  allOutlets?: Outlet[];
+  currentOutlet: Outlet;
   shiftId?: string;
+  kasirName?: string;
 }) {
-
+  const router = useRouter();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedDiscountId, setSelectedDiscountId] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'qris' | 'transfer' | 'debit'>('cash');
   const [customerName, setCustomerName] = useState<string>('');
+
+  // Cash calculation state
+  const [cashReceived, setCashReceived] = useState<number>(0);
+  const [paymentRefNumber, setPaymentRefNumber] = useState<string>('');
 
   // Per-card active selection options state map
   const [cardOptions, setCardOptions] = useState<
@@ -67,9 +81,9 @@ export default function POSClient({
   // Note edit modal state
   const [editingNoteItem, setEditingNoteItem] = useState<{ id: string; name: string; notes: string } | null>(null);
 
-  // Success / Modal states
+  // Modals & Receipt state
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
-  const [successOrder, setSuccessOrder] = useState<{ id: string; total: number } | null>(null);
+  const [completedReceipt, setCompletedReceipt] = useState<ReceiptData | null>(null);
   const [isPending, startTransition] = useTransition();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -105,31 +119,32 @@ export default function POSClient({
     );
   };
 
+  // Update option for product
   const setOption = (
     prodId: string,
-    field: 'mood' | 'size' | 'sugar' | 'ice',
-    val: any
+    key: 'mood' | 'size' | 'sugar' | 'ice',
+    value: string
   ) => {
     setCardOptions((prev) => ({
       ...prev,
       [prodId]: {
         ...getOptions(prodId),
-        [field]: val,
+        [key]: value,
       },
     }));
   };
 
-  // Cart operations
+  // Add to cart with chosen options
   const addToCartWithOptions = (product: Product) => {
-    const opts = getOptions(product.id);
-    const cartKey = `${product.id}-${opts.mood}-${opts.size}-${opts.sugar}-${opts.ice}`;
+    const opt = getOptions(product.id);
+    const cartKey = `${product.id}_${opt.mood}_${opt.size}_${opt.sugar}_${opt.ice}`;
 
     setCart((prev) => {
-      const existingIndex = prev.findIndex((item) => item.id === cartKey);
-      if (existingIndex > -1) {
-        const updated = [...prev];
-        updated[existingIndex].quantity += 1;
-        return updated;
+      const existing = prev.find((item) => item.id === cartKey);
+      if (existing) {
+        return prev.map((item) =>
+          item.id === cartKey ? { ...item, quantity: item.quantity + 1 } : item
+        );
       }
       return [
         ...prev,
@@ -137,10 +152,10 @@ export default function POSClient({
           id: cartKey,
           product,
           quantity: 1,
-          mood: opts.mood,
-          size: opts.size,
-          sugar: opts.sugar,
-          ice: opts.ice,
+          mood: opt.mood,
+          size: opt.size,
+          sugar: opt.sugar,
+          ice: opt.ice,
           notes: '',
         },
       ];
@@ -177,6 +192,8 @@ export default function POSClient({
     setSelectedDiscountId('');
     setCustomerName('');
     setPaymentMethod('cash');
+    setCashReceived(0);
+    setPaymentRefNumber('');
   };
 
   // Calculations (Integer Domain)
@@ -192,40 +209,83 @@ export default function POSClient({
   const taxAmount = calcTax(afterDiscount, taxRate);
   const total = calcTotal(subtotal, discountAmount, taxAmount);
 
+  // Kembalian calculation
+  const changeAmount = Math.max(0, cashReceived - total);
+  const isCashInsufficient = paymentMethod === 'cash' && cashReceived > 0 && cashReceived < total;
+  const isCashZero = paymentMethod === 'cash' && cashReceived === 0;
+
+  // Open Checkout Modal
+  const handleOpenCheckoutModal = () => {
+    if (cart.length === 0) return;
+    setCashReceived(total); // Default uang pas
+    setErrorMessage(null);
+    setIsCheckoutModalOpen(true);
+  };
+
   // Handle Checkout submission
   const handleProcessCheckout = () => {
     if (cart.length === 0) return;
+    if (paymentMethod === 'cash' && cashReceived < total) {
+      setErrorMessage(`Uang tunai kurang ${formatRupiah(total - cashReceived)}. Harap masukkan nominal yang mencukupi.`);
+      return;
+    }
+
     setErrorMessage(null);
+
+    const snapshotItems = cart.map((item) => {
+      const customDesc = `${item.mood}, Size ${item.size}, Gula ${item.sugar}, Es ${item.ice}${
+        item.notes ? ` (${item.notes})` : ''
+      }`;
+      return {
+        productId: item.product.id,
+        productName: item.product.name,
+        productPrice: item.product.price,
+        costPrice: item.product.costPrice || 0,
+        quantity: item.quantity,
+        subtotal: item.product.price * item.quantity,
+        notes: customDesc,
+      };
+    });
 
     startTransition(async () => {
       try {
         const payload = {
-          outletId,
+          outletId: currentOutlet.id,
           shiftId,
-          customerName: customerName || 'Pelanggan Walk-in',
-          items: cart.map((item) => {
-            const customDesc = `${item.mood}, Size ${item.size}, Gula ${item.sugar}, Es ${item.ice}${
-              item.notes ? ` (${item.notes})` : ''
-            }`;
-            return {
-              productId: item.product.id,
-              productName: item.product.name,
-              productPrice: item.product.price,
-              costPrice: item.product.costPrice || 0,
-              quantity: item.quantity,
-              notes: customDesc,
-            };
-          }),
+          customerName: customerName.trim() || 'Pelanggan Walk-in',
+          items: snapshotItems,
           discountId: selectedDiscount?.id,
           discountType: selectedDiscount?.type as 'percentage' | 'fixed' | undefined,
           discountValue: selectedDiscount?.value,
           taxRate,
           paymentMethod,
+          notes: paymentRefNumber ? `Ref: ${paymentRefNumber}` : undefined,
         };
 
         const res = await checkout(payload);
         if (res.success) {
-          setSuccessOrder({ id: res.orderId, total: res.total });
+          // Construct thermal receipt data
+          const receipt: ReceiptData = {
+            orderId: res.orderId,
+            outletName: currentOutlet.name,
+            outletAddress: currentOutlet.address,
+            outletPhone: currentOutlet.phone,
+            kasirName,
+            customerName: customerName.trim() || 'Walk-in',
+            createdAt: Math.floor(Date.now() / 1000),
+            items: snapshotItems,
+            subtotal,
+            discountAmount,
+            taxRate,
+            taxAmount,
+            total,
+            paymentMethod,
+            cashReceived: paymentMethod === 'cash' ? cashReceived : total,
+            change: paymentMethod === 'cash' ? changeAmount : 0,
+            notes: paymentRefNumber ? `Ref: ${paymentRefNumber}` : null,
+          };
+
+          setCompletedReceipt(receipt);
           setIsCheckoutModalOpen(false);
           clearCart();
         }
@@ -236,487 +296,480 @@ export default function POSClient({
   };
 
   return (
-    <div className="flex flex-col xl:flex-row gap-6">
+    <div className="space-y-4">
       {/* ============================================================ */}
-      {/* LEFT COLUMN: BENTO MENU CATALOG (65%) */}
+      {/* TOP BAR: OUTLET SWITCHER & STATUS SHIFT */}
       {/* ============================================================ */}
-      <div className="flex-1 flex flex-col min-w-0 space-y-6">
-        {/* Bento Category Block */}
-        <div className="bg-white rounded-3xl border border-[#EBE7DF] p-5 shadow-xs">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-bold text-[#201C1A] tracking-tight">
-              Pilih Kategori
-            </h2>
-            <span className="text-xs font-medium text-[#9B9389]">
-              {categories.length + 1} Kategori Tersedia
-            </span>
+      <div className="bg-white rounded-3xl border border-[#EBE7DF] p-4 shadow-xs flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-[#FAF8F5] border border-[#EBE7DF] flex items-center justify-center text-[#54382B]">
+            <Store className="w-5 h-5" />
           </div>
-
-          <div className="flex items-center gap-3 overflow-x-auto pb-2 no-scrollbar">
-            {/* All Category Pill */}
-            <button
-              onClick={() => setSelectedCategory('all')}
-              className={`flex flex-col items-center justify-center min-w-[76px] h-24 p-2 rounded-2xl border transition-all shrink-0 ${
-                selectedCategory === 'all'
-                  ? 'bg-[#F2ECE4] border-[#D8CFC2] shadow-xs'
-                  : 'bg-[#FBF9F6] border-[#EDE8E0] hover:bg-[#F5F1E9]'
-              }`}
-            >
-              <div
-                className={`w-10 h-10 rounded-xl flex items-center justify-center mb-1.5 transition-colors ${
-                  selectedCategory === 'all'
-                    ? 'bg-[#2E2520] text-white shadow-xs'
-                    : 'bg-white text-[#54382B] border border-[#E8E3D8]'
-                }`}
-              >
-                <LayoutGrid className="w-5 h-5" />
-              </div>
-              <span
-                className={`text-[11px] font-bold truncate max-w-[70px] ${
-                  selectedCategory === 'all' ? 'text-[#201C1A]' : 'text-[#7A7268]'
-                }`}
-              >
-                Semua
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-[#8E867C]">
+                Pilih Cabang / Outlet
               </span>
-            </button>
-
-            {/* Individual Categories */}
-            {categories.map((cat) => {
-              const Icon = getCategoryIcon(cat.name);
-              const isSelected = selectedCategory === cat.id;
-              return (
-                <button
-                  key={cat.id}
-                  onClick={() => setSelectedCategory(cat.id)}
-                  className={`flex flex-col items-center justify-center min-w-[76px] h-24 p-2 rounded-2xl border transition-all shrink-0 ${
-                    isSelected
-                      ? 'bg-[#F2ECE4] border-[#D8CFC2] shadow-xs'
-                      : 'bg-[#FBF9F6] border-[#EDE8E0] hover:bg-[#F5F1E9]'
-                  }`}
-                >
-                  <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center mb-1.5 transition-colors ${
-                      isSelected
-                        ? 'bg-[#2E2520] text-white shadow-xs'
-                        : 'bg-white text-[#54382B] border border-[#E8E3D8]'
-                    }`}
-                  >
-                    <Icon className="w-5 h-5" />
-                  </div>
-                  <span
-                    className={`text-[11px] font-bold truncate max-w-[70px] ${
-                      isSelected ? 'text-[#201C1A]' : 'text-[#7A7268]'
-                    }`}
-                  >
-                    {cat.name}
-                  </span>
-                </button>
-              );
-            })}
+            </div>
+            <select
+              value={currentOutlet.id}
+              onChange={(e) => {
+                router.push(`/pos?outletId=${e.target.value}`);
+              }}
+              className="font-serif font-black text-sm text-[#201C1A] bg-transparent border-none focus:outline-none cursor-pointer pr-4"
+            >
+              {allOutlets.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
-        {/* Bento Products Catalog */}
-        <div className="bg-white rounded-3xl border border-[#EBE7DF] p-6 shadow-xs flex-1 flex flex-col">
-          {/* Header & Search */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-[#F0ECE4]">
-            <div>
-              <h3 className="text-lg font-bold text-[#201C1A] tracking-tight">
-                Daftar Menu Kopi Seruni
-              </h3>
-              <p className="text-xs text-[#8E867C] mt-0.5">
-                {filteredProducts.length} menu ditemukan
-              </p>
-            </div>
-
-            <div className="relative sm:w-80">
-              <Search className="w-4 h-4 text-[#9E968B] absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari kategori atau nama menu..."
-                className="w-full pl-10 pr-4 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl text-xs focus:outline-none focus:ring-2 focus:ring-[#2E2520] focus:bg-white text-[#201C1A] placeholder-[#9E968B]"
-              />
-            </div>
+        <div className="flex items-center gap-3 text-xs">
+          <div className="px-3.5 py-1.5 rounded-full bg-[#FAF8F5] border border-[#ECE7DE] flex items-center gap-2">
+            <span className="text-[#8E867C]">Kasir:</span>
+            <span className="font-bold text-[#201C1A]">{kasirName}</span>
           </div>
 
-          {/* Grid Products Bento Cards */}
-          <div className="pt-5 flex-1">
-            {filteredProducts.length === 0 ? (
-              <div className="h-64 flex flex-col items-center justify-center text-[#9E968B] text-center">
-                <Coffee className="w-10 h-10 mb-2 stroke-1 text-[#C4BCB0]" />
-                <p className="text-sm font-semibold text-[#665E54]">Menu tidak ditemukan</p>
-                <p className="text-xs text-[#9E968B] mt-1">Coba kata kunci pencarian atau kategori lain</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-5">
-                {filteredProducts.map((prod) => {
-                  const opts = getOptions(prod.id);
-                  return (
-                    <div
-                      key={prod.id}
-                      className="bg-[#FAF8F5] border border-[#ECE7DE] rounded-3xl p-4 flex flex-col justify-between hover:shadow-md hover:border-[#D5CDC0] transition-all group"
-                    >
-                      {/* Top: Image + Info */}
-                      <div className="flex items-start gap-3.5 mb-3.5">
-                        <div className="w-20 h-20 rounded-2xl bg-white border border-[#E5DFD4] overflow-hidden flex items-center justify-center shrink-0 shadow-xs">
-                          {prod.imageUrl ? (
-                            <img
-                              src={prod.imageUrl}
-                              alt={prod.name}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                            />
-                          ) : (
-                            <Coffee className="w-8 h-8 text-[#54382B] stroke-[1.5]" />
-                          )}
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-bold text-[#201C1A] text-sm leading-snug line-clamp-1 group-hover:text-[#54382B] transition-colors">
-                            {prod.name}
-                          </h4>
-                          <p className="text-[11px] text-[#8E867C] line-clamp-2 mt-0.5">
-                            {prod.description || 'Racikan menu istimewa Toko Kopi Seruni.'}
-                          </p>
-                          <p className="text-sm font-extrabold text-[#201C1A] mt-2">
-                            {formatRupiah(prod.price)}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Customization Pills (Mood, Size, Sugar, Ice) */}
-                      <div className="space-y-2 bg-white/70 border border-[#ECE7DE] rounded-2xl p-2.5 mb-3 text-[10px]">
-                        {/* Mood & Size */}
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <span className="text-[#8E867C] font-semibold block mb-1">Suhu</span>
-                            <div className="flex gap-1">
-                              <button
-                                type="button"
-                                onClick={() => setOption(prod.id, 'mood', 'Ice')}
-                                className={`flex-1 py-1 rounded-lg font-bold flex items-center justify-center gap-1 transition-colors ${
-                                  opts.mood === 'Ice'
-                                    ? 'bg-[#2E2520] text-white'
-                                    : 'bg-[#F2ECE3] text-[#6E6458] hover:bg-[#E8E0D4]'
-                                }`}
-                              >
-                                <Snowflake className="w-3 h-3" /> Dingin
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setOption(prod.id, 'mood', 'Hot')}
-                                className={`flex-1 py-1 rounded-lg font-bold flex items-center justify-center gap-1 transition-colors ${
-                                  opts.mood === 'Hot'
-                                    ? 'bg-[#A34730] text-white'
-                                    : 'bg-[#F2ECE3] text-[#6E6458] hover:bg-[#E8E0D4]'
-                                }`}
-                              >
-                                <Flame className="w-3 h-3" /> Panas
-                              </button>
-                            </div>
-                          </div>
-
-                          <div>
-                            <span className="text-[#8E867C] font-semibold block mb-1">Ukuran</span>
-                            <div className="flex gap-1">
-                              {(['S', 'M', 'L'] as const).map((s) => (
-                                <button
-                                  key={s}
-                                  type="button"
-                                  onClick={() => setOption(prod.id, 'size', s)}
-                                  className={`flex-1 py-1 rounded-lg font-bold transition-colors ${
-                                    opts.size === s
-                                      ? 'bg-[#2E2520] text-white'
-                                      : 'bg-[#F2ECE3] text-[#6E6458] hover:bg-[#E8E0D4]'
-                                  }`}
-                                >
-                                  {s}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Sugar & Ice Levels */}
-                        <div className="grid grid-cols-2 gap-2 pt-1 border-t border-[#F0EBE2]">
-                          <div>
-                            <span className="text-[#8E867C] font-semibold block mb-1">Gula</span>
-                            <div className="flex gap-1">
-                              {(['30%', '50%', 'Normal'] as const).map((sg) => (
-                                <button
-                                  key={sg}
-                                  type="button"
-                                  onClick={() => setOption(prod.id, 'sugar', sg)}
-                                  className={`flex-1 py-1 rounded-lg font-bold text-[9px] transition-colors ${
-                                    opts.sugar === sg
-                                      ? 'bg-[#2E2520] text-white'
-                                      : 'bg-[#F2ECE3] text-[#6E6458] hover:bg-[#E8E0D4]'
-                                  }`}
-                                >
-                                  {sg}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div>
-                            <span className="text-[#8E867C] font-semibold block mb-1">Es</span>
-                            <div className="flex gap-1">
-                              {(['30%', '50%', 'Normal'] as const).map((ic) => (
-                                <button
-                                  key={ic}
-                                  type="button"
-                                  onClick={() => setOption(prod.id, 'ice', ic)}
-                                  className={`flex-1 py-1 rounded-lg font-bold text-[9px] transition-colors ${
-                                    opts.ice === ic
-                                      ? 'bg-[#2E2520] text-white'
-                                      : 'bg-[#F2ECE3] text-[#6E6458] hover:bg-[#E8E0D4]'
-                                  }`}
-                                >
-                                  {ic}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Add to Billing Button */}
-                      <button
-                        type="button"
-                        onClick={() => addToCartWithOptions(prod)}
-                        className="w-full py-2.5 px-4 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl text-xs transition-all shadow-xs flex items-center justify-center gap-1.5 active:scale-[0.98]"
-                      >
-                        <Plus className="w-3.5 h-3.5" /> Tambah ke Pesanan
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+          <div
+            className={`px-3.5 py-1.5 rounded-full border flex items-center gap-2 font-bold text-[11px] ${
+              shiftId
+                ? 'bg-[#EBF6EE] text-[#2D7A47] border-[#D1EBD8]'
+                : 'bg-[#FDF4E5] text-[#96631E] border-[#F5E2BE]'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>{shiftId ? 'Shift Aktif' : 'Shift Belum Dibuka'}</span>
           </div>
         </div>
       </div>
 
-      {/* ============================================================ */}
-      {/* RIGHT COLUMN: BENTO "BILLS" PANEL (35%) */}
-      {/* ============================================================ */}
-      <div className="w-full xl:w-[410px] flex flex-col bg-white rounded-3xl border border-[#EBE7DF] p-6 shadow-xs shrink-0 self-start sticky top-6">
-        {/* Bills Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-[#F0ECE4]">
-          <div>
-            <h3 className="font-bold text-lg text-[#201C1A] tracking-tight">
-              Pesanan (Bills)
-            </h3>
-            <p className="text-xs text-[#8E867C]">
-              {cart.reduce((s, i) => s + i.quantity, 0)} item dalam keranjang
-            </p>
-          </div>
-          {cart.length > 0 && (
-            <button
-              onClick={clearCart}
-              className="text-xs font-semibold text-[#A34730] hover:text-red-700 transition-colors"
-            >
-              Reset
-            </button>
-          )}
-        </div>
-
-        {/* Bills Item List */}
-        <div className="py-4 space-y-3 max-h-[380px] overflow-y-auto pr-1">
-          {cart.length === 0 ? (
-            <div className="py-16 text-center text-[#9E968B]">
-              <Coffee className="w-8 h-8 mx-auto mb-2 text-[#C8BFB2] stroke-[1.2]" />
-              <p className="text-xs font-semibold text-[#70675D]">Belum ada pesanan</p>
-              <p className="text-[11px] text-[#A69E93] mt-0.5">Pilih menu dari katalog di sebelah kiri</p>
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* ============================================================ */}
+        {/* LEFT COLUMN: BENTO MENU CATALOG (65%) */}
+        {/* ============================================================ */}
+        <div className="flex-1 flex flex-col min-w-0 space-y-6">
+          {/* Bento Category Block */}
+          <div className="bg-white rounded-3xl border border-[#EBE7DF] p-5 shadow-xs">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-bold text-[#201C1A] tracking-tight">
+                Pilih Kategori
+              </h2>
+              <span className="text-xs font-medium text-[#9B9389]">
+                {categories.length + 1} Kategori Tersedia
+              </span>
             </div>
-          ) : (
-            cart.map((item) => (
-              <div
-                key={item.id}
-                className="bg-[#FBF9F6] border border-[#ECE7DE] rounded-2xl p-3 flex items-start gap-3 transition-all hover:border-[#DCD5C8]"
-              >
-                <div className="w-12 h-12 rounded-xl bg-white border border-[#E4DDD2] overflow-hidden flex items-center justify-center shrink-0">
-                  {item.product.imageUrl ? (
-                    <img src={item.product.imageUrl} alt={item.product.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <Coffee className="w-5 h-5 text-[#54382B]" />
-                  )}
-                </div>
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-1">
-                    <h5 className="text-xs font-bold text-[#201C1A] truncate">{item.product.name}</h5>
-                    <button
-                      onClick={() => removeFromCart(item.id)}
-                      className="text-[#B5ADA1] hover:text-red-600 transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+            {/* Horizontal Categories */}
+            <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-none">
+              <button
+                type="button"
+                onClick={() => setSelectedCategory('all')}
+                className={`flex items-center gap-2.5 px-4 py-3 rounded-2xl text-xs font-bold whitespace-nowrap transition-all border shrink-0 ${
+                  selectedCategory === 'all'
+                    ? 'bg-[#2E2520] text-white border-[#2E2520] shadow-sm'
+                    : 'bg-[#FAF8F5] text-[#4A4238] border-[#ECE7DE] hover:bg-[#F2ECE3]'
+                }`}
+              >
+                <LayoutGrid className="w-4 h-4" />
+                <span>Semua Menu</span>
+              </button>
+
+              {categories.map((c) => {
+                const IconComponent = getCategoryIcon(c.name);
+                const isSelected = selectedCategory === c.id;
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setSelectedCategory(c.id)}
+                    className={`flex items-center gap-2.5 px-4 py-3 rounded-2xl text-xs font-bold whitespace-nowrap transition-all border shrink-0 ${
+                      isSelected
+                        ? 'bg-[#2E2520] text-white border-[#2E2520] shadow-sm'
+                        : 'bg-[#FAF8F5] text-[#4A4238] border-[#ECE7DE] hover:bg-[#F2ECE3]'
+                    }`}
+                  >
+                    <IconComponent className="w-4 h-4" />
+                    <span>{c.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Bento Search & Filter Bar */}
+          <div className="bg-white rounded-3xl border border-[#EBE7DF] p-4 shadow-xs flex items-center gap-3">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-[#9E968B] absolute left-4 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Cari nama kopi, teh, makanan, atau cemilan..."
+                className="w-full pl-11 pr-4 py-2.5 bg-[#FAF8F5] border border-[#EAE5DC] rounded-2xl text-xs focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
+              />
+            </div>
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="text-xs font-semibold text-[#8E867C] hover:text-[#201C1A] px-2 py-1"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          {/* Product Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {filteredProducts.map((p) => {
+              const opt = getOptions(p.id);
+
+              return (
+                <div
+                  key={p.id}
+                  className="bg-white rounded-3xl border border-[#EBE7DF] p-5 flex flex-col justify-between shadow-xs hover:border-[#D5CEC2] transition-all space-y-4"
+                >
+                  {/* Top: Image Placeholder / Category Badge & Title */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-[#FAF8F5] text-[#54382B] border border-[#ECE7DE]">
+                        {categories.find((c) => c.id === p.categoryId)?.name || 'Menu'}
+                      </span>
+                      <span className="font-serif font-black text-sm text-[#201C1A]">
+                        {formatRupiah(p.price)}
+                      </span>
+                    </div>
+
+                    <h3 className="font-bold text-sm text-[#201C1A] line-clamp-1">{p.name}</h3>
+                    {p.description && (
+                      <p className="text-[11px] text-[#8E867C] mt-1 line-clamp-2 leading-relaxed">
+                        {p.description}
+                      </p>
+                    )}
                   </div>
 
-                  <p className="text-[10px] text-[#8E867C] mt-0.5">
-                    {item.mood} · Size {item.size} · Gula {item.sugar} · Es {item.ice}
-                  </p>
+                  {/* Options: Mood, Size, Sugar, Ice */}
+                  <div className="space-y-2.5 pt-2 border-t border-[#F2ECE3]">
+                    {/* Mood & Size */}
+                    <div className="grid grid-cols-2 gap-2">
+                      {/* Mood: Hot vs Ice */}
+                      <div className="bg-[#FAF8F5] p-1 rounded-xl border border-[#EAE5DC] flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setOption(p.id, 'mood', 'Ice')}
+                          className={`flex-1 py-1 text-[10px] font-bold rounded-lg flex items-center justify-center gap-1 transition-all ${
+                            opt.mood === 'Ice'
+                              ? 'bg-white text-[#201C1A] shadow-xs'
+                              : 'text-[#8E867C] hover:text-[#201C1A]'
+                          }`}
+                        >
+                          <Snowflake className="w-3 h-3 text-[#1D638B]" />
+                          <span>Ice</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setOption(p.id, 'mood', 'Hot')}
+                          className={`flex-1 py-1 text-[10px] font-bold rounded-lg flex items-center justify-center gap-1 transition-all ${
+                            opt.mood === 'Hot'
+                              ? 'bg-white text-[#201C1A] shadow-xs'
+                              : 'text-[#8E867C] hover:text-[#201C1A]'
+                          }`}
+                        >
+                          <Flame className="w-3 h-3 text-[#964B3B]" />
+                          <span>Hot</span>
+                        </button>
+                      </div>
 
-                  {/* Notes snippet button */}
-                  <div className="mt-1.5 flex items-center justify-between">
-                    <button
-                      onClick={() =>
-                        setEditingNoteItem({
-                          id: item.id,
-                          name: item.product.name,
-                          notes: item.notes || '',
-                        })
-                      }
-                      className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#54382B] hover:text-[#201C1A] bg-[#F2EDE5] px-2 py-0.5 rounded-lg border border-[#E2DDD3]"
-                    >
-                      <Pencil className="w-2.5 h-2.5" />
-                      <span className="truncate max-w-[100px]">
-                        {item.notes ? `Catatan: ${item.notes}` : 'Tambah Catatan'}
-                      </span>
-                    </button>
+                      {/* Size: S / M / L */}
+                      <div className="bg-[#FAF8F5] p-1 rounded-xl border border-[#EAE5DC] flex gap-1">
+                        {(['S', 'M', 'L'] as const).map((sz) => (
+                          <button
+                            key={sz}
+                            type="button"
+                            onClick={() => setOption(p.id, 'size', sz)}
+                            className={`flex-1 py-1 text-[10px] font-bold rounded-lg transition-all ${
+                              opt.size === sz
+                                ? 'bg-white text-[#201C1A] shadow-xs'
+                                : 'text-[#8E867C] hover:text-[#201C1A]'
+                            }`}
+                          >
+                            {sz}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
 
-                    <span className="text-xs font-extrabold text-[#201C1A]">
+                    {/* Sugar & Ice Level */}
+                    <div className="grid grid-cols-2 gap-2 text-[10px]">
+                      <div>
+                        <span className="text-[9px] text-[#9E968B] block mb-0.5 font-bold uppercase">Gula</span>
+                        <select
+                          value={opt.sugar}
+                          onChange={(e) => setOption(p.id, 'sugar', e.target.value)}
+                          className="w-full px-2 py-1 bg-[#FAF8F5] border border-[#EAE5DC] rounded-xl text-[10px] font-semibold text-[#4A4238] focus:outline-none"
+                        >
+                          <option value="30%">Less 30%</option>
+                          <option value="50%">Half 50%</option>
+                          <option value="70%">70%</option>
+                          <option value="Normal">Normal</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <span className="text-[9px] text-[#9E968B] block mb-0.5 font-bold uppercase">Es</span>
+                        <select
+                          value={opt.ice}
+                          onChange={(e) => setOption(p.id, 'ice', e.target.value)}
+                          className="w-full px-2 py-1 bg-[#FAF8F5] border border-[#EAE5DC] rounded-xl text-[10px] font-semibold text-[#4A4238] focus:outline-none"
+                        >
+                          <option value="30%">Less 30%</option>
+                          <option value="50%">Half 50%</option>
+                          <option value="70%">70%</option>
+                          <option value="Normal">Normal</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Add to Bill Button */}
+                  <button
+                    type="button"
+                    onClick={() => addToCartWithOptions(p)}
+                    className="w-full py-2.5 px-4 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl text-xs transition-all flex items-center justify-center gap-2 shadow-xs hover:shadow"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Tambah ke Pesanan</span>
+                  </button>
+                </div>
+              );
+            })}
+
+            {filteredProducts.length === 0 && (
+              <div className="col-span-full py-16 text-center bg-white rounded-3xl border border-[#EBE7DF] p-8">
+                <Coffee className="w-10 h-10 text-[#C2BAAF] mx-auto mb-3 stroke-[1.5]" />
+                <p className="font-bold text-sm text-[#201C1A]">Menu tidak ditemukan</p>
+                <p className="text-xs text-[#8E867C] mt-1">
+                  Coba kata kunci lain atau pilih kategori Semua Menu
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ============================================================ */}
+        {/* RIGHT COLUMN: BILLS / CART PANEL (35%) */}
+        {/* ============================================================ */}
+        <div className="w-full xl:w-96 flex flex-col space-y-6 shrink-0">
+          <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-xs p-6 flex flex-col h-full space-y-6">
+            {/* Header Bills */}
+            <div className="flex items-center justify-between border-b border-[#F0ECE4] pb-4">
+              <div>
+                <h3 className="font-serif font-black text-lg text-[#201C1A] tracking-tight">
+                  Tagihan (Bills)
+                </h3>
+                <p className="text-xs text-[#8E867C] mt-0.5">{cart.length} Item Pesanan</p>
+              </div>
+              {cart.length > 0 && (
+                <button
+                  type="button"
+                  onClick={clearCart}
+                  className="text-xs font-bold text-[#964B3B] hover:text-[#803E30] transition-colors"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+
+            {/* Cart Items List */}
+            <div className="flex-1 overflow-y-auto space-y-3 min-h-[220px] max-h-[360px] pr-1">
+              {cart.map((item) => (
+                <div
+                  key={item.id}
+                  className="p-3.5 rounded-2xl bg-[#FAF8F5] border border-[#ECE7DE] space-y-2.5"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h4 className="font-bold text-xs text-[#201C1A]">{item.product.name}</h4>
+                      <p className="text-[10px] text-[#7A7268] mt-0.5">
+                        {item.mood} • Size {item.size} • Gula {item.sugar} • Es {item.ice}
+                      </p>
+                      {item.notes && (
+                        <p className="text-[10px] text-[#54382B] italic mt-0.5 bg-[#F2EDE5] px-2 py-0.5 rounded-md inline-block">
+                          Note: {item.notes}
+                        </p>
+                      )}
+                    </div>
+                    <span className="font-bold text-xs text-[#201C1A] whitespace-nowrap">
                       {formatRupiah(item.product.price * item.quantity)}
                     </span>
                   </div>
 
-                  {/* Quantity Stepper */}
-                  <div className="mt-2 flex items-center justify-between pt-1.5 border-t border-[#EFE9DF]">
-                    <span className="text-[10px] text-[#9E968B]">
-                      {formatRupiah(item.product.price)} x {item.quantity}
-                    </span>
-                    <div className="flex items-center gap-1.5 bg-white border border-[#E4DDD2] rounded-lg p-0.5">
+                  <div className="flex items-center justify-between pt-2 border-t border-[#F0ECE4]">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditingNoteItem({
+                          id: item.id,
+                          name: item.product.name,
+                          notes: item.notes,
+                        })
+                      }
+                      className="text-[10px] font-semibold text-[#8E867C] hover:text-[#201C1A] flex items-center gap-1"
+                    >
+                      <Pencil className="w-3 h-3" />
+                      <span>{item.notes ? 'Ubah Catatan' : 'Catatan'}</span>
+                    </button>
+
+                    <div className="flex items-center gap-2">
                       <button
+                        type="button"
                         onClick={() => updateQuantity(item.id, -1)}
-                        className="w-5 h-5 rounded flex items-center justify-center text-[#201C1A] hover:bg-[#F2ECE3] transition-colors"
+                        className="w-6 h-6 rounded-lg bg-white border border-[#E5E0D6] flex items-center justify-center text-[#201C1A] hover:bg-[#F2ECE3]"
                       >
                         <Minus className="w-3 h-3" />
                       </button>
-                      <span className="w-5 text-center text-xs font-bold text-[#201C1A]">{item.quantity}</span>
+                      <span className="text-xs font-bold text-[#201C1A] w-5 text-center">
+                        {item.quantity}
+                      </span>
                       <button
+                        type="button"
                         onClick={() => updateQuantity(item.id, 1)}
-                        className="w-5 h-5 rounded flex items-center justify-center text-[#201C1A] hover:bg-[#F2ECE3] transition-colors"
+                        className="w-6 h-6 rounded-lg bg-white border border-[#E5E0D6] flex items-center justify-center text-[#201C1A] hover:bg-[#F2ECE3]"
                       >
                         <Plus className="w-3 h-3" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeFromCart(item.id)}
+                        className="w-6 h-6 rounded-lg text-[#9E968B] hover:text-[#964B3B] flex items-center justify-center ml-1"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))
-          )}
-        </div>
+              ))}
 
-        {/* Totals & Discounts Breakdown */}
-        <div className="pt-4 border-t border-[#F0ECE4] space-y-3">
-          {discounts.length > 0 && (
-            <div className="flex items-center justify-between gap-2 text-xs">
-              <span className="text-[#7A7268] font-medium">Voucher Promo:</span>
-              <select
-                value={selectedDiscountId}
-                onChange={(e) => setSelectedDiscountId(e.target.value)}
-                className="px-2.5 py-1.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-xl text-xs font-semibold text-[#201C1A] focus:outline-none focus:ring-1 focus:ring-[#2E2520]"
-              >
-                <option value="">Tanpa Diskon</option>
-                {discounts.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name} ({d.type === 'percentage' ? `${d.value}%` : formatRupiah(d.value)})
-                  </option>
-                ))}
-              </select>
+              {cart.length === 0 && (
+                <div className="h-full flex flex-col items-center justify-center text-center p-6 text-[#9E968B]">
+                  <Coffee className="w-10 h-10 stroke-[1.2] mb-2 text-[#D5CEC2]" />
+                  <p className="text-xs font-bold text-[#4A4238]">Keranjang Kosong</p>
+                  <p className="text-[11px] text-[#9E968B] mt-0.5">
+                    Pilih menu di sebelah kiri untuk membuat pesanan
+                  </p>
+                </div>
+              )}
             </div>
-          )}
 
-          <div className="space-y-1.5 text-xs text-[#6B635A]">
-            <div className="flex justify-between">
-              <span>Subtotal</span>
-              <span className="font-semibold text-[#201C1A]">{formatRupiah(subtotal)}</span>
-            </div>
-            {discountAmount > 0 && (
-              <div className="flex justify-between text-[#A34730] font-semibold">
-                <span>Diskon</span>
-                <span>-{formatRupiah(discountAmount)}</span>
+            {/* Discount / Voucher Selector */}
+            {discounts.length > 0 && (
+              <div className="space-y-1.5 pt-2 border-t border-[#F0ECE4]">
+                <label className="text-[11px] font-bold text-[#4A4238]">Voucher / Diskon Promo</label>
+                <select
+                  value={selectedDiscountId}
+                  onChange={(e) => setSelectedDiscountId(e.target.value)}
+                  className="w-full px-3 py-2 bg-[#FAF8F5] border border-[#EAE5DC] rounded-xl text-xs font-semibold text-[#201C1A] focus:outline-none"
+                >
+                  <option value="">-- Tanpa Diskon --</option>
+                  {discounts.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name} ({d.type === 'percentage' ? `${d.value}%` : formatRupiah(d.value)})
+                    </option>
+                  ))}
+                </select>
               </div>
             )}
-            <div className="flex justify-between">
-              <span>Pajak (PPN 11%)</span>
-              <span className="font-semibold text-[#201C1A]">{formatRupiah(taxAmount)}</span>
+
+            {/* Calculations Breakdown */}
+            <div className="space-y-2 pt-3 border-t border-[#F0ECE4] text-xs">
+              <div className="flex justify-between text-[#7A7268]">
+                <span>Subtotal</span>
+                <span className="font-semibold text-[#201C1A]">{formatRupiah(subtotal)}</span>
+              </div>
+              {discountAmount > 0 && (
+                <div className="flex justify-between text-[#2D7A47] font-semibold">
+                  <span>Diskon Promo</span>
+                  <span>-{formatRupiah(discountAmount)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-[#7A7268]">
+                <span>PPN (11%)</span>
+                <span>+{formatRupiah(taxAmount)}</span>
+              </div>
+              <div className="flex justify-between pt-2 border-t border-[#F0ECE4] text-sm font-black text-[#201C1A]">
+                <span>Total Tagihan</span>
+                <span>{formatRupiah(total)}</span>
+              </div>
             </div>
-            <div className="flex justify-between text-base font-black text-[#201C1A] pt-2 border-t border-dashed border-[#DCD5C8]">
-              <span>Total</span>
-              <span className="text-[#201C1A]">{formatRupiah(total)}</span>
+
+            {/* Payment Method Selector (Bento Chips) */}
+            <div className="space-y-2 pt-2 border-t border-[#F0ECE4]">
+              <label className="text-[11px] font-bold text-[#4A4238]">Metode Pembayaran</label>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('cash')}
+                  className={`py-2.5 px-2 rounded-2xl text-[11px] font-bold border flex flex-col items-center gap-1 transition-all ${
+                    paymentMethod === 'cash'
+                      ? 'bg-[#2E2520] text-white border-[#2E2520] shadow-xs'
+                      : 'bg-[#FAF8F5] text-[#4A4238] border-[#ECE7DE] hover:bg-[#F2ECE3]'
+                  }`}
+                >
+                  <Banknote className="w-4 h-4" />
+                  <span>Tunai</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('qris')}
+                  className={`py-2.5 px-2 rounded-2xl text-[11px] font-bold border flex flex-col items-center gap-1 transition-all ${
+                    paymentMethod === 'qris'
+                      ? 'bg-[#2E2520] text-white border-[#2E2520] shadow-xs'
+                      : 'bg-[#FAF8F5] text-[#4A4238] border-[#ECE7DE] hover:bg-[#F2ECE3]'
+                  }`}
+                >
+                  <QrCode className="w-4 h-4" />
+                  <span>QRIS</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('debit')}
+                  className={`py-2.5 px-2 rounded-2xl text-[11px] font-bold border flex flex-col items-center gap-1 transition-all ${
+                    paymentMethod === 'debit'
+                      ? 'bg-[#2E2520] text-white border-[#2E2520] shadow-xs'
+                      : 'bg-[#FAF8F5] text-[#4A4238] border-[#ECE7DE] hover:bg-[#F2ECE3]'
+                  }`}
+                >
+                  <CreditCard className="w-4 h-4" />
+                  <span>Debit / EDC</span>
+                </button>
+              </div>
             </div>
+
+            {/* Action Checkout Button */}
+            <button
+              type="button"
+              disabled={cart.length === 0}
+              onClick={handleOpenCheckoutModal}
+              className="w-full py-4 bg-[#2E2520] hover:bg-[#453932] disabled:opacity-40 text-white font-bold rounded-2xl transition-all shadow-md flex items-center justify-center gap-2 text-xs tracking-wide cursor-pointer"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Proses Bayar ({formatRupiah(total)})</span>
+            </button>
           </div>
-
-          {/* Payment Method Selector Cards matching reference */}
-          <div className="space-y-1.5 pt-2">
-            <span className="text-[11px] font-bold text-[#8E867C] uppercase tracking-wider block">
-              Metode Pembayaran
-            </span>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('cash')}
-                className={`py-2.5 px-2 rounded-2xl border flex flex-col items-center justify-center gap-1 transition-all ${
-                  paymentMethod === 'cash'
-                    ? 'bg-[#F2ECE3] border-[#2E2520] shadow-xs text-[#201C1A] font-bold'
-                    : 'bg-[#FAF8F5] border-[#E8E2D6] text-[#7A7268] hover:bg-[#F5F0E7]'
-                }`}
-              >
-                <Banknote className="w-4 h-4" />
-                <span className="text-[10px]">Tunai</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('debit')}
-                className={`py-2.5 px-2 rounded-2xl border flex flex-col items-center justify-center gap-1 transition-all ${
-                  paymentMethod === 'debit'
-                    ? 'bg-[#F2ECE3] border-[#2E2520] shadow-xs text-[#201C1A] font-bold'
-                    : 'bg-[#FAF8F5] border-[#E8E2D6] text-[#7A7268] hover:bg-[#F5F0E7]'
-                }`}
-              >
-                <CreditCard className="w-4 h-4" />
-                <span className="text-[10px]">Kartu Debit</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('qris')}
-                className={`py-2.5 px-2 rounded-2xl border flex flex-col items-center justify-center gap-1 transition-all ${
-                  paymentMethod === 'qris'
-                    ? 'bg-[#F2ECE3] border-[#2E2520] shadow-xs text-[#201C1A] font-bold'
-                    : 'bg-[#FAF8F5] border-[#E8E2D6] text-[#7A7268] hover:bg-[#F5F0E7]'
-                }`}
-              >
-                <QrCode className="w-4 h-4" />
-                <span className="text-[10px]">QRIS</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Primary Action Button */}
-          <button
-            disabled={cart.length === 0}
-            onClick={() => setIsCheckoutModalOpen(true)}
-            className="w-full py-3.5 bg-[#2E2520] hover:bg-[#453932] disabled:opacity-40 text-white font-bold rounded-2xl transition-all shadow-md flex items-center justify-center gap-2 text-sm mt-2 active:scale-[0.99]"
-          >
-            <Printer className="w-4 h-4" />
-            <span>Cetak Struk & Bayar ({formatRupiah(total)})</span>
-          </button>
         </div>
       </div>
 
       {/* ============================================================ */}
-      {/* MODAL: EDIT NOTES */}
+      {/* MODAL: EDIT NOTE ITEM */}
       {/* ============================================================ */}
       {editingNoteItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-          <div className="bg-white w-full max-w-sm rounded-3xl shadow-xl border border-[#EBE7DF] p-5 space-y-4">
-            <div className="flex items-center justify-between border-b border-[#F0ECE4] pb-3">
+          <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl border border-[#EBE7DF] p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-[#F0ECE4] pb-2">
               <h4 className="font-bold text-sm text-[#201C1A]">Catatan Menu</h4>
               <button
                 onClick={() => setEditingNoteItem(null)}
@@ -733,7 +786,7 @@ export default function POSClient({
                 rows={3}
                 defaultValue={editingNoteItem.notes}
                 id="modalNoteInput"
-                placeholder="Contoh: Less ice, jangan terlalu manis, extra espresso..."
+                placeholder="Contoh: Less ice, jangan terlalu manis, extra shot espresso..."
                 className="w-full p-3 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl text-xs focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
               />
             </div>
@@ -760,13 +813,16 @@ export default function POSClient({
       )}
 
       {/* ============================================================ */}
-      {/* MODAL: CHECKOUT CONFIRMATION */}
+      {/* MODAL: PROSES PEMBAYARAN / CHECKOUT */}
       {/* ============================================================ */}
       {isCheckoutModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-[#EBE7DF] p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-[#EBE7DF] p-6 space-y-5 my-8">
             <div className="flex items-center justify-between border-b border-[#F0ECE4] pb-3">
-              <h3 className="font-bold text-base text-[#201C1A]">Konfirmasi Pesanan Kasir</h3>
+              <div>
+                <h3 className="font-bold text-base text-[#201C1A]">Proses Pembayaran Kasir</h3>
+                <p className="text-xs text-[#8E867C]">{currentOutlet.name}</p>
+              </div>
               <button
                 onClick={() => setIsCheckoutModalOpen(false)}
                 className="text-[#9E968B] hover:text-[#201C1A]"
@@ -776,52 +832,150 @@ export default function POSClient({
             </div>
 
             {errorMessage && (
-              <div className="p-3 text-xs text-red-700 bg-red-50 rounded-xl border border-red-200">
-                {errorMessage}
+              <div className="p-3 text-xs text-red-700 bg-red-50 rounded-2xl border border-red-200 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{errorMessage}</span>
               </div>
             )}
 
+            {/* Total Display */}
             <div className="bg-[#FAF8F5] border border-[#ECE7DE] p-4 rounded-2xl text-center">
-              <p className="text-[11px] text-[#8E867C] font-semibold uppercase tracking-wider">Total Tagihan Final</p>
-              <p className="text-3xl font-black text-[#201C1A] mt-1">{formatRupiah(total)}</p>
+              <span className="text-[11px] text-[#8E867C] font-semibold uppercase tracking-wider">
+                Total Tagihan
+              </span>
+              <p className="text-3xl font-black text-[#201C1A] mt-0.5">{formatRupiah(total)}</p>
             </div>
 
-            <div className="space-y-3 text-xs">
+            <div className="space-y-4 text-xs">
+              {/* Customer Name */}
               <div>
-                <label className="block font-semibold text-[#4A4238] mb-1">Nama Pelanggan / Nomor Meja</label>
+                <label className="block font-bold text-[#4A4238] mb-1.5">
+                  Nama Pelanggan / Nomor Meja
+                </label>
                 <input
                   type="text"
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Contoh: Meja 03 / Kak Sarah"
-                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
+                  placeholder="Contoh: Meja 04 / Kak Fahmi"
+                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
                 />
               </div>
 
-              <div>
-                <span className="block font-semibold text-[#4A4238] mb-1">Metode Bayar Terpilih</span>
-                <div className="p-3 bg-[#F9F7F2] rounded-xl border border-[#E5E0D6] flex items-center justify-between font-bold text-[#201C1A]">
-                  <span className="uppercase">{paymentMethod}</span>
-                  <span className="text-[11px] font-normal text-[#8E867C]">Langsung Lunas</span>
+              {/* PAYMENT METHOD SPECIFIC CONTROLS */}
+              {paymentMethod === 'cash' && (
+                <div className="p-4 rounded-2xl bg-[#FAF8F5] border border-[#EBE7DF] space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-[#201C1A]">Uang Diterima dari Pelanggan (Rp)</label>
+                    <span className="text-[10px] text-[#8E867C]">Wajib &ge; Total</span>
+                  </div>
+
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={cashReceived || ''}
+                    onChange={(e) => setCashReceived(Number(e.target.value))}
+                    placeholder="Contoh: 100000"
+                    className="w-full px-3.5 py-3 bg-white border border-[#E5E0D6] rounded-2xl text-base font-black focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
+                  />
+
+                  {/* Quick Cash Chips */}
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setCashReceived(total)}
+                      className="px-2.5 py-1.5 bg-white hover:bg-[#F2EDE5] text-[#201C1A] font-bold rounded-xl border border-[#E0D8CC] text-[11px]"
+                    >
+                      Uang Pas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCashReceived((prev) => prev + 10000)}
+                      className="px-2.5 py-1.5 bg-white hover:bg-[#F2EDE5] text-[#201C1A] font-bold rounded-xl border border-[#E0D8CC] text-[11px]"
+                    >
+                      +10.000
+                    </button>
+                    {[20000, 50000, 100000, 200000].map((nominal) => (
+                      <button
+                        key={nominal}
+                        type="button"
+                        onClick={() => setCashReceived(nominal)}
+                        className="px-2.5 py-1.5 bg-white hover:bg-[#F2EDE5] text-[#201C1A] font-bold rounded-xl border border-[#E0D8CC] text-[11px]"
+                      >
+                        {formatRupiah(nominal)}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Kembalian Feedback */}
+                  <div className="pt-2 border-t border-[#ECE7DE] flex items-center justify-between text-xs font-bold">
+                    <span>Kembalian:</span>
+                    {cashReceived >= total ? (
+                      <span className="text-base text-[#2D7A47] font-black">
+                        {formatRupiah(changeAmount)}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-[#964B3B]">
+                        Kurang {formatRupiah(total - cashReceived)}
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {paymentMethod === 'qris' && (
+                <div className="p-4 rounded-2xl bg-[#FAF8F5] border border-[#EBE7DF] text-center space-y-3">
+                  <div className="p-4 bg-white rounded-2xl border border-[#E5E0D6] max-w-[220px] mx-auto shadow-xs">
+                    <div className="border-b border-[#F0ECE4] pb-2 mb-2">
+                      <span className="font-black text-xs text-[#964B3B] tracking-wider">QRIS STANDAR</span>
+                      <p className="text-[9px] text-[#7A7268] font-bold uppercase">TOKO KOPI SERUNI</p>
+                      <p className="text-[8px] text-[#9E968B] font-mono">NMID: ID1020039281729</p>
+                    </div>
+                    {/* Simulated visual QR pattern */}
+                    <div className="w-36 h-36 mx-auto bg-[#201C1A] p-2 rounded-xl flex items-center justify-center text-white">
+                      <QrCode className="w-32 h-32 text-white" />
+                    </div>
+                    <p className="text-xs font-black text-[#201C1A] mt-2">
+                      {formatRupiah(total)}
+                    </p>
+                  </div>
+                  <p className="text-[11px] text-[#7A7268]">
+                    Arahkan kamera aplikasi bank/e-wallet pelanggan ke kode QRIS di atas.
+                  </p>
+                </div>
+              )}
+
+              {(paymentMethod === 'debit' || paymentMethod === 'transfer') && (
+                <div className="p-4 rounded-2xl bg-[#FAF8F5] border border-[#EBE7DF] space-y-2">
+                  <label className="font-bold text-[#4A4238]">Nomor Referensi / Approval Code EDC</label>
+                  <input
+                    type="text"
+                    value={paymentRefNumber}
+                    onChange={(e) => setPaymentRefNumber(e.target.value)}
+                    placeholder="Contoh: BCA-839201 / TRF-8392"
+                    className="w-full px-3.5 py-2.5 bg-white border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
+                  />
+                </div>
+              )}
             </div>
 
+            {/* Modal Bottom Buttons */}
             <div className="flex gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => setIsCheckoutModalOpen(false)}
-                className="flex-1 py-3 px-4 bg-[#F2ECE3] hover:bg-[#E8E0D4] text-[#4A4238] font-bold rounded-2xl text-xs transition-colors"
+                className="flex-1 py-3.5 px-4 bg-[#F2ECE3] hover:bg-[#E8E0D4] text-[#4A4238] font-bold rounded-2xl text-xs transition-colors"
               >
-                Kembali
+                Batal
               </button>
               <button
                 type="button"
-                disabled={isPending}
+                disabled={isPending || (paymentMethod === 'cash' && cashReceived < total)}
                 onClick={handleProcessCheckout}
-                className="flex-1 py-3 px-4 bg-[#2E2520] hover:bg-[#453932] disabled:opacity-50 text-white font-bold rounded-2xl text-xs transition-all shadow-md"
+                className="flex-1 py-3.5 px-4 bg-[#2E2520] hover:bg-[#453932] disabled:opacity-50 text-white font-bold rounded-2xl text-xs transition-all shadow-md flex items-center justify-center gap-2"
               >
-                {isPending ? 'Memproses Transaksi...' : 'Konfirmasi & Selesai'}
+                <span>{isPending ? 'Menyimpan Transaksi...' : 'Konfirmasi & Cetak Struk'}</span>
+                <ArrowRight className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -829,37 +983,17 @@ export default function POSClient({
       )}
 
       {/* ============================================================ */}
-      {/* MODAL: SUCCESS CONFIRMATION */}
+      {/* MODAL: CETAK STRUK THERMAL & SELESAI */}
       {/* ============================================================ */}
-      {successOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
-          <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl border border-[#EBE7DF] p-6 text-center space-y-4">
-            <div className="w-14 h-14 bg-[#EBF6EE] text-[#2D7A47] rounded-2xl flex items-center justify-center text-2xl mx-auto border border-[#D1EBD8]">
-              <CheckCircle2 className="w-8 h-8" />
-            </div>
-
-            <div>
-              <h3 className="font-bold text-lg text-[#201C1A]">Pembayaran Berhasil!</h3>
-              <p className="text-xs text-[#8E867C] mt-1">
-                ID Struk: <span className="font-mono font-bold text-[#201C1A]">{successOrder.id}</span>
-              </p>
-            </div>
-
-            <div className="p-4 bg-[#FAF8F5] rounded-2xl border border-[#ECE7DE]">
-              <span className="text-[11px] text-[#8E867C]">Total Diterima</span>
-              <p className="text-2xl font-black text-[#201C1A] mt-0.5">
-                {formatRupiah(successOrder.total)}
-              </p>
-            </div>
-
-            <button
-              onClick={() => setSuccessOrder(null)}
-              className="w-full py-3 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl transition-all shadow text-xs"
-            >
-              Mulai Pesanan Baru
-            </button>
-          </div>
-        </div>
+      {completedReceipt && (
+        <ReceiptModal
+          receipt={completedReceipt}
+          onClose={() => setCompletedReceipt(null)}
+          onNewTransaction={() => {
+            setCompletedReceipt(null);
+            clearCart();
+          }}
+        />
       )}
     </div>
   );

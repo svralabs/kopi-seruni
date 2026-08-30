@@ -1,7 +1,7 @@
 import { db } from '@/lib/db';
-import { orders, expenses, orderItems } from '@/lib/schema';
+import { orders, expenses, orderItems, outlets, user } from '@/lib/schema';
 import { formatRupiah, formatDateTime } from '@/lib/utils';
-import { sql, desc, eq, gte } from 'drizzle-orm';
+import { sql, desc, eq, and, gte } from 'drizzle-orm';
 import Link from 'next/link';
 import {
   TrendingUp,
@@ -12,15 +12,17 @@ import {
   Clock,
   UtensilsCrossed,
   Layers,
+  Store,
 } from 'lucide-react';
 
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ period?: string }>;
+  searchParams?: Promise<{ period?: string; outletId?: string }>;
 }) {
   const resolvedParams = searchParams ? await searchParams : {};
   const period = resolvedParams.period || 'today';
+  const outletId = resolvedParams.outletId || 'all';
 
   const now = new Date();
   let startEpoch = 0;
@@ -34,6 +36,7 @@ export default async function DashboardPage({
     startEpoch = Math.floor(Date.now() / 1000) - 30 * 86400;
   }
 
+  let allOutlets: any[] = [];
   let totalRevenue = 0;
   let totalTrx = 0;
   let totalExpenses = 0;
@@ -41,282 +44,281 @@ export default async function DashboardPage({
   let recentOrders: any[] = [];
 
   try {
-    const revenueQuery =
-      startEpoch > 0
-        ? await db
-            .select({
-              total: sql<number>`COALESCE(SUM(total), 0)`,
-              count: sql<number>`COUNT(*)`,
-            })
-            .from(orders)
-            .where(sql`status = 'completed' AND created_at >= ${startEpoch}`)
-        : await db
-            .select({
-              total: sql<number>`COALESCE(SUM(total), 0)`,
-              count: sql<number>`COUNT(*)`,
-            })
-            .from(orders)
-            .where(eq(orders.status, 'completed'));
+    allOutlets = await db.select().from(outlets);
 
-    totalRevenue = revenueQuery[0]?.total || 0;
-    totalTrx = revenueQuery[0]?.count || 0;
+    // Filter conditions for orders
+    const orderConditions = [eq(orders.status, 'completed')];
+    if (startEpoch > 0) orderConditions.push(gte(orders.createdAt, startEpoch));
+    if (outletId !== 'all') orderConditions.push(eq(orders.outletId, outletId));
 
-    const expenseQuery =
-      startEpoch > 0
-        ? await db
-            .select({ total: sql<number>`COALESCE(SUM(amount), 0)` })
-            .from(expenses)
-            .where(gte(expenses.expenseDate, startEpoch))
-        : await db
-            .select({ total: sql<number>`COALESCE(SUM(amount), 0)` })
-            .from(expenses);
-
-    totalExpenses = expenseQuery[0]?.total || 0;
-
-    const cogsQuery =
-      startEpoch > 0
-        ? await db
-            .select({
-              totalCost: sql<number>`COALESCE(SUM(order_items.cost_price * order_items.quantity), 0)`,
-            })
-            .from(orderItems)
-            .innerJoin(orders, eq(orderItems.orderId, orders.id))
-            .where(sql`orders.status = 'completed' AND orders.created_at >= ${startEpoch}`)
-        : await db
-            .select({
-              totalCost: sql<number>`COALESCE(SUM(cost_price * quantity), 0)`,
-            })
-            .from(orderItems);
-
-    estimatedCOGS = cogsQuery[0]?.totalCost || 0;
-
-    recentOrders = await db
-      .select()
+    const revenueQuery = await db
+      .select({
+        total: sql<number>`COALESCE(SUM(total), 0)`,
+        count: sql<number>`COUNT(*)`,
+      })
       .from(orders)
+      .where(and(...orderConditions));
+
+    totalRevenue = Number(revenueQuery[0]?.total || 0);
+    totalTrx = Number(revenueQuery[0]?.count || 0);
+
+    // Filter conditions for expenses
+    const expenseConditions = [];
+    if (startEpoch > 0) expenseConditions.push(gte(expenses.expenseDate, startEpoch));
+    if (outletId !== 'all') expenseConditions.push(eq(expenses.outletId, outletId));
+
+    const expenseQuery = await db
+      .select({
+        total: sql<number>`COALESCE(SUM(amount), 0)`,
+      })
+      .from(expenses)
+      .where(expenseConditions.length > 0 ? and(...expenseConditions) : undefined);
+
+    totalExpenses = Number(expenseQuery[0]?.total || 0);
+
+    // COGS estimation
+    const cogsQuery = await db
+      .select({
+        cogs: sql<number>`COALESCE(SUM(order_items.cost_price * order_items.quantity), 0)`,
+      })
+      .from(orderItems)
+      .innerJoin(orders, eq(orderItems.orderId, orders.id))
+      .where(and(...orderConditions));
+
+    estimatedCOGS = Number(cogsQuery[0]?.cogs || 0);
+
+    // Recent 5 transactions
+    recentOrders = await db
+      .select({
+        order: orders,
+        outlet: outlets,
+        user: user,
+      })
+      .from(orders)
+      .leftJoin(outlets, eq(orders.outletId, outlets.id))
+      .leftJoin(user, eq(orders.kasirId, user.id))
+      .where(outletId !== 'all' ? eq(orders.outletId, outletId) : undefined)
       .orderBy(desc(orders.createdAt))
       .limit(5);
   } catch (e) {
-    console.warn('DB query error:', e);
+    console.warn('Dashboard DB query error:', e);
   }
 
+  const grossProfit = Math.max(0, totalRevenue - estimatedCOGS);
   const netProfit = totalRevenue - estimatedCOGS - totalExpenses;
+  const netMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : '0';
 
   return (
-    <div className="space-y-6">
-      {/* Bento Header & Filter */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-8">
+      {/* Header Bento */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-[#201C1A]">
-            Dashboard Utama
+            Dashboard Ringkasan Penjualan
           </h1>
           <p className="text-xs text-[#8E867C] mt-0.5">
-            Ringkasan performa penjualan dan operasional Toko Kopi Seruni
+            Performa finansial, laba kotor, dan operasional kasir multi-outlet Kopi Seruni
           </p>
         </div>
 
-        <div className="flex items-center gap-1.5 bg-white p-1 rounded-2xl border border-[#EBE7DF] shadow-xs text-xs">
-          <Link
-            href="/dashboard?period=today"
-            className={`px-3 py-1.5 rounded-xl font-bold transition-colors ${
-              period === 'today'
-                ? 'bg-[#2E2520] text-white shadow-xs'
-                : 'text-[#7A7268] hover:text-[#201C1A]'
-            }`}
-          >
-            Hari Ini
-          </Link>
-          <Link
-            href="/dashboard?period=7d"
-            className={`px-3 py-1.5 rounded-xl font-bold transition-colors ${
-              period === '7d'
-                ? 'bg-[#2E2520] text-white shadow-xs'
-                : 'text-[#7A7268] hover:text-[#201C1A]'
-            }`}
-          >
-            7 Hari
-          </Link>
-          <Link
-            href="/dashboard?period=30d"
-            className={`px-3 py-1.5 rounded-xl font-bold transition-colors ${
-              period === '30d'
-                ? 'bg-[#2E2520] text-white shadow-xs'
-                : 'text-[#7A7268] hover:text-[#201C1A]'
-            }`}
-          >
-            30 Hari
-          </Link>
-          <Link
-            href="/dashboard?period=all"
-            className={`px-3 py-1.5 rounded-xl font-bold transition-colors ${
-              period === 'all'
-                ? 'bg-[#2E2520] text-white shadow-xs'
-                : 'text-[#7A7268] hover:text-[#201C1A]'
-            }`}
-          >
-            Semua
-          </Link>
+        {/* Filter Controls (Outlet & Periode) */}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Outlet Filter Dropdown */}
+          <div className="flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-2xl border border-[#EBE7DF] shadow-xs text-xs">
+            <Store className="w-3.5 h-3.5 text-[#54382B]" />
+            <span className="text-[11px] font-bold text-[#8E867C]">Outlet:</span>
+            <select
+              value={outletId}
+              onChange={(e) => {
+                const url = new URL(window.location.href);
+                if (e.target.value === 'all') url.searchParams.delete('outletId');
+                else url.searchParams.set('outletId', e.target.value);
+                window.location.href = url.toString();
+              }}
+              className="text-xs font-bold text-[#201C1A] bg-transparent border-none focus:outline-none cursor-pointer"
+            >
+              <option value="all">Semua Cabang</option>
+              {allOutlets.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Period Filter Tabs */}
+          <div className="flex items-center gap-1 bg-white p-1 rounded-2xl border border-[#EBE7DF] shadow-xs text-xs">
+            {[
+              { key: 'today', label: 'Hari Ini' },
+              { key: '7d', label: '7 Hari' },
+              { key: '30d', label: '30 Hari' },
+              { key: 'all', label: 'Semua' },
+            ].map((t) => (
+              <Link
+                key={t.key}
+                href={`/dashboard?period=${t.key}${outletId !== 'all' ? `&outletId=${outletId}` : ''}`}
+                className={`px-3 py-1.5 rounded-xl font-bold transition-all ${
+                  period === t.key
+                    ? 'bg-[#2E2520] text-white shadow-xs'
+                    : 'text-[#8E867C] hover:text-[#201C1A]'
+                }`}
+              >
+                {t.label}
+              </Link>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Bento Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Omset */}
-        <div className="bg-white p-5 rounded-3xl border border-[#EBE7DF] shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-[#8E867C] mb-3">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Total Penjualan</span>
-            <div className="w-8 h-8 rounded-xl bg-[#F4EFE6] text-[#54382B] flex items-center justify-center">
-              <Coins className="w-4 h-4" />
-            </div>
-          </div>
-          <div>
-            <p className="text-2xl font-black text-[#201C1A] tracking-tight">{formatRupiah(totalRevenue)}</p>
-            <p className="text-[11px] text-[#9E968B] mt-1">Akumulasi pesanan selesai</p>
-          </div>
-        </div>
-
-        {/* Transaksi Struk */}
-        <div className="bg-white p-5 rounded-3xl border border-[#EBE7DF] shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-[#8E867C] mb-3">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Jumlah Transaksi</span>
-            <div className="w-8 h-8 rounded-xl bg-[#F4EFE6] text-[#54382B] flex items-center justify-center">
-              <Receipt className="w-4 h-4" />
-            </div>
-          </div>
-          <div>
-            <p className="text-2xl font-black text-[#201C1A] tracking-tight">
-              {totalTrx} <span className="text-xs font-semibold text-[#8E867C]">struk</span>
-            </p>
-            <p className="text-[11px] text-[#9E968B] mt-1">Total checkout kasir</p>
-          </div>
-        </div>
-
-        {/* Total Pengeluaran */}
-        <div className="bg-white p-5 rounded-3xl border border-[#EBE7DF] shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-[#8E867C] mb-3">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Beban Pengeluaran</span>
-            <div className="w-8 h-8 rounded-xl bg-[#FBEBE8] text-[#964B3B] flex items-center justify-center">
-              <WalletCards className="w-4 h-4" />
-            </div>
-          </div>
-          <div>
-            <p className="text-2xl font-black text-[#964B3B] tracking-tight">{formatRupiah(totalExpenses)}</p>
-            <p className="text-[11px] text-[#9E968B] mt-1">Operasional & belanja stok</p>
-          </div>
-        </div>
-
-        {/* Laba Bersih */}
-        <div className="bg-white p-5 rounded-3xl border border-[#EBE7DF] shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-[#8E867C] mb-3">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Estimasi Laba Bersih</span>
-            <div className="w-8 h-8 rounded-xl bg-[#EAF5EC] text-[#2D7A47] flex items-center justify-center">
+      {/* KPI Bento Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        {/* KPI 1: Omset Penjualan */}
+        <div className="bg-white rounded-3xl border border-[#EBE7DF] p-6 shadow-xs flex flex-col justify-between space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-[#8E867C] uppercase tracking-wider">
+              Total Penjualan (Omset)
+            </span>
+            <div className="w-8 h-8 rounded-xl bg-[#FAF8F5] text-[#54382B] flex items-center justify-center">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
           <div>
-            <p className={`text-2xl font-black tracking-tight ${netProfit >= 0 ? 'text-[#2D7A47]' : 'text-[#964B3B]'}`}>
-              {formatRupiah(netProfit)}
+            <h2 className="font-serif font-black text-2xl text-[#201C1A]">
+              {formatRupiah(totalRevenue)}
+            </h2>
+            <p className="text-[10px] text-[#2D7A47] font-semibold mt-1">
+              Dari {totalTrx} transaksi berhasil
             </p>
-            <p className="text-[11px] text-[#9E968B] mt-1">Omset - HPP - Beban Kas</p>
+          </div>
+        </div>
+
+        {/* KPI 2: Total Beban / Pengeluaran */}
+        <div className="bg-white rounded-3xl border border-[#EBE7DF] p-6 shadow-xs flex flex-col justify-between space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-[#8E867C] uppercase tracking-wider">
+              Beban Pengeluaran
+            </span>
+            <div className="w-8 h-8 rounded-xl bg-[#FAF8F5] text-[#964B3B] flex items-center justify-center">
+              <WalletCards className="w-4 h-4" />
+            </div>
+          </div>
+          <div>
+            <h2 className="font-serif font-black text-2xl text-[#964B3B]">
+              {formatRupiah(totalExpenses)}
+            </h2>
+            <p className="text-[10px] text-[#8E867C] mt-1">Operasional & belanja bahan</p>
+          </div>
+        </div>
+
+        {/* KPI 3: Estimasi HPP / Modal */}
+        <div className="bg-white rounded-3xl border border-[#EBE7DF] p-6 shadow-xs flex flex-col justify-between space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-[#8E867C] uppercase tracking-wider">
+              Estimasi HPP (COGS)
+            </span>
+            <div className="w-8 h-8 rounded-xl bg-[#FAF8F5] text-[#7A7268] flex items-center justify-center">
+              <Layers className="w-4 h-4" />
+            </div>
+          </div>
+          <div>
+            <h2 className="font-serif font-black text-2xl text-[#201C1A]">
+              {formatRupiah(estimatedCOGS)}
+            </h2>
+            <p className="text-[10px] text-[#8E867C] mt-1">Modal dasar menu terjual</p>
+          </div>
+        </div>
+
+        {/* KPI 4: Net Profit (Laba Bersih) */}
+        <div className="bg-white rounded-3xl border border-[#EBE7DF] p-6 shadow-xs flex flex-col justify-between space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-[#8E867C] uppercase tracking-wider">
+              Laba Bersih (Net Profit)
+            </span>
+            <div className="w-8 h-8 rounded-xl bg-[#FAF8F5] text-[#2D7A47] flex items-center justify-center">
+              <Coins className="w-4 h-4" />
+            </div>
+          </div>
+          <div>
+            <h2
+              className={`font-serif font-black text-2xl ${
+                netProfit >= 0 ? 'text-[#2D7A47]' : 'text-[#964B3B]'
+              }`}
+            >
+              {formatRupiah(netProfit)}
+            </h2>
+            <p className="text-[10px] text-[#2D7A47] font-semibold mt-1">
+              Margin Bersih: {netMargin}%
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Bento Main Grid: 2/3 Recent Orders + 1/3 Quick Actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Bento: Recent Orders */}
-        <div className="lg:col-span-2 bg-white rounded-3xl border border-[#EBE7DF] shadow-xs p-6 space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-[#F0ECE4]">
-            <div>
-              <h3 className="font-bold text-[#201C1A] text-base tracking-tight">
-                Transaksi Kasir Terkini
-              </h3>
-              <p className="text-xs text-[#8E867C]">Riwayat 5 pesanan terakhir</p>
-            </div>
-            <Link
-              href="/pos"
-              className="text-xs font-bold text-[#54382B] hover:text-[#201C1A] inline-flex items-center gap-1"
-            >
-              <span>Buka POS</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
+      {/* SECTION 2: Transaksi Terbaru */}
+      <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-xs p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-serif font-black text-base text-[#201C1A]">
+              5 Transaksi Terakhir
+            </h3>
+            <p className="text-xs text-[#8E867C]">Penjualan kasir real-time</p>
           </div>
-
-          {recentOrders.length === 0 ? (
-            <div className="text-center py-12 text-[#9E968B] text-xs">
-              Belum ada transaksi pada periode yang dipilih.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="text-[#8E867C] font-bold uppercase text-[10px] tracking-wider border-b border-[#F0ECE4] pb-2">
-                    <th className="pb-3">ID Struk</th>
-                    <th className="pb-3">Waktu</th>
-                    <th className="pb-3">Metode</th>
-                    <th className="pb-3">Total</th>
-                    <th className="pb-3 text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#F4F0E8]">
-                  {recentOrders.map((ord) => (
-                    <tr key={ord.id} className="hover:bg-[#FBF9F6] transition-colors">
-                      <td className="py-3 font-mono font-bold text-[#201C1A]">{ord.id}</td>
-                      <td className="py-3 text-[#7A7268]">{formatDateTime(ord.createdAt)}</td>
-                      <td className="py-3 uppercase font-medium">
-                        <span className="px-2 py-0.5 rounded-lg bg-[#F2EDE5] text-[#54382B] border border-[#E5DFD4]">
-                          {ord.paymentMethod}
-                        </span>
-                      </td>
-                      <td className="py-3 font-black text-[#201C1A]">{formatRupiah(ord.total)}</td>
-                      <td className="py-3 text-right">
-                        <span
-                          className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] ${
-                            ord.status === 'completed'
-                              ? 'bg-[#EBF6EE] text-[#2D7A47]'
-                              : ord.status === 'voided'
-                              ? 'bg-[#FBEBE8] text-[#964B3B]'
-                              : 'bg-[#FDF4E5] text-[#96631E]'
-                          }`}
-                        >
-                          {ord.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <Link
+            href="/orders"
+            className="text-xs font-bold text-[#54382B] hover:underline flex items-center gap-1"
+          >
+            <span>Lihat Semua Transaksi</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
         </div>
 
-        {/* Right Bento: Shortcuts & Quick Launch */}
-        <div className="bg-[#2E2520] text-white rounded-3xl p-6 shadow-md flex flex-col justify-between space-y-6">
-          <div className="space-y-3">
-            <span className="px-3 py-1 rounded-xl bg-white/10 text-[10px] font-bold uppercase tracking-wider text-[#EAE2D5] border border-white/10">
-              Kasir Seruni
-            </span>
-            <h3 className="text-xl font-serif font-bold text-[#FAF8F5] leading-snug">
-              Mulai Layani Transaksi Pelanggan
-            </h3>
-            <p className="text-xs text-[#C8BFB2] leading-relaxed">
-              Buka menu kasir POS untuk pemesanan cepat, pilih varian suhu dan gula, serta cetak struk instan.
-            </p>
-          </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="border-b border-[#F0ECE4] bg-[#FAF8F5] text-[#8E867C] text-[10px] font-bold uppercase tracking-wider">
+                <th className="py-3 px-4">No. Struk</th>
+                <th className="py-3 px-4">Outlet & Kasir</th>
+                <th className="py-3 px-4">Pelanggan</th>
+                <th className="py-3 px-4">Metode Bayar</th>
+                <th className="py-3 px-4">Waktu</th>
+                <th className="py-3 px-4 text-right">Total Transaksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#F4F0E8]">
+              {recentOrders.map((row) => (
+                <tr key={row.order.id} className="hover:bg-[#FBF9F6]">
+                  <td className="py-3.5 px-4 font-mono font-bold text-[#201C1A]">
+                    {row.order.id}
+                  </td>
+                  <td className="py-3.5 px-4">
+                    <p className="font-bold text-[#201C1A]">{row.outlet?.name || 'Pusat'}</p>
+                    <p className="text-[10px] text-[#7A7268]">Kasir: {row.user?.name || 'Kasir'}</p>
+                  </td>
+                  <td className="py-3.5 px-4 text-[#4A4238]">
+                    {row.order.customerName || 'Walk-in'}
+                  </td>
+                  <td className="py-3.5 px-4">
+                    <span className="text-[10px] font-bold uppercase bg-[#F4EFE6] text-[#54382B] px-2.5 py-0.5 rounded-md">
+                      {row.order.paymentMethod}
+                    </span>
+                  </td>
+                  <td className="py-3.5 px-4 text-[#7A7268]">
+                    {formatDateTime(row.order.createdAt)}
+                  </td>
+                  <td className="py-3.5 px-4 text-right font-black text-sm text-[#201C1A]">
+                    {formatRupiah(row.order.total)}
+                  </td>
+                </tr>
+              ))}
 
-          <div className="space-y-2.5">
-            <Link
-              href="/pos"
-              className="w-full py-3 px-4 bg-[#FAF8F5] hover:bg-white text-[#201C1A] font-bold rounded-2xl text-center block transition-all shadow text-xs"
-            >
-              Mulai Transaksi Kasir POS
-            </Link>
-            <Link
-              href="/shift"
-              className="w-full py-2.5 px-4 bg-white/10 hover:bg-white/15 text-[#EFEBE4] font-semibold rounded-2xl text-center block transition-colors text-xs border border-white/10"
-            >
-              Rekonsiliasi Shift & Kas
-            </Link>
-          </div>
+              {recentOrders.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="text-center py-8 text-[#9E968B] text-xs">
+                    Belum ada transaksi pada periode ini.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

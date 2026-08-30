@@ -13,6 +13,8 @@ import {
   WalletCards,
   TrendingUp,
   Users2,
+  Receipt,
+  Store,
   BookOpen,
   LogOut,
 } from 'lucide-react';
@@ -20,14 +22,17 @@ import {
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/pos', label: 'Kasir POS', icon: UtensilsCrossed },
+  { href: '/orders', label: 'Riwayat Transaksi', icon: Receipt },
   { href: '/products', label: 'Produk & Menu', icon: Package },
   { href: '/stok', label: 'Stok & Inventori', icon: Warehouse },
   { href: '/shift', label: 'Shift Kasir', icon: Clock },
   { href: '/expenses', label: 'Pengeluaran', icon: WalletCards },
   { href: '/profit-loss', label: 'Laba Rugi', icon: TrendingUp },
   { href: '/bagi-hasil', label: 'Bagi Hasil', icon: Users2 },
+  { href: '/outlets', label: 'Kelola Outlet', icon: Store },
   { href: '/api-docs', label: 'Dokumentasi API', icon: BookOpen },
 ];
+
 
 
 export default function Sidebar({ userName = 'Kasir' }: { userName?: string }) {

@@ -1,28 +1,42 @@
 import { db } from '@/lib/db';
-import { stock, products, stockMovements } from '@/lib/schema';
+import { stock, products, stockMovements, outlets } from '@/lib/schema';
 import { formatDate } from '@/lib/utils';
 import { adjustStock } from '@/app/actions/stock';
-import { eq, isNull, desc } from 'drizzle-orm';
-import { Warehouse, Plus, ArrowDownLeft, ArrowUpRight, RotateCcw } from 'lucide-react';
+import { eq, and, isNull, desc } from 'drizzle-orm';
+import { Warehouse, Plus, ArrowDownLeft, ArrowUpRight, RotateCcw, Store } from 'lucide-react';
 
-export default async function StockPage() {
+export default async function StockPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ outletId?: string }>;
+}) {
+  const resolvedParams = searchParams ? await searchParams : {};
+  const outletId = resolvedParams.outletId || 'out_default';
+
+  let allOutlets: any[] = [];
   let productList: any[] = [];
   let stockList: any[] = [];
   let movementList: any[] = [];
 
   try {
+    allOutlets = await db.select().from(outlets);
+
     productList = await db
       .select()
       .from(products)
       .where(isNull(products.deletedAt));
 
-    stockList = await db.select().from(stock);
+    stockList = await db
+      .select()
+      .from(stock)
+      .where(eq(stock.outletId, outletId));
 
     movementList = await db
       .select()
       .from(stockMovements)
+      .where(eq(stockMovements.outletId, outletId))
       .orderBy(desc(stockMovements.createdAt))
-      .limit(15);
+      .limit(20);
   } catch (e) {
     console.warn('Error fetching stock data:', e);
   }
@@ -37,26 +51,54 @@ export default async function StockPage() {
     productMap[p.id] = p.name;
   });
 
+  const currentOutletName = allOutlets.find((o) => o.id === outletId)?.name || 'Outlet Utama';
+
   return (
     <div className="space-y-8">
       {/* Header Bento */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-[#201C1A]">
-          Stok & Inventori
-        </h1>
-        <p className="text-xs text-[#8E867C] mt-0.5">
-          Monitor sisa stok menu/bahan dan riwayat mutasi otomatis dari transaksi POS
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-[#201C1A]">
+            Stok & Inventori Menu
+          </h1>
+          <p className="text-xs text-[#8E867C] mt-0.5">
+            Monitor sisa stok menu/bahan dan riwayat mutasi otomatis dari transaksi POS
+          </p>
+        </div>
+
+        {/* Outlet Switcher Filter */}
+        <div className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-2xl border border-[#EBE7DF] shadow-xs text-xs">
+          <Store className="w-4 h-4 text-[#54382B]" />
+          <span className="text-[11px] font-bold text-[#8E867C]">Outlet:</span>
+          <select
+            defaultValue={outletId}
+            onChange={(e) => {
+              window.location.href = `/stok?outletId=${e.target.value}`;
+            }}
+            className="text-xs font-bold text-[#201C1A] bg-transparent border-none focus:outline-none cursor-pointer"
+          >
+            {allOutlets.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Form Penyesuaian Stok */}
         <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-xs p-6 space-y-4">
-          <h3 className="font-bold text-xs uppercase tracking-wider text-[#54382B] flex items-center gap-2">
-            <Plus className="w-4 h-4" /> Penyesuaian & Restock
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-xs uppercase tracking-wider text-[#54382B] flex items-center gap-2">
+              <Plus className="w-4 h-4" /> Restock / Opname
+            </h3>
+            <span className="text-[10px] text-[#8E867C] font-semibold">{currentOutletName}</span>
+          </div>
 
           <form action={adjustStock} className="space-y-3.5 text-xs">
+            <input type="hidden" name="outletId" value={outletId} />
+
             <div>
               <label className="block font-bold text-[#4A4238] mb-1.5">Pilih Produk</label>
               <select
@@ -121,7 +163,10 @@ export default async function StockPage() {
 
         {/* Right Column: Daftar Sisa Stok */}
         <div className="lg:col-span-2 bg-white rounded-3xl border border-[#EBE7DF] shadow-xs p-6 space-y-4">
-          <h3 className="font-bold text-sm text-[#201C1A]">Sisa Stok Menu Saat Ini</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-sm text-[#201C1A]">Sisa Stok: {currentOutletName}</h3>
+            <span className="text-xs text-[#8E867C]">{productList.length} Menu</span>
+          </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
@@ -170,7 +215,7 @@ export default async function StockPage() {
 
       {/* SECTION 2: Riwayat Mutasi Log */}
       <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-xs p-6 space-y-4">
-        <h3 className="font-bold text-base text-[#201C1A]">Riwayat Mutasi Stok Terakhir (Log)</h3>
+        <h3 className="font-bold text-base text-[#201C1A]">Riwayat Log Mutasi Stok ({currentOutletName})</h3>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
@@ -198,7 +243,7 @@ export default async function StockPage() {
                           : 'bg-[#F2EDE5] text-[#54382B]'
                       }`}
                     >
-                      {m.type === 'in' ? 'Masuk' : m.type === 'out' ? 'Keluar (POS)' : m.type}
+                      {m.type === 'in' ? 'Masuk (Restock)' : m.type === 'out' ? 'Keluar (POS)' : m.type}
                     </span>
                   </td>
                   <td className="py-3 px-4 font-black">
@@ -212,7 +257,7 @@ export default async function StockPage() {
               {movementList.length === 0 && (
                 <tr>
                   <td colSpan={5} className="text-center py-8 text-[#9E968B] text-xs">
-                    Belum ada log mutasi stok.
+                    Belum ada log mutasi stok pada outlet ini.
                   </td>
                 </tr>
               )}

@@ -1,15 +1,36 @@
 import { db } from '@/lib/db';
-import { products, categories, discounts, shifts } from '@/lib/schema';
+import { products, categories, discounts, shifts, outlets } from '@/lib/schema';
+import { getSession } from '@/lib/auth-helpers';
 import POSClient from './pos-client';
 import { eq, and, isNull } from 'drizzle-orm';
 
-export default async function POSPage() {
+export default async function POSPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ outletId?: string }>;
+}) {
+  const session = await getSession();
+  const kasirName = session?.user?.name || 'Kasir Seruni';
+
+  const params = await searchParams;
+  let allOutlets: any[] = [];
+  let currentOutlet: any = null;
   let productList: any[] = [];
   let categoryList: any[] = [];
   let discountList: any[] = [];
-  let activeShiftId: string | undefined = undefined;
+  let activeShift: any = null;
 
   try {
+    allOutlets = await db.select().from(outlets);
+
+    const targetOutletId = params?.outletId || allOutlets[0]?.id || 'out_default';
+    currentOutlet = allOutlets.find((o) => o.id === targetOutletId) || allOutlets[0] || {
+      id: 'out_default',
+      name: 'Kopi Seruni - Pusat',
+      address: 'Jl. Dipati Ukur No. 42, Bandung',
+      phone: '0812-3456-7890',
+    };
+
     productList = await db
       .select()
       .from(products)
@@ -26,13 +47,13 @@ export default async function POSPage() {
       .where(and(eq(discounts.isActive, 1), isNull(discounts.deletedAt)));
 
     const activeShifts = await db
-      .select({ id: shifts.id })
+      .select()
       .from(shifts)
-      .where(isNull(shifts.closedAt))
+      .where(and(eq(shifts.outletId, currentOutlet.id), isNull(shifts.closedAt)))
       .limit(1);
 
     if (activeShifts.length > 0) {
-      activeShiftId = activeShifts[0].id;
+      activeShift = activeShifts[0];
     }
   } catch (e) {
     console.warn('DB query in POS failed:', e);
@@ -44,9 +65,11 @@ export default async function POSPage() {
         initialProducts={productList}
         categories={categoryList}
         discounts={discountList}
-        shiftId={activeShiftId}
+        allOutlets={allOutlets}
+        currentOutlet={currentOutlet}
+        shiftId={activeShift?.id}
+        kasirName={kasirName}
       />
     </div>
   );
 }
-

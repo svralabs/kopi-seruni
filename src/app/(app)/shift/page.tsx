@@ -1,17 +1,27 @@
 import { db } from '@/lib/db';
-import { shifts } from '@/lib/schema';
+import { shifts, outlets } from '@/lib/schema';
 import ShiftClient from './shift-client';
-import { desc, isNull } from 'drizzle-orm';
+import { desc, isNull, eq, and } from 'drizzle-orm';
 
-export default async function ShiftPage() {
+export default async function ShiftPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ outletId?: string }>;
+}) {
+  const resolvedParams = searchParams ? await searchParams : {};
+  const outletId = resolvedParams.outletId || 'out_default';
+
+  let allOutlets: any[] = [];
   let activeShift = null;
   let recentShifts: any[] = [];
 
   try {
+    allOutlets = await db.select().from(outlets);
+
     const active = await db
       .select()
       .from(shifts)
-      .where(isNull(shifts.closedAt))
+      .where(and(eq(shifts.outletId, outletId), isNull(shifts.closedAt)))
       .limit(1);
 
     activeShift = active[0] || null;
@@ -19,6 +29,7 @@ export default async function ShiftPage() {
     recentShifts = await db
       .select()
       .from(shifts)
+      .where(eq(shifts.outletId, outletId))
       .orderBy(desc(shifts.openedAt))
       .limit(10);
   } catch (e) {
@@ -27,16 +38,12 @@ export default async function ShiftPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-[#201C1A]">
-          Shift Kasir & Rekonsiliasi
-        </h1>
-        <p className="text-xs text-[#8E867C] mt-0.5">
-          Kelola sesi buka/tutup kasir, modal kas kecil, dan cek selisih fisik laci
-        </p>
-      </div>
-
-      <ShiftClient activeShift={activeShift} recentShifts={recentShifts} />
+      <ShiftClient
+        activeShift={activeShift}
+        recentShifts={recentShifts}
+        outletId={outletId}
+        allOutlets={allOutlets}
+      />
     </div>
   );
 }

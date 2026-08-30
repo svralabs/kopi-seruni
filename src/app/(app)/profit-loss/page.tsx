@@ -1,17 +1,18 @@
 import { db } from '@/lib/db';
-import { orders, expenses, orderItems } from '@/lib/schema';
+import { orders, expenses, orderItems, outlets } from '@/lib/schema';
 import { formatRupiah } from '@/lib/utils';
-import { sql, eq } from 'drizzle-orm';
+import { sql, eq, and, gte } from 'drizzle-orm';
 import Link from 'next/link';
-import { TrendingUp, Coins, Receipt, WalletCards, BarChart3 } from 'lucide-react';
+import { TrendingUp, Coins, Receipt, WalletCards, BarChart3, Store } from 'lucide-react';
 
 export default async function ProfitLossPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ period?: string }>;
+  searchParams?: Promise<{ period?: string; outletId?: string }>;
 }) {
   const resolvedParams = searchParams ? await searchParams : {};
   const period = resolvedParams.period || 'this_month';
+  const outletId = resolvedParams.outletId || 'all';
 
   const now = new Date();
   let startEpoch = 0;
@@ -30,189 +31,210 @@ export default async function ProfitLossPage({
     periodLabel = 'Semua Periode';
   }
 
+  let allOutlets: any[] = [];
   let totalRevenue = 0;
   let totalCOGS = 0;
   let totalExpenses = 0;
 
   try {
-    const revenueQuery =
-      startEpoch > 0
-        ? await db
-            .select({ total: sql<number>`COALESCE(SUM(total), 0)` })
-            .from(orders)
-            .where(sql`status = 'completed' AND created_at >= ${startEpoch}`)
-        : await db
-            .select({ total: sql<number>`COALESCE(SUM(total), 0)` })
-            .from(orders)
-            .where(eq(orders.status, 'completed'));
+    allOutlets = await db.select().from(outlets);
 
-    totalRevenue = revenueQuery[0]?.total || 0;
+    const orderConditions = [eq(orders.status, 'completed')];
+    if (startEpoch > 0) orderConditions.push(gte(orders.createdAt, startEpoch));
+    if (outletId !== 'all') orderConditions.push(eq(orders.outletId, outletId));
 
-    const cogsQuery =
-      startEpoch > 0
-        ? await db
-            .select({
-              totalCost: sql<number>`COALESCE(SUM(order_items.cost_price * order_items.quantity), 0)`,
-            })
-            .from(orderItems)
-            .innerJoin(orders, eq(orderItems.orderId, orders.id))
-            .where(sql`orders.status = 'completed' AND orders.created_at >= ${startEpoch}`)
-        : await db
-            .select({
-              totalCost: sql<number>`COALESCE(SUM(cost_price * quantity), 0)`,
-            })
-            .from(orderItems);
+    const revenueQuery = await db
+      .select({ total: sql<number>`COALESCE(SUM(total), 0)` })
+      .from(orders)
+      .where(and(...orderConditions));
 
-    totalCOGS = cogsQuery[0]?.totalCost || 0;
+    totalRevenue = Number(revenueQuery[0]?.total || 0);
 
-    const expenseQuery =
-      startEpoch > 0
-        ? await db
-            .select({ total: sql<number>`COALESCE(SUM(amount), 0)` })
-            .from(expenses)
-            .where(sql`expense_date >= ${startEpoch}`)
-        : await db
-            .select({ total: sql<number>`COALESCE(SUM(amount), 0)` })
-            .from(expenses);
+    const cogsQuery = await db
+      .select({
+        totalCost: sql<number>`COALESCE(SUM(order_items.cost_price * order_items.quantity), 0)`,
+      })
+      .from(orderItems)
+      .innerJoin(orders, eq(orderItems.orderId, orders.id))
+      .where(and(...orderConditions));
 
-    totalExpenses = expenseQuery[0]?.total || 0;
+    totalCOGS = Number(cogsQuery[0]?.totalCost || 0);
+
+    const expenseConditions = [];
+    if (startEpoch > 0) expenseConditions.push(gte(expenses.expenseDate, startEpoch));
+    if (outletId !== 'all') expenseConditions.push(eq(expenses.outletId, outletId));
+
+    const expenseQuery = await db
+      .select({ total: sql<number>`COALESCE(SUM(amount), 0)` })
+      .from(expenses)
+      .where(expenseConditions.length > 0 ? and(...expenseConditions) : undefined);
+
+    totalExpenses = Number(expenseQuery[0]?.total || 0);
   } catch (e) {
-    console.warn('Error querying profit loss:', e);
+    console.warn('Profit Loss DB query error:', e);
   }
 
   const grossProfit = totalRevenue - totalCOGS;
   const netProfit = grossProfit - totalExpenses;
+  const grossMargin = totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100).toFixed(1) : '0';
   const netMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : '0';
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Header Bento */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-[#201C1A]">
-            Laporan Laba Rugi
+            Laporan Keuangan & Laba Rugi
           </h1>
           <p className="text-xs text-[#8E867C] mt-0.5">
-            Laporan keuangan & profitabilitas periode: <span className="font-bold text-[#201C1A]">{periodLabel}</span>
+            Analisis pendapatan kotor (Gross Profit), beban modal (COGS), dan laba bersih (Net Profit)
           </p>
         </div>
 
-        <div className="flex items-center gap-1.5 bg-white p-1 rounded-2xl border border-[#EBE7DF] shadow-xs text-xs">
-          <Link
-            href="/profit-loss?period=today"
-            className={`px-3 py-1.5 rounded-xl font-bold transition-colors ${
-              period === 'today' ? 'bg-[#2E2520] text-white shadow-xs' : 'text-[#7A7268] hover:text-[#201C1A]'
-            }`}
-          >
-            Hari Ini
-          </Link>
-          <Link
-            href="/profit-loss?period=this_month"
-            className={`px-3 py-1.5 rounded-xl font-bold transition-colors ${
-              period === 'this_month' ? 'bg-[#2E2520] text-white shadow-xs' : 'text-[#7A7268] hover:text-[#201C1A]'
-            }`}
-          >
-            Bulan Ini
-          </Link>
-          <Link
-            href="/profit-loss?period=all"
-            className={`px-3 py-1.5 rounded-xl font-bold transition-colors ${
-              period === 'all' ? 'bg-[#2E2520] text-white shadow-xs' : 'text-[#7A7268] hover:text-[#201C1A]'
-            }`}
-          >
-            Semua
-          </Link>
+        {/* Filter Bar */}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Outlet Filter */}
+          <div className="flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-2xl border border-[#EBE7DF] shadow-xs text-xs">
+            <Store className="w-3.5 h-3.5 text-[#54382B]" />
+            <span className="text-[11px] font-bold text-[#8E867C]">Outlet:</span>
+            <select
+              value={outletId}
+              onChange={(e) => {
+                const url = new URL(window.location.href);
+                if (e.target.value === 'all') url.searchParams.delete('outletId');
+                else url.searchParams.set('outletId', e.target.value);
+                window.location.href = url.toString();
+              }}
+              className="text-xs font-bold text-[#201C1A] bg-transparent border-none focus:outline-none cursor-pointer"
+            >
+              <option value="all">Semua Cabang</option>
+              {allOutlets.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Period Filter */}
+          <div className="flex items-center gap-1 bg-white p-1 rounded-2xl border border-[#EBE7DF] shadow-xs text-xs">
+            {[
+              { key: 'today', label: 'Hari Ini' },
+              { key: 'this_month', label: 'Bulan Ini' },
+              { key: 'all', label: 'Semua' },
+            ].map((t) => (
+              <Link
+                key={t.key}
+                href={`/profit-loss?period=${t.key}${outletId !== 'all' ? `&outletId=${outletId}` : ''}`}
+                className={`px-3 py-1.5 rounded-xl font-bold transition-all ${
+                  period === t.key
+                    ? 'bg-[#2E2520] text-white shadow-xs'
+                    : 'text-[#8E867C] hover:text-[#201C1A]'
+                }`}
+              >
+                {t.label}
+              </Link>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Summary KPI Bento Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-3xl border border-[#EBE7DF] shadow-xs">
-          <span className="text-[11px] font-bold text-[#8E867C] uppercase tracking-wider">Pendapatan (Omset)</span>
-          <p className="text-2xl font-black text-[#201C1A] mt-2">{formatRupiah(totalRevenue)}</p>
-        </div>
-
-        <div className="bg-white p-5 rounded-3xl border border-[#EBE7DF] shadow-xs">
-          <span className="text-[11px] font-bold text-[#8E867C] uppercase tracking-wider">Beban Pokok (HPP)</span>
-          <p className="text-2xl font-black text-[#6B635A] mt-2">{formatRupiah(totalCOGS)}</p>
-        </div>
-
-        <div className="bg-white p-5 rounded-3xl border border-[#EBE7DF] shadow-xs">
-          <span className="text-[11px] font-bold text-[#8E867C] uppercase tracking-wider">Laba Kotor (Gross)</span>
-          <p className="text-2xl font-black text-[#54382B] mt-2">{formatRupiah(grossProfit)}</p>
-        </div>
-
-        <div className="bg-white p-5 rounded-3xl border border-[#EBE7DF] shadow-xs">
-          <span className="text-[11px] font-bold text-[#8E867C] uppercase tracking-wider">Laba Bersih (Net)</span>
-          <p className={`text-2xl font-black mt-2 ${netProfit >= 0 ? 'text-[#2D7A47]' : 'text-[#964B3B]'}`}>
-            {formatRupiah(netProfit)}
-          </p>
-          <span className="text-[10px] font-bold text-[#8E867C] mt-1 inline-block">Margin: {netMargin}%</span>
-        </div>
-      </div>
-
-      {/* Financial Statement Card */}
-      <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-xs p-6 space-y-6">
-        <div className="border-b border-[#F0ECE4] pb-4 flex items-center justify-between">
-          <h3 className="font-bold text-base text-[#201C1A]">
-            Rincian Laba Rugi Operasional
-          </h3>
-          <span className="text-xs text-[#8E867C] font-semibold">Standar Finansial POS</span>
-        </div>
-
-        <div className="space-y-4 text-xs">
-          {/* Pendapatan */}
+      {/* Bento Metric Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Revenue */}
+        <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-xs p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-[#8E867C] uppercase tracking-wider">
+              Total Revenue (Omset)
+            </span>
+            <div className="w-8 h-8 rounded-xl bg-[#FAF8F5] text-[#54382B] flex items-center justify-center">
+              <Receipt className="w-4 h-4" />
+            </div>
+          </div>
           <div>
-            <div className="flex justify-between font-bold text-[#201C1A] py-2 border-b border-[#F0ECE4]">
-              <span>1. PENDAPATAN OPERASIONAL</span>
-              <span>{formatRupiah(totalRevenue)}</span>
-            </div>
-            <div className="pl-4 py-1.5 flex justify-between text-[#7A7268]">
-              <span>Penjualan Menu Kasir Selesai</span>
-              <span>{formatRupiah(totalRevenue)}</span>
+            <h2 className="font-serif font-black text-3xl text-[#201C1A]">
+              {formatRupiah(totalRevenue)}
+            </h2>
+            <p className="text-[10px] text-[#8E867C] mt-1">Penjualan produk lunas</p>
+          </div>
+        </div>
+
+        {/* COGS */}
+        <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-xs p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-[#8E867C] uppercase tracking-wider">
+              Beban Pokok Penjualan (HPP)
+            </span>
+            <div className="w-8 h-8 rounded-xl bg-[#FAF8F5] text-[#7A7268] flex items-center justify-center">
+              <BarChart3 className="w-4 h-4" />
             </div>
           </div>
-
-          {/* HPP */}
           <div>
-            <div className="flex justify-between font-bold text-[#201C1A] py-2 border-b border-[#F0ECE4]">
-              <span>2. HARGA POKOK PENJUALAN (HPP BAHAN)</span>
-              <span className="text-[#6B635A]">({formatRupiah(totalCOGS)})</span>
-            </div>
-            <div className="pl-4 py-1.5 flex justify-between text-[#7A7268]">
-              <span>Beban Modal Produk & Menu</span>
-              <span>({formatRupiah(totalCOGS)})</span>
+            <h2 className="font-serif font-black text-3xl text-[#7A7268]">
+              {formatRupiah(totalCOGS)}
+            </h2>
+            <p className="text-[10px] text-[#8E867C] mt-1">Total harga pokok bahan</p>
+          </div>
+        </div>
+
+        {/* Gross Profit */}
+        <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-xs p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-[#8E867C] uppercase tracking-wider">
+              Laba Kotor (Gross Profit)
+            </span>
+            <div className="w-8 h-8 rounded-xl bg-[#FAF8F5] text-[#2D7A47] flex items-center justify-center">
+              <TrendingUp className="w-4 h-4" />
             </div>
           </div>
-
-          {/* Laba Kotor */}
-          <div className="bg-[#FAF8F5] border border-[#ECE7DE] p-3.5 rounded-2xl flex justify-between font-bold text-[#201C1A]">
-            <span>LABA KOTOR (GROSS PROFIT)</span>
-            <span className="text-[#54382B] font-black">{formatRupiah(grossProfit)}</span>
-          </div>
-
-          {/* Beban Pengeluaran */}
           <div>
-            <div className="flex justify-between font-bold text-[#201C1A] py-2 border-b border-[#F0ECE4]">
-              <span>3. BEBAN OPERASIONAL & KAS KELUAR</span>
-              <span className="text-[#964B3B]">({formatRupiah(totalExpenses)})</span>
-            </div>
-            <div className="pl-4 py-1.5 flex justify-between text-[#7A7268]">
-              <span>Pengeluaran Operasional & Kas Kecil</span>
-              <span>({formatRupiah(totalExpenses)})</span>
+            <h2 className="font-serif font-black text-3xl text-[#2D7A47]">
+              {formatRupiah(grossProfit)}
+            </h2>
+            <p className="text-[10px] text-[#2D7A47] font-semibold mt-1">Margin Kotor: {grossMargin}%</p>
+          </div>
+        </div>
+
+        {/* Operational Expenses */}
+        <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-xs p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-[#8E867C] uppercase tracking-wider">
+              Beban Operasional (Expenses)
+            </span>
+            <div className="w-8 h-8 rounded-xl bg-[#FAF8F5] text-[#964B3B] flex items-center justify-center">
+              <WalletCards className="w-4 h-4" />
             </div>
           </div>
+          <div>
+            <h2 className="font-serif font-black text-3xl text-[#964B3B]">
+              {formatRupiah(totalExpenses)}
+            </h2>
+            <p className="text-[10px] text-[#8E867C] mt-1">Gaji, listrik, sewa, & supplies</p>
+          </div>
+        </div>
 
-          {/* Laba Bersih Final */}
-          <div
-            className={`p-5 rounded-2xl flex justify-between font-black text-sm ${
-              netProfit >= 0
-                ? 'bg-[#EBF6EE] text-[#2D7A47] border border-[#D1EBD8]'
-                : 'bg-[#FBEBE8] text-[#964B3B] border border-[#F5C7BE]'
-            }`}
-          >
-            <span>LABA BERSIH FINAL (NET PROFIT)</span>
-            <span className="text-base">{formatRupiah(netProfit)}</span>
+        {/* Net Profit */}
+        <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-xs p-6 space-y-4 sm:col-span-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-[#8E867C] uppercase tracking-wider">
+              Laba Bersih (Net Profit)
+            </span>
+            <div className="w-8 h-8 rounded-xl bg-[#FAF8F5] text-[#2D7A47] flex items-center justify-center">
+              <Coins className="w-4 h-4" />
+            </div>
+          </div>
+          <div>
+            <h2
+              className={`font-serif font-black text-4xl ${
+                netProfit >= 0 ? 'text-[#2D7A47]' : 'text-[#964B3B]'
+              }`}
+            >
+              {formatRupiah(netProfit)}
+            </h2>
+            <p className="text-xs text-[#2D7A47] font-bold mt-1.5">
+              Net Profit Margin: {netMargin}% • Dasar perhitungan Bagi Hasil
+            </p>
           </div>
         </div>
       </div>

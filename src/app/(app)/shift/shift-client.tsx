@@ -1,20 +1,24 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { openShift, closeShift } from '@/app/actions/shift';
 import { formatRupiah, formatDateTime } from '@/lib/utils';
-import type { Shift } from '@/lib/schema';
-import { Clock, Lock, Play, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import type { Shift, Outlet } from '@/lib/schema';
+import { Clock, Lock, Play, Store } from 'lucide-react';
 
 export default function ShiftClient({
   activeShift,
   recentShifts,
   outletId = 'out_default',
+  allOutlets = [],
 }: {
   activeShift?: Shift | null;
   recentShifts: Shift[];
   outletId?: string;
+  allOutlets?: Outlet[];
 }) {
+  const router = useRouter();
   const [openingCash, setOpeningCash] = useState<number>(100000);
   const [closingCash, setClosingCash] = useState<number>(0);
   const [notes, setNotes] = useState<string>('');
@@ -24,7 +28,7 @@ export default function ShiftClient({
     e.preventDefault();
     startTransition(async () => {
       await openShift(outletId, openingCash);
-      window.location.reload();
+      router.refresh();
     });
   };
 
@@ -40,18 +44,55 @@ export default function ShiftClient({
             res.expectedCash
           )}\nSelisih: ${formatRupiah(res.diff)}`
         );
-        window.location.reload();
+        router.refresh();
       } catch (err: any) {
         alert(err?.message || 'Gagal menutup shift');
       }
     });
   };
 
+  const currentOutletName = allOutlets.find((o) => o.id === outletId)?.name || 'Outlet Utama';
+
   return (
     <div className="space-y-6">
+      {/* Header Bento with Outlet Switcher */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-[#201C1A]">
+            Shift Kasir & Rekonsiliasi Kas
+          </h1>
+          <p className="text-xs text-[#8E867C] mt-0.5">
+            Kelola sesi buka/tutup kasir, modal kas kecil, dan cek selisih fisik laci
+          </p>
+        </div>
+
+        {/* Outlet Switcher Filter */}
+        <div className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-2xl border border-[#EBE7DF] shadow-xs text-xs">
+          <Store className="w-4 h-4 text-[#54382B]" />
+          <span className="text-[11px] font-bold text-[#8E867C]">Outlet:</span>
+          <select
+            value={outletId}
+            onChange={(e) => {
+              router.push(`/shift?outletId=${e.target.value}`);
+            }}
+            className="text-xs font-bold text-[#201C1A] bg-transparent border-none focus:outline-none cursor-pointer"
+          >
+            {allOutlets.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Active Shift Status or Open Form */}
         <div className="lg:col-span-1 bg-white rounded-3xl border border-[#EBE7DF] shadow-xs p-6 space-y-4">
+          <div className="flex items-center justify-between border-b border-[#F0ECE4] pb-3">
+            <span className="text-xs font-bold text-[#54382B] uppercase tracking-wider">{currentOutletName}</span>
+          </div>
+
           {activeShift ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -120,7 +161,7 @@ export default function ShiftClient({
               <div>
                 <h3 className="font-bold text-base text-[#201C1A]">Buka Shift Kasir Baru</h3>
                 <p className="text-xs text-[#8E867C] mt-1">
-                  Masukkan modal kas awal di laci sebelum memulai operasional kasir.
+                  Masukkan modal kas awal di laci sebelum memulai operasional kasir di cabang ini.
                 </p>
               </div>
 
@@ -155,7 +196,7 @@ export default function ShiftClient({
 
         {/* Right Column: Shift History */}
         <div className="lg:col-span-2 bg-white rounded-3xl border border-[#EBE7DF] shadow-xs p-6 space-y-4">
-          <h3 className="font-bold text-sm text-[#201C1A]">Riwayat 10 Shift Terakhir</h3>
+          <h3 className="font-bold text-sm text-[#201C1A]">Riwayat 10 Shift ({currentOutletName})</h3>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
@@ -210,7 +251,7 @@ export default function ShiftClient({
                 {recentShifts.length === 0 && (
                   <tr>
                     <td colSpan={5} className="text-center py-8 text-[#9E968B] text-xs">
-                      Belum ada riwayat shift.
+                      Belum ada riwayat shift pada outlet ini.
                     </td>
                   </tr>
                 )}
