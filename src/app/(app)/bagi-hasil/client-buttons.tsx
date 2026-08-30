@@ -1,9 +1,9 @@
 'use client';
 
 import { useTransition } from 'react';
-import { generateProfitSharing, markSharePaid } from '@/app/actions/profit-sharing';
-import { toggleRule, deleteRule } from '@/app/actions/profit-sharing-crud';
+import { generateProfitSharing, markSharePaid, toggleRule, deleteRule } from '@/app/actions/profit-sharing';
 import { Zap, Check, Trash2 } from 'lucide-react';
+
 
 export function GeneratePeriodButton({ outletId = 'out_default' }: { outletId?: string }) {
   const [isPending, startTransition] = useTransition();

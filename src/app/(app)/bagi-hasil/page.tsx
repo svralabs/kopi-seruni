@@ -1,8 +1,9 @@
 import { db } from '@/lib/db';
 import { profitSharingRules, profitSharingLedger, outlets } from '@/lib/schema';
 import { formatRupiah, formatDate } from '@/lib/utils';
-import { createRule } from '@/app/actions/profit-sharing-crud';
+import { createRule } from '@/app/actions/profit-sharing';
 import { desc, eq } from 'drizzle-orm';
+
 import { GeneratePeriodButton, MarkPaidButton, ToggleRuleButton, DeleteRuleButton } from './client-buttons';
 import { Users2, Plus, Percent, BookOpen, Store } from 'lucide-react';
 import OutletFilter from '@/components/outlet-filter';
