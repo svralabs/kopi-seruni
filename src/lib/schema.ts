@@ -26,54 +26,16 @@ export const outlets = sqliteTable('outlets', {
   createdAt: integer('created_at').notNull().default(now),
 });
 
-// ================================================================
-// AUTH (BetterAuth — tabel di-generate, kita definisikan untuk relasi)
-// ================================================================
-export const users = sqliteTable('users', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  email: text('email').notNull().unique(),
-  emailVerified: integer('email_verified').notNull().default(0),
-  image: text('image'),
-  createdAt: integer('created_at').notNull().default(now),
-  updatedAt: integer('updated_at').notNull().default(now),
-});
+import { user, session, account, verification } from './auth-schema';
+export * from './auth-schema';
+export { user as users, session as sessions, account as accounts, verification as verifications };
 
-export const sessions = sqliteTable('sessions', {
-  id: text('id').primaryKey(),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  token: text('token').notNull().unique(),
-  expiresAt: integer('expires_at').notNull(),
-  ipAddress: text('ip_address'),
-  userAgent: text('user_agent'),
-  createdAt: integer('created_at').notNull().default(now),
-  updatedAt: integer('updated_at').notNull().default(now),
-});
 
-export const accounts = sqliteTable('accounts', {
-  id: text('id').primaryKey(),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  accountId: text('account_id').notNull(),
-  providerId: text('provider_id').notNull(),
-  accessToken: text('access_token'),
-  refreshToken: text('refresh_token'),
-  accessTokenExpiresAt: integer('access_token_expires_at'),
-  createdAt: integer('created_at').notNull().default(now),
-  updatedAt: integer('updated_at').notNull().default(now),
-});
-
-export const verifications = sqliteTable('verifications', {
-  id: text('id').primaryKey(),
-  identifier: text('identifier').notNull(),
-  value: text('value').notNull(),
-  expiresAt: integer('expires_at').notNull(),
-  createdAt: integer('created_at').notNull().default(now),
-});
 
 // Role per user per outlet
 export const userOutletRoles = sqliteTable('user_outlet_roles', {
   id: id('uor'),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
   outletId: text('outlet_id').notNull().references(() => outlets.id, { onDelete: 'cascade' }),
   role: text('role', { enum: ['owner', 'manager', 'kasir'] }).notNull(),
   createdAt: integer('created_at').notNull().default(now),
@@ -150,7 +112,7 @@ export const discounts = sqliteTable('discounts', {
 export const shifts = sqliteTable('shifts', {
   id: id('shf'),
   outletId: text('outlet_id').notNull().references(() => outlets.id),
-  kasirId: text('kasir_id').notNull().references(() => users.id),
+  kasirId: text('kasir_id').notNull().references(() => user.id),
   openedAt: integer('opened_at').notNull().default(now),
   closedAt: integer('closed_at'),
   openingCash: integer('opening_cash').notNull().default(0), // modal awal
@@ -166,7 +128,7 @@ export const orders = sqliteTable('orders', {
   id: id('ord'),
   outletId: text('outlet_id').notNull().references(() => outlets.id),
   shiftId: text('shift_id').references(() => shifts.id),
-  kasirId: text('kasir_id').references(() => users.id),
+  kasirId: text('kasir_id').references(() => user.id),
   customerName: text('customer_name'),
   subtotal: integer('subtotal').notNull(),           // sebelum diskon+pajak
   discountId: text('discount_id').references(() => discounts.id),
@@ -183,7 +145,7 @@ export const orders = sqliteTable('orders', {
   notes: text('notes'),
   createdAt: integer('created_at').notNull().default(now),
   voidedAt: integer('voided_at'),
-  voidedBy: text('voided_by').references(() => users.id),
+  voidedBy: text('voided_by').references(() => user.id),
 }, (t) => [
   index('idx_orders_outlet_created').on(t.outletId, t.createdAt),
   index('idx_orders_shift').on(t.shiftId),
@@ -214,7 +176,7 @@ export const expenses = sqliteTable('expenses', {
   id: id('exp'),
   outletId: text('outlet_id').notNull().references(() => outlets.id),
   categoryId: text('category_id').references(() => expenseCategories.id),
-  createdBy: text('created_by').notNull().references(() => users.id),
+  createdBy: text('created_by').notNull().references(() => user.id),
   description: text('description').notNull(),
   amount: integer('amount').notNull(), // rupiah integer
   paymentMethod: text('payment_method').notNull().default('cash'),
@@ -244,7 +206,7 @@ export const stockMovements = sqliteTable('stock_movements', {
   quantity: integer('quantity').notNull(), // positif = masuk, negatif = keluar
   referenceId: text('reference_id'),       // order_id atau po_id
   notes: text('notes'),
-  createdBy: text('created_by').notNull().references(() => users.id),
+  createdBy: text('created_by').notNull().references(() => user.id),
   createdAt: integer('created_at').notNull().default(now),
 }, (t) => [index('idx_stock_movements').on(t.outletId, t.productId, t.createdAt)]);
 
@@ -262,7 +224,7 @@ export const purchaseOrders = sqliteTable('purchase_orders', {
   notes: text('notes'),
   orderedAt: integer('ordered_at'),
   receivedAt: integer('received_at'),
-  createdBy: text('created_by').notNull().references(() => users.id),
+  createdBy: text('created_by').notNull().references(() => user.id),
   createdAt: integer('created_at').notNull().default(now),
 });
 
