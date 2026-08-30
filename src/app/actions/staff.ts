@@ -56,6 +56,40 @@ export async function createStaff(formData: FormData) {
   }
 }
 
+export async function updateStaffRole(userId: string, outletId: string, role: string) {
+  const session = await getSession();
+  if (!session) redirect('/login');
+
+  const existingRole = await db
+    .select()
+    .from(userOutletRoles)
+    .where(eq(userOutletRoles.userId, userId))
+    .limit(1);
+
+  const now = Math.floor(Date.now() / 1000);
+
+  if (existingRole.length > 0) {
+    await db
+      .update(userOutletRoles)
+      .set({
+        outletId,
+        role: role as any,
+      })
+      .where(eq(userOutletRoles.userId, userId));
+  } else {
+    await db.insert(userOutletRoles).values({
+      id: `uor_${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}`,
+      userId,
+      outletId,
+      role: role as any,
+      createdAt: now,
+    });
+  }
+
+  revalidatePath('/staff');
+  return { success: true };
+}
+
 export async function deleteStaff(userId: string) {
   const session = await getSession();
   if (!session) redirect('/login');

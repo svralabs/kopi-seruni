@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { createStaff, deleteStaff } from '@/app/actions/staff';
+import { createStaff, updateStaffRole, deleteStaff } from '@/app/actions/staff';
 import type { Outlet } from '@/lib/schema';
-import { Plus, UserCheck, Trash2, KeyRound, Shield, Store, ArrowRight, UserPlus } from 'lucide-react';
+import { Plus, UserCheck, Trash2, Shield, ArrowRight, UserPlus, UserCog, X } from 'lucide-react';
 
 export interface StaffMember {
   id: string;
@@ -22,7 +22,30 @@ export default function StaffClient({
   staffList: StaffMember[];
   outlets: Outlet[];
 }) {
+  const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
+  const [editOutletId, setEditOutletId] = useState('');
+  const [editRole, setEditRole] = useState('kasir');
   const [isPending, startTransition] = useTransition();
+
+  const handleOpenEdit = (staff: StaffMember) => {
+    setEditingStaff(staff);
+    setEditOutletId(staff.outletId || outlets[0]?.id || 'out_default');
+    setEditRole(staff.role || 'kasir');
+  };
+
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStaff) return;
+
+    startTransition(async () => {
+      try {
+        await updateStaffRole(editingStaff.id, editOutletId, editRole);
+        setEditingStaff(null);
+      } catch (err: any) {
+        alert(err?.message || 'Gagal mengubah role staff');
+      }
+    });
+  };
 
   const handleDelete = (userId: string, name: string) => {
     if (!confirm(`Yakin ingin menghapus akses kasir/staff "${name}"?`)) return;
@@ -160,7 +183,7 @@ export default function StaffClient({
                       <span
                         className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
                           s.role === 'owner'
-                            ? 'bg-[#F2EDE5] text-[#54382B] border border-[#E0D8CC]'
+                            ? 'bg-[#FAF3E8] text-[#96631E] border border-[#F2E0C4]'
                             : s.role === 'manager'
                             ? 'bg-[#EBF6EE] text-[#2D7A47] border border-[#D1EBD8]'
                             : 'bg-[#FAF8F5] text-[#201C1A] border border-[#E5E0D6]'
@@ -169,11 +192,19 @@ export default function StaffClient({
                         {s.role}
                       </span>
                     </td>
-                    <td className="py-3.5 px-4 text-right">
+                    <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEdit(s)}
+                        className="px-2.5 py-1 bg-[#FAF8F5] hover:bg-[#F2EDE5] text-[#54382B] font-bold rounded-xl text-[11px] border border-[#E0D8CC] transition-colors inline-flex items-center gap-1"
+                      >
+                        <UserCog className="w-3.5 h-3.5" />
+                        <span>Ubah Role</span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleDelete(s.id, s.name)}
-                        className="p-1.5 text-[#9E968B] hover:text-[#964B3B] transition-colors rounded-lg hover:bg-[#FBEBE8]"
+                        className="p-1 text-[#9E968B] hover:text-[#964B3B] transition-colors rounded-lg hover:bg-[#FBEBE8]"
                         title="Hapus akun staff"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -186,6 +217,70 @@ export default function StaffClient({
           </div>
         </div>
       </div>
+
+      {/* EDIT ROLE MODAL */}
+      {editingStaff && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-xl p-6 max-w-md w-full space-y-4 text-xs">
+            <div className="flex items-center justify-between border-b border-[#F0ECE4] pb-3">
+              <div>
+                <h3 className="font-bold text-sm text-[#201C1A]">Ubah Peran & Cabang Staff</h3>
+                <p className="text-[11px] text-[#8E867C] mt-0.5">{editingStaff.name} ({editingStaff.email})</p>
+              </div>
+              <button onClick={() => setEditingStaff(null)} className="text-[#9E968B] hover:text-[#201C1A]">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-3">
+              <div>
+                <label className="block font-bold text-[#4A4238] mb-1">Penempatan Outlet</label>
+                <select
+                  value={editOutletId}
+                  onChange={(e) => setEditOutletId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-bold"
+                >
+                  {outlets.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-[#4A4238] mb-1">Role / Hak Akses Baru</label>
+                <select
+                  value={editRole}
+                  onChange={(e) => setEditRole(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-bold"
+                >
+                  <option value="kasir">Kasir (Hanya POS & Struk)</option>
+                  <option value="manager">Manager Outlet (POS, Stok, Pengeluaran)</option>
+                  <option value="owner">Owner (Akses Penuh Seluruh Cabang & L/R)</option>
+                </select>
+              </div>
+
+              <div className="pt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingStaff(null)}
+                  className="w-1/2 py-2.5 bg-[#FAF8F5] text-[#8E867C] font-bold rounded-2xl border border-[#EBE7DF]"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isPending}
+                  className="w-1/2 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl transition-all shadow-xs disabled:opacity-50"
+                >
+                  {isPending ? 'Menyimpan...' : 'Simpan Perubahan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

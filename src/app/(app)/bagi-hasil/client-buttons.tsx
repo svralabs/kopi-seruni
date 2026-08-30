@@ -2,29 +2,29 @@
 
 import { useTransition } from 'react';
 import { generateProfitSharing, markSharePaid } from '@/app/actions/profit-sharing';
-import { toggleRule } from '@/app/actions/profit-sharing-crud';
-import { Zap, Check, CheckCircle2 } from 'lucide-react';
+import { toggleRule, deleteRule } from '@/app/actions/profit-sharing-crud';
+import { Zap, Check, Trash2 } from 'lucide-react';
 
 export function GeneratePeriodButton({ outletId = 'out_default' }: { outletId?: string }) {
   const [isPending, startTransition] = useTransition();
 
   const handleGenerate = () => {
-    const netProfitInput = prompt('Masukkan Laba Bersih (Net Profit) periode ini (Rp):', '10000000');
-    if (!netProfitInput) return;
+    const netProfitInput = prompt(
+      'Masukkan Laba Bersih (Net Profit) periode ini (Rp) atau kosongkan untuk auto-hitung dari omset & pengeluaran:',
+      ''
+    );
 
-    const netProfit = Math.round(Number(netProfitInput));
-    if (isNaN(netProfit) || netProfit <= 0) {
-      alert('Nominal laba bersih tidak valid.');
-      return;
-    }
+    const netProfit = netProfitInput ? Math.round(Number(netProfitInput)) : undefined;
 
     const now = Math.floor(Date.now() / 1000);
-    const startOfMonth = Math.floor(new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime() / 1000);
+    const startOfMonth = Math.floor(
+      new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime() / 1000
+    );
 
     startTransition(async () => {
       try {
         await generateProfitSharing(outletId, startOfMonth, now, netProfit);
-        alert('Bagi hasil berhasil digenerate ke Ledger!');
+        alert('Bagi hasil berhasil dihitung & dicatat ke Buku Besar Ledger!');
         window.location.reload();
       } catch (e: any) {
         alert(e?.message || 'Gagal generate bagi hasil');
@@ -48,7 +48,7 @@ export function MarkPaidButton({ id, outletId = 'out_default' }: { id: string; o
   const [isPending, startTransition] = useTransition();
 
   const handlePay = () => {
-    if (confirm('Tandai bagi hasil ini sudah ditransfer/lunas?')) {
+    if (confirm('Tandai bagi hasil ini sudah ditransfer/lunas ke pemilik?')) {
       startTransition(async () => {
         await markSharePaid(id, outletId);
         window.location.reload();
@@ -73,7 +73,11 @@ export function ToggleRuleButton({ id, currentStatus }: { id: string; currentSta
 
   const handleToggle = () => {
     startTransition(async () => {
-      await toggleRule(id, currentStatus);
+      try {
+        await toggleRule(id, currentStatus);
+      } catch (err: any) {
+        alert(err?.message || 'Gagal mengubah status rule');
+      }
     });
   };
 
@@ -88,6 +92,29 @@ export function ToggleRuleButton({ id, currentStatus }: { id: string; currentSta
       }`}
     >
       {currentStatus === 1 ? 'Aktif' : 'Nonaktif'}
+    </button>
+  );
+}
+
+export function DeleteRuleButton({ id, name }: { id: string; name: string }) {
+  const [isPending, startTransition] = useTransition();
+
+  const handleDelete = () => {
+    if (!confirm(`Hapus penerima "${name}" dari pembagian hasil?`)) return;
+    startTransition(async () => {
+      await deleteRule(id);
+    });
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleDelete}
+      disabled={isPending}
+      className="p-1 text-[#9E968B] hover:text-[#964B3B] transition-colors rounded-lg hover:bg-[#FBEBE8]"
+      title="Hapus Rule"
+    >
+      <Trash2 className="w-3.5 h-3.5" />
     </button>
   );
 }

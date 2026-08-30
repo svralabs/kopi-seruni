@@ -17,9 +17,10 @@ export default async function AppLayout({
       <Sidebar userName={userName} />
       <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         <div className="p-4 md:p-6 lg:p-8 flex-1 max-w-[1600px] w-full mx-auto">
-          <Header userName={userName} />
+          <Header userId={session?.user?.id} userName={userName} />
           {children}
         </div>
+
       </main>
     </div>
   );
