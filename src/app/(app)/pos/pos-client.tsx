@@ -306,26 +306,15 @@ export default function POSClient({
             <Store className="w-5 h-5" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-[#8E867C]">
-                Pilih Cabang / Outlet
-              </span>
-            </div>
-            <select
-              value={currentOutlet.id}
-              onChange={(e) => {
-                router.push(`/pos?outletId=${e.target.value}`);
-              }}
-              className="font-serif font-black text-sm text-[#201C1A] bg-transparent border-none focus:outline-none cursor-pointer pr-4"
-            >
-              {allOutlets.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.name}
-                </option>
-              ))}
-            </select>
+            <span className="text-[10px] uppercase font-bold tracking-wider text-[#8E867C] block">
+              Cabang Kasir Aktif
+            </span>
+            <p className="font-serif font-black text-sm text-[#201C1A]">
+              {currentOutlet.name}
+            </p>
           </div>
         </div>
+
 
         <div className="flex items-center gap-3 text-xs">
           <div className="px-3.5 py-1.5 rounded-full bg-[#FAF8F5] border border-[#ECE7DE] flex items-center gap-2">

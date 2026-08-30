@@ -146,36 +146,14 @@ export default function OrdersClient({
           <a
             href={`/api/export/orders${selectedOutlet !== 'all' ? `?outletId=${selectedOutlet}` : ''}`}
             download
-            className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-2xl border border-[#EBE7DF] hover:bg-[#FAF8F5] text-xs font-bold text-[#2D7A47] shadow-xs transition-colors"
+            className="flex items-center gap-2 bg-white px-3.5 py-2.5 rounded-2xl border border-[#EBE7DF] hover:bg-[#FAF8F5] text-xs font-bold text-[#2D7A47] shadow-xs transition-colors"
           >
             <FileSpreadsheet className="w-4 h-4 text-[#2D7A47]" />
             <span>Ekspor Excel (.csv)</span>
           </a>
-
-          {/* Outlet Selector Filter */}
-          <div className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-2xl border border-[#EBE7DF] shadow-xs">
-            <Store className="w-4 h-4 text-[#54382B]" />
-            <span className="text-xs font-bold text-[#8E867C]">Outlet:</span>
-            <select
-              value={selectedOutlet}
-              onChange={(e) => {
-                setSelectedOutlet(e.target.value);
-                if (e.target.value === 'all') router.push('/orders');
-                else router.push(`/orders?outletId=${e.target.value}`);
-              }}
-              className="text-xs font-bold text-[#201C1A] bg-transparent border-none focus:outline-none cursor-pointer"
-            >
-              <option value="all">Semua Cabang Outlet</option>
-              {outlets.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.name}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
-
       </div>
+
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

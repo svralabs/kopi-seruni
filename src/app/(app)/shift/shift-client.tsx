@@ -55,36 +55,16 @@ export default function ShiftClient({
 
   return (
     <div className="space-y-6">
-      {/* Header Bento with Outlet Switcher */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-[#201C1A]">
-            Shift Kasir & Rekonsiliasi Kas
-          </h1>
-          <p className="text-xs text-[#8E867C] mt-0.5">
-            Kelola sesi buka/tutup kasir, modal kas kecil, dan cek selisih fisik laci
-          </p>
-        </div>
-
-        {/* Outlet Switcher Filter */}
-        <div className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-2xl border border-[#EBE7DF] shadow-xs text-xs">
-          <Store className="w-4 h-4 text-[#54382B]" />
-          <span className="text-[11px] font-bold text-[#8E867C]">Outlet:</span>
-          <select
-            value={outletId}
-            onChange={(e) => {
-              router.push(`/shift?outletId=${e.target.value}`);
-            }}
-            className="text-xs font-bold text-[#201C1A] bg-transparent border-none focus:outline-none cursor-pointer"
-          >
-            {allOutlets.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </select>
-        </div>
+      {/* Header Bento */}
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-[#201C1A]">
+          Shift Kasir & Rekonsiliasi Kas
+        </h1>
+        <p className="text-xs text-[#8E867C] mt-0.5">
+          Kelola sesi buka/tutup kasir, modal kas kecil, dan cek selisih fisik laci ({currentOutletName})
+        </p>
       </div>
+
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Active Shift Status or Open Form */}

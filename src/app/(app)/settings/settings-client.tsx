@@ -34,35 +34,15 @@ export default function SettingsClient({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-[#201C1A]">
-            Pengaturan Umum & Kustomisasi Struk
-          </h1>
-          <p className="text-xs text-[#8E867C] mt-0.5">
-            Konfigurasi tarif PPN, informasi kontak toko, dan teks footer nota kasir
-          </p>
-        </div>
-
-        {/* Outlet Switcher */}
-        <div className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-2xl border border-[#EBE7DF] shadow-xs text-xs">
-          <Store className="w-4 h-4 text-[#54382B]" />
-          <span className="text-[11px] font-bold text-[#8E867C]">Pilih Outlet:</span>
-          <select
-            value={currentOutlet.id}
-            onChange={(e) => {
-              router.push(`/settings?outletId=${e.target.value}`);
-            }}
-            className="text-xs font-bold text-[#201C1A] bg-transparent border-none focus:outline-none cursor-pointer"
-          >
-            {outlets.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-[#201C1A]">
+          Pengaturan Umum & Kustomisasi Struk
+        </h1>
+        <p className="text-xs text-[#8E867C] mt-0.5">
+          Konfigurasi tarif PPN, informasi kontak toko, dan teks footer nota kasir ({currentOutlet.name})
+        </p>
       </div>
+
 
       {isSaved && (
         <div className="p-4 bg-[#EBF6EE] rounded-2xl border border-[#D1EBD8] text-xs font-bold text-[#2D7A47] flex items-center gap-2">
