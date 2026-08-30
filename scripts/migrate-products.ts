@@ -3,7 +3,7 @@
 // Pastikan .env.local sudah di-set: GAS_API_URL, TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, MIGRATION_OUTLET_ID
 
 import { db } from '../src/lib/db';
-import { products, categories } from '../src/lib/schema';
+import { products, categories, outlets } from '../src/lib/schema';
 
 const GAS_URL = process.env.GAS_API_URL;
 const OUTLET_ID = process.env.MIGRATION_OUTLET_ID;
@@ -13,9 +13,19 @@ if (!GAS_URL || !OUTLET_ID) {
   process.exit(1);
 }
 
+// 0. Ensure default outlet exists
+await db.insert(outlets).values({
+  id: OUTLET_ID,
+  name: 'Kopi Seruni - Outlet Utama',
+  address: 'Jl. Seruni No. 1',
+  phone: '08123456789',
+}).onConflictDoNothing();
+console.log(`✓ Outlet initialized: ${OUTLET_ID}`);
+
 console.log('📦 Fetching products dari GAS...');
 const res = await fetch(`${GAS_URL}?action=getProducts`);
 const { data, status } = await res.json();
+
 
 if (status !== 'success' || !Array.isArray(data)) {
   console.error('❌ Gagal fetch dari GAS:', { status, data });

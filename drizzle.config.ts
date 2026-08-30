@@ -1,3 +1,7 @@
+import { config } from 'dotenv';
+
+config({ path: '.env.local' });
+
 /** @type {import('drizzle-kit').Config} */
 export default {
   schema: './src/lib/schema.ts',
@@ -8,3 +12,4 @@ export default {
     authToken: process.env.TURSO_AUTH_TOKEN,
   },
 };
+
