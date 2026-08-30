@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatRupiah, calcDiscount, calcTax, calcTotal } from '@/lib/utils';
 import { checkout } from '@/app/actions/checkout';
@@ -30,6 +30,7 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
+  ShoppingBag,
 } from 'lucide-react';
 
 interface CartItem {
@@ -63,6 +64,7 @@ export default function POSClient({
   kasirName?: string;
 }) {
   const router = useRouter();
+  const cartSectionRef = useRef<HTMLDivElement>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -257,6 +259,11 @@ export default function POSClient({
     setIsCheckoutModalOpen(true);
   };
 
+  // Scroll to cart on mobile
+  const scrollToCartOnMobile = () => {
+    cartSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   // Process checkout
   const handleProcessCheckout = () => {
     setErrorMessage(null);
@@ -323,13 +330,13 @@ export default function POSClient({
   };
 
   return (
-    <div className="h-full lg:h-[calc(100vh-6.25rem)] min-h-[580px] flex flex-col xl:flex-row gap-4 overflow-hidden">
+    <div className="flex flex-col lg:flex-row gap-3.5 lg:h-[calc(100vh-5.5rem)] lg:min-h-[520px] lg:overflow-hidden pb-16 lg:pb-0 relative min-w-0">
       {/* ============================================================ */}
       {/* LEFT COLUMN: COMPACT CATALOG WITH PAGINATION (65%) */}
       {/* ============================================================ */}
-      <div className="flex-1 flex flex-col justify-between overflow-hidden bg-white rounded-3xl border border-[#EBE7DF] p-4 lg:p-5 shadow-xs">
+      <div className="flex-1 flex flex-col justify-between bg-white rounded-3xl border border-[#EBE7DF] p-3 sm:p-3.5 lg:p-3.5 shadow-xs min-w-0 lg:overflow-hidden">
         {/* Top Control Bar: Categories & Search */}
-        <div className="space-y-3 shrink-0 pb-3 border-b border-[#F0ECE4]">
+        <div className="space-y-2 shrink-0 pb-2 border-b border-[#F0ECE4]">
           {/* Header Row */}
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2">
@@ -340,13 +347,13 @@ export default function POSClient({
             </div>
 
             <div className="flex items-center gap-2 text-xs">
-              <div className="px-2.5 py-1 rounded-full bg-[#FAF8F5] border border-[#ECE7DE] flex items-center gap-1.5">
+              <div className="px-2 py-0.5 rounded-full bg-[#FAF8F5] border border-[#ECE7DE] flex items-center gap-1.5">
                 <span className="text-[#8E867C] text-[10px]">Kasir:</span>
                 <span className="font-bold text-[#201C1A] text-[11px]">{kasirName}</span>
               </div>
 
               <div
-                className={`px-2.5 py-1 rounded-full border flex items-center gap-1.5 font-bold text-[10px] ${
+                className={`px-2 py-0.5 rounded-full border flex items-center gap-1.5 font-bold text-[10px] ${
                   shiftId
                     ? 'bg-[#EBF6EE] text-[#2D7A47] border-[#D1EBD8]'
                     : 'bg-[#FDF4E5] text-[#96631E] border-[#F5E2BE]'
@@ -359,9 +366,9 @@ export default function POSClient({
           </div>
 
           {/* Search Bar + Category Chips */}
-          <div className="flex flex-col md:flex-row gap-2.5 items-stretch md:items-center">
+          <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
             {/* Search Input */}
-            <div className="relative md:w-56 lg:w-64 shrink-0">
+            <div className="relative sm:w-48 lg:w-56 shrink-0">
               <Search className="w-3.5 h-3.5 text-[#9E968B] absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
@@ -377,9 +384,9 @@ export default function POSClient({
               <button
                 type="button"
                 onClick={() => handleCategoryChange('all')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all border shrink-0 cursor-pointer ${
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all border shrink-0 cursor-pointer ${
                   selectedCategory === 'all'
-                    ? 'bg-[#2E2520] text-white border-[#2E2520] shadow-xs'
+                    ? 'bg-[#2E2520] text-white border-[#2E2520] shadow-2xs'
                     : 'bg-[#FAF8F5] text-[#4A4238] border-[#ECE7DE] hover:bg-[#F2ECE3]'
                 }`}
               >
@@ -395,9 +402,9 @@ export default function POSClient({
                     key={c.id}
                     type="button"
                     onClick={() => handleCategoryChange(c.id)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all border shrink-0 cursor-pointer ${
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all border shrink-0 cursor-pointer ${
                       isSelected
-                        ? 'bg-[#2E2520] text-white border-[#2E2520] shadow-xs'
+                        ? 'bg-[#2E2520] text-white border-[#2E2520] shadow-2xs'
                         : 'bg-[#FAF8F5] text-[#4A4238] border-[#ECE7DE] hover:bg-[#F2ECE3]'
                     }`}
                   >
@@ -410,21 +417,21 @@ export default function POSClient({
           </div>
         </div>
 
-        {/* Center Grid: Compact Products */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar py-3 pr-0.5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+        {/* Center Grid: Compact Products (Responsive for Desktop & Tablet Landscape) */}
+        <div className="flex-1 lg:min-h-0 lg:overflow-y-auto custom-scrollbar py-2 pr-0.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-2">
             {paginatedProducts.map((p) => {
               const opt = getOptions(p.id);
 
               return (
                 <div
                   key={p.id}
-                  className="bg-[#FAF8F5] rounded-2xl border border-[#EBE7DF] p-3 flex flex-col justify-between shadow-2xs hover:border-[#D5CEC2] hover:bg-[#F8F5EE] transition-all space-y-2.5"
+                  className="bg-[#FAF8F5] rounded-2xl border border-[#EBE7DF] p-2.5 flex flex-col justify-between shadow-2xs hover:border-[#D5CEC2] hover:bg-[#F8F5EE] transition-all space-y-1.5"
                 >
                   {/* Top: Category & Price */}
                   <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white text-[#54382B] border border-[#ECE7DE] truncate max-w-[100px]">
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-white text-[#54382B] border border-[#ECE7DE] truncate max-w-[85px]">
                         {categories.find((c) => c.id === p.categoryId)?.name || 'Menu'}
                       </span>
                       <span className="font-serif font-black text-xs text-[#201C1A]">
@@ -438,9 +445,9 @@ export default function POSClient({
                   </div>
 
                   {/* Options: Mood, Size, Sugar, Ice */}
-                  <div className="space-y-1.5 pt-1.5 border-t border-[#ECE7DE]">
+                  <div className="space-y-1 pt-1 border-t border-[#ECE7DE]">
                     {/* Mood & Size */}
-                    <div className="grid grid-cols-2 gap-1.5">
+                    <div className="grid grid-cols-2 gap-1">
                       {/* Mood: Hot vs Ice */}
                       <div className="bg-white p-0.5 rounded-lg border border-[#EAE5DC] flex gap-0.5">
                         <button
@@ -489,12 +496,12 @@ export default function POSClient({
                     </div>
 
                     {/* Sugar & Ice Level */}
-                    <div className="grid grid-cols-2 gap-1.5 text-[9px]">
+                    <div className="grid grid-cols-2 gap-1 text-[9px]">
                       <div>
                         <select
                           value={opt.sugar}
                           onChange={(e) => setOption(p.id, 'sugar', e.target.value)}
-                          className="w-full px-1.5 py-0.5 bg-white border border-[#EAE5DC] rounded-lg text-[9px] font-semibold text-[#4A4238] focus:outline-none cursor-pointer"
+                          className="w-full px-1 py-0.5 bg-white border border-[#EAE5DC] rounded-md text-[9px] font-semibold text-[#4A4238] focus:outline-none cursor-pointer"
                         >
                           <option value="30%">Gula 30%</option>
                           <option value="50%">Gula 50%</option>
@@ -507,7 +514,7 @@ export default function POSClient({
                         <select
                           value={opt.ice}
                           onChange={(e) => setOption(p.id, 'ice', e.target.value)}
-                          className="w-full px-1.5 py-0.5 bg-white border border-[#EAE5DC] rounded-lg text-[9px] font-semibold text-[#4A4238] focus:outline-none cursor-pointer"
+                          className="w-full px-1 py-0.5 bg-white border border-[#EAE5DC] rounded-md text-[9px] font-semibold text-[#4A4238] focus:outline-none cursor-pointer"
                         >
                           <option value="30%">Es 30%</option>
                           <option value="50%">Es 50%</option>
@@ -522,7 +529,7 @@ export default function POSClient({
                   <button
                     type="button"
                     onClick={() => addToCartWithOptions(p)}
-                    className="w-full py-1.5 px-3 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-xl text-[11px] transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                    className="w-full py-1.5 px-2 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-xl text-[11px] transition-all flex items-center justify-center gap-1 shadow-2xs cursor-pointer"
                   >
                     <Plus className="w-3 h-3" />
                     <span>Tambah</span>
@@ -532,10 +539,10 @@ export default function POSClient({
             })}
 
             {paginatedProducts.length === 0 && (
-              <div className="col-span-full py-12 text-center p-6 text-[#9E968B]">
-                <Coffee className="w-8 h-8 text-[#C2BAAF] mx-auto mb-2 stroke-[1.5]" />
+              <div className="col-span-full py-8 text-center p-4 text-[#9E968B]">
+                <Coffee className="w-7 h-7 text-[#C2BAAF] mx-auto mb-1 stroke-[1.5]" />
                 <p className="font-bold text-xs text-[#201C1A]">Menu tidak ditemukan</p>
-                <p className="text-[11px] text-[#8E867C] mt-0.5">
+                <p className="text-[10px] text-[#8E867C] mt-0.5">
                   Coba kata kunci lain atau pilih kategori Semua
                 </p>
               </div>
@@ -544,9 +551,9 @@ export default function POSClient({
         </div>
 
         {/* Bottom Pagination Footer */}
-        <div className="pt-3 border-t border-[#F0ECE4] flex items-center justify-between shrink-0 text-xs">
-          <span className="text-[11px] text-[#8E867C]">
-            Halaman <strong className="text-[#201C1A]">{validPage}</strong> dari {totalPages} ({filteredProducts.length} Menu)
+        <div className="pt-2 border-t border-[#F0ECE4] flex items-center justify-between shrink-0 text-xs gap-2 flex-wrap">
+          <span className="text-[10px] sm:text-[11px] text-[#8E867C]">
+            Halaman <strong className="text-[#201C1A]">{validPage}</strong> / {totalPages} ({filteredProducts.length} Menu)
           </span>
 
           <div className="flex items-center gap-1">
@@ -554,13 +561,13 @@ export default function POSClient({
               type="button"
               disabled={validPage <= 1}
               onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-              className="px-2.5 py-1 rounded-xl bg-[#FAF8F5] border border-[#ECE7DE] text-[#4A4238] hover:bg-[#F2ECE3] disabled:opacity-40 disabled:pointer-events-none text-xs font-bold flex items-center gap-1 cursor-pointer"
+              className="px-2 py-0.5 rounded-xl bg-[#FAF8F5] border border-[#ECE7DE] text-[#4A4238] hover:bg-[#F2ECE3] disabled:opacity-40 disabled:pointer-events-none text-xs font-bold flex items-center gap-0.5 cursor-pointer"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
-              <span>Sebelumnya</span>
+              <span className="hidden sm:inline">Sebelumnya</span>
             </button>
 
-            <div className="hidden sm:flex items-center gap-1">
+            <div className="flex items-center gap-0.5">
               {Array.from({ length: totalPages }, (_, i) => i + 1)
                 .slice(Math.max(0, validPage - 3), validPage + 2)
                 .map((pNum) => (
@@ -568,7 +575,7 @@ export default function POSClient({
                     key={pNum}
                     type="button"
                     onClick={() => setPage(pNum)}
-                    className={`w-7 h-7 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    className={`w-6 h-6 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                       validPage === pNum
                         ? 'bg-[#2E2520] text-white shadow-xs'
                         : 'bg-[#FAF8F5] text-[#4A4238] border border-[#ECE7DE] hover:bg-[#F2ECE3]'
@@ -583,9 +590,9 @@ export default function POSClient({
               type="button"
               disabled={validPage >= totalPages}
               onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-              className="px-2.5 py-1 rounded-xl bg-[#FAF8F5] border border-[#ECE7DE] text-[#4A4238] hover:bg-[#F2ECE3] disabled:opacity-40 disabled:pointer-events-none text-xs font-bold flex items-center gap-1 cursor-pointer"
+              className="px-2 py-0.5 rounded-xl bg-[#FAF8F5] border border-[#ECE7DE] text-[#4A4238] hover:bg-[#F2ECE3] disabled:opacity-40 disabled:pointer-events-none text-xs font-bold flex items-center gap-0.5 cursor-pointer"
             >
-              <span>Berikutnya</span>
+              <span className="hidden sm:inline">Berikutnya</span>
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -595,14 +602,17 @@ export default function POSClient({
       {/* ============================================================ */}
       {/* RIGHT COLUMN: BILLS / CART PANEL (35%) */}
       {/* ============================================================ */}
-      <div className="w-full xl:w-[360px] 2xl:w-[380px] shrink-0 h-full flex flex-col justify-between bg-white rounded-3xl border border-[#EBE7DF] p-4 lg:p-5 shadow-xs overflow-hidden">
+      <div
+        ref={cartSectionRef}
+        className="w-full lg:w-[310px] xl:w-[340px] 2xl:w-[370px] shrink-0 lg:h-full lg:min-h-0 flex flex-col justify-between bg-white rounded-3xl border border-[#EBE7DF] p-3 sm:p-3.5 lg:p-3.5 shadow-xs lg:overflow-hidden"
+      >
         {/* Header Bills */}
-        <div className="flex items-center justify-between border-b border-[#F0ECE4] pb-2.5 shrink-0">
+        <div className="flex items-center justify-between border-b border-[#F0ECE4] pb-1.5 shrink-0">
           <div>
-            <h3 className="font-serif font-black text-base text-[#201C1A] tracking-tight">
+            <h3 className="font-serif font-black text-sm text-[#201C1A] tracking-tight">
               Tagihan (Bills)
             </h3>
-            <p className="text-[11px] text-[#8E867C]">{cart.length} Item Pesanan</p>
+            <p className="text-[10px] text-[#8E867C]">{cart.length} Item Pesanan</p>
           </div>
           {cart.length > 0 && (
             <button
@@ -616,13 +626,13 @@ export default function POSClient({
         </div>
 
         {/* Scrollable Cart Items List */}
-        <div className="flex-1 overflow-y-auto space-y-2 min-h-0 py-2.5 pr-0.5 custom-scrollbar">
+        <div className="flex-1 lg:min-h-0 lg:overflow-y-auto space-y-1.5 py-1.5 pr-0.5 custom-scrollbar min-h-[120px] max-h-[260px] lg:max-h-none">
           {cart.map((item) => (
             <div
               key={item.id}
-              className="p-2.5 rounded-2xl bg-[#FAF8F5] border border-[#ECE7DE] space-y-2"
+              className="p-2 rounded-2xl bg-[#FAF8F5] border border-[#ECE7DE] space-y-1"
             >
-              <div className="flex items-start justify-between gap-2">
+              <div className="flex items-start justify-between gap-1.5">
                 <div className="min-w-0 flex-1">
                   <h4 className="font-bold text-xs text-[#201C1A] truncate">{item.product.name}</h4>
                   <p className="text-[9px] text-[#7A7268]">
@@ -639,7 +649,7 @@ export default function POSClient({
                 </span>
               </div>
 
-              <div className="flex items-center justify-between pt-1.5 border-t border-[#F0ECE4]">
+              <div className="flex items-center justify-between pt-1 border-t border-[#F0ECE4]">
                 <button
                   type="button"
                   onClick={() =>
@@ -652,10 +662,10 @@ export default function POSClient({
                   className="text-[9px] font-semibold text-[#8E867C] hover:text-[#201C1A] flex items-center gap-1 cursor-pointer"
                 >
                   <Pencil className="w-2.5 h-2.5" />
-                  <span>{item.notes ? 'Edit Catatan' : '+ Catatan'}</span>
+                  <span>{item.notes ? 'Edit Note' : '+ Note'}</span>
                 </button>
 
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1">
                   <button
                     type="button"
                     onClick={() => updateQuantity(item.id, -1)}
@@ -686,8 +696,8 @@ export default function POSClient({
           ))}
 
           {cart.length === 0 && (
-            <div className="h-full flex flex-col items-center justify-center text-center p-4 text-[#9E968B]">
-              <Coffee className="w-8 h-8 stroke-[1.2] mb-1.5 text-[#D5CEC2]" />
+            <div className="h-full flex flex-col items-center justify-center text-center p-3 text-[#9E968B]">
+              <Coffee className="w-6 h-6 stroke-[1.2] mb-1 text-[#D5CEC2]" />
               <p className="text-xs font-bold text-[#4A4238]">Keranjang Kosong</p>
               <p className="text-[10px] text-[#9E968B] mt-0.5">
                 Pilih menu di sebelah kiri untuk menambah pesanan
@@ -697,14 +707,14 @@ export default function POSClient({
         </div>
 
         {/* Bottom Panel: Voucher, Financials, Payment & Checkout Button */}
-        <div className="shrink-0 space-y-2.5 pt-2 border-t border-[#F0ECE4]">
+        <div className="shrink-0 space-y-1.5 pt-1.5 border-t border-[#F0ECE4]">
           {/* Discount / Voucher Selector */}
           {discounts.length > 0 && (
             <div>
               <select
                 value={selectedDiscountId}
                 onChange={(e) => setSelectedDiscountId(e.target.value)}
-                className="w-full px-2.5 py-1.5 bg-[#FAF8F5] border border-[#EAE5DC] rounded-xl text-[11px] font-semibold text-[#201C1A] focus:outline-none cursor-pointer"
+                className="w-full px-2 py-1 bg-[#FAF8F5] border border-[#EAE5DC] rounded-xl text-[10px] font-semibold text-[#201C1A] focus:outline-none cursor-pointer"
               >
                 <option value="">-- Diskon / Voucher Promo --</option>
                 {discounts.map((d) => (
@@ -717,33 +727,33 @@ export default function POSClient({
           )}
 
           {/* Calculations Breakdown */}
-          <div className="space-y-1 text-xs">
-            <div className="flex justify-between text-[#7A7268] text-[11px]">
+          <div className="space-y-0.5 text-xs">
+            <div className="flex justify-between text-[#7A7268] text-[10px]">
               <span>Subtotal</span>
               <span className="font-semibold text-[#201C1A]">{formatRupiah(subtotal)}</span>
             </div>
             {discountAmount > 0 && (
-              <div className="flex justify-between text-[#2D7A47] font-semibold text-[11px]">
+              <div className="flex justify-between text-[#2D7A47] font-semibold text-[10px]">
                 <span>Diskon</span>
                 <span>-{formatRupiah(discountAmount)}</span>
               </div>
             )}
-            <div className="flex justify-between text-[#7A7268] text-[11px]">
+            <div className="flex justify-between text-[#7A7268] text-[10px]">
               <span>PPN (11%)</span>
               <span>+{formatRupiah(taxAmount)}</span>
             </div>
-            <div className="flex justify-between pt-1 border-t border-[#F0ECE4] text-sm font-black text-[#201C1A]">
+            <div className="flex justify-between pt-1 border-t border-[#F0ECE4] text-xs font-black text-[#201C1A]">
               <span>Total</span>
               <span>{formatRupiah(total)}</span>
             </div>
           </div>
 
           {/* Payment Method Selector */}
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid grid-cols-3 gap-1">
             <button
               type="button"
               onClick={() => setPaymentMethod('cash')}
-              className={`py-1.5 px-1 rounded-xl text-[10px] font-bold border flex items-center justify-center gap-1 transition-all cursor-pointer ${
+              className={`py-1 px-1 rounded-xl text-[10px] font-bold border flex items-center justify-center gap-1 transition-all cursor-pointer ${
                 paymentMethod === 'cash'
                   ? 'bg-[#2E2520] text-white border-[#2E2520] shadow-2xs'
                   : 'bg-[#FAF8F5] text-[#4A4238] border-[#ECE7DE] hover:bg-[#F2ECE3]'
@@ -756,7 +766,7 @@ export default function POSClient({
             <button
               type="button"
               onClick={() => setPaymentMethod('qris')}
-              className={`py-1.5 px-1 rounded-xl text-[10px] font-bold border flex items-center justify-center gap-1 transition-all cursor-pointer ${
+              className={`py-1 px-1 rounded-xl text-[10px] font-bold border flex items-center justify-center gap-1 transition-all cursor-pointer ${
                 paymentMethod === 'qris'
                   ? 'bg-[#2E2520] text-white border-[#2E2520] shadow-2xs'
                   : 'bg-[#FAF8F5] text-[#4A4238] border-[#ECE7DE] hover:bg-[#F2ECE3]'
@@ -769,7 +779,7 @@ export default function POSClient({
             <button
               type="button"
               onClick={() => setPaymentMethod('debit')}
-              className={`py-1.5 px-1 rounded-xl text-[10px] font-bold border flex items-center justify-center gap-1 transition-all cursor-pointer ${
+              className={`py-1 px-1 rounded-xl text-[10px] font-bold border flex items-center justify-center gap-1 transition-all cursor-pointer ${
                 paymentMethod === 'debit'
                   ? 'bg-[#2E2520] text-white border-[#2E2520] shadow-2xs'
                   : 'bg-[#FAF8F5] text-[#4A4238] border-[#ECE7DE] hover:bg-[#F2ECE3]'
@@ -785,13 +795,48 @@ export default function POSClient({
             type="button"
             disabled={cart.length === 0}
             onClick={handleOpenCheckoutModal}
-            className="w-full py-3 bg-[#2E2520] hover:bg-[#453932] disabled:opacity-40 text-white font-bold rounded-2xl transition-all shadow-md flex items-center justify-center gap-2 text-xs tracking-wide cursor-pointer"
+            className="w-full py-2 bg-[#2E2520] hover:bg-[#453932] disabled:opacity-40 text-white font-bold rounded-2xl transition-all shadow-md flex items-center justify-center gap-1.5 text-xs tracking-wide cursor-pointer"
           >
             <Printer className="w-3.5 h-3.5" />
             <span>Proses Bayar ({formatRupiah(total)})</span>
           </button>
         </div>
       </div>
+
+      {/* ============================================================ */}
+      {/* MOBILE FLOATING CART BAR (< lg: screens) */}
+      {/* ============================================================ */}
+      {cart.length > 0 && (
+        <div className="lg:hidden fixed bottom-3 left-3 right-3 z-40 bg-[#2E2520] text-white p-3 rounded-2xl shadow-2xl flex items-center justify-between animate-in slide-in-from-bottom duration-200">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center">
+              <ShoppingBag className="w-4 h-4 text-[#F2ECE3]" />
+            </div>
+            <div>
+              <p className="text-xs font-black">{formatRupiah(total)}</p>
+              <p className="text-[10px] text-[#C9C2B7]">{cart.length} Item Pesanan</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={scrollToCartOnMobile}
+              className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-xs font-bold transition-colors cursor-pointer"
+            >
+              Lihat Tagihan
+            </button>
+            <button
+              type="button"
+              onClick={handleOpenCheckoutModal}
+              className="px-3.5 py-1.5 rounded-xl bg-white text-[#201C1A] text-xs font-bold shadow-xs hover:bg-[#F7F5F0] transition-colors flex items-center gap-1 cursor-pointer"
+            >
+              <span>Bayar</span>
+              <ArrowRight className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ============================================================ */}
       {/* MODAL: EDIT NOTE ITEM */}
@@ -847,7 +892,7 @@ export default function POSClient({
       {/* ============================================================ */}
       {isCheckoutModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto animate-in fade-in">
-          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-[#EBE7DF] p-6 space-y-4 my-8">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-[#EBE7DF] p-5 sm:p-6 space-y-4 my-8 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-[#F0ECE4] pb-3">
               <div>
                 <h3 className="font-bold text-base text-[#201C1A]">Proses Pembayaran Kasir</h3>

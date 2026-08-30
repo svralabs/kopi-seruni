@@ -117,7 +117,7 @@ export default function NavbarPills({
   };
 
   return (
-    <header className="flex flex-wrap items-center justify-between gap-3.5 pb-6 border-b border-[#EBE7DF]/80 mb-6">
+    <header className="flex flex-wrap items-center justify-between gap-2.5 pb-3 mb-3 lg:pb-4 lg:mb-4 border-b border-[#EBE7DF]/80">
       {/* LEFT PILLS: Global Outlet Switcher */}
       {showOutletPill ? (
         <div className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-2xl border border-[#EBE7DF] shadow-xs text-xs">
