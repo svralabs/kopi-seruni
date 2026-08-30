@@ -66,5 +66,11 @@ describe('E2E Integration Test: Multi-Outlet & Order History Lifecycle', () => {
     expect(fetched.order.total).toBe(55500);
     expect(fetched.outlet?.name).toContain('Cabang Dago');
     expect(fetched.user?.name).toBe('Kasir Dago Test');
+
+    // Cleanup test record
+    await db.delete(orders).where(eq(orders.id, orderId));
+    await db.delete(user).where(eq(user.id, TEST_USER));
+    await db.delete(outlets).where(eq(outlets.id, TEST_OUTLET_DAGO));
   });
 });
+

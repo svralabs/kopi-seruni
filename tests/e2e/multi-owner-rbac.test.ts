@@ -144,5 +144,16 @@ describe('E2E Integration Test: Multi-Owner Profit Sharing & Outlet-Scoped RBAC'
     const [updatedRole] = await db.select().from(userOutletRoles).where(eq(userOutletRoles.userId, testUserId));
     expect(updatedRole.role).toBe('manager');
     expect(updatedRole.outletId).toBe(OUTLET_2);
+
+    // Cleanup test outlets
+    await db.delete(profitSharingLedger).where(eq(profitSharingLedger.outletId, OUTLET_1));
+    await db.delete(profitSharingLedger).where(eq(profitSharingLedger.outletId, OUTLET_2));
+    await db.delete(profitSharingRules).where(eq(profitSharingRules.outletId, OUTLET_1));
+    await db.delete(profitSharingRules).where(eq(profitSharingRules.outletId, OUTLET_2));
+    await db.delete(userOutletRoles).where(eq(userOutletRoles.userId, testUserId));
+    await db.delete(user).where(eq(user.id, testUserId));
+    await db.delete(outlets).where(eq(outlets.id, OUTLET_1));
+    await db.delete(outlets).where(eq(outlets.id, OUTLET_2));
   });
 });
+

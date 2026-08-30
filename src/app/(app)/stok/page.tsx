@@ -2,31 +2,47 @@ import { db } from '@/lib/db';
 import { stock, products, stockMovements, outlets } from '@/lib/schema';
 import { formatDate } from '@/lib/utils';
 import { adjustStock } from '@/app/actions/stock';
-import { eq, and, isNull, desc } from 'drizzle-orm';
+import { eq, and, isNull, desc, sql } from 'drizzle-orm';
 import { Warehouse, Plus, ArrowDownLeft, ArrowUpRight, RotateCcw, Store } from 'lucide-react';
 import OutletFilter from '@/components/outlet-filter';
-
+import PaginationControls from '@/components/pagination-controls';
 
 export default async function StockPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ outletId?: string }>;
+  searchParams?: Promise<{ outletId?: string; page?: string }>;
 }) {
   const resolvedParams = searchParams ? await searchParams : {};
   const outletId = resolvedParams.outletId || 'out_default';
+  const page = Math.max(1, Number(resolvedParams.page || 1));
+  const pageSize = 12;
+  const offset = (page - 1) * pageSize;
 
   let allOutlets: any[] = [];
   let productList: any[] = [];
   let stockList: any[] = [];
   let movementList: any[] = [];
+  let totalItems = 0;
+  let totalPages = 1;
 
   try {
     allOutlets = await db.select().from(outlets);
 
+    const countQuery = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(products)
+      .where(isNull(products.deletedAt));
+
+    totalItems = Number(countQuery[0]?.count || 0);
+    totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+
     productList = await db
       .select()
       .from(products)
-      .where(isNull(products.deletedAt));
+      .where(isNull(products.deletedAt))
+      .orderBy(desc(products.createdAt))
+      .limit(pageSize)
+      .offset(offset);
 
     stockList = await db
       .select()
@@ -38,7 +54,7 @@ export default async function StockPage({
       .from(stockMovements)
       .where(eq(stockMovements.outletId, outletId))
       .orderBy(desc(stockMovements.createdAt))
-      .limit(20);
+      .limit(10);
   } catch (e) {
     console.warn('Error fetching stock data:', e);
   }
@@ -61,42 +77,41 @@ export default async function StockPage({
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-[#201C1A]">
-            Stok & Inventori Menu
+            Inventori & Stok Bahan Baku
           </h1>
           <p className="text-xs text-[#8E867C] mt-0.5">
-            Monitor sisa stok menu/bahan dan riwayat mutasi otomatis dari transaksi POS
+            Manajemen stok masuk, penyesuaian opname fisik, dan log riwayat mutasi per outlet
           </p>
         </div>
 
-        {/* Outlet Switcher Filter */}
+        {/* Outlet Filter Switcher */}
         <OutletFilter outlets={allOutlets} selectedOutletId={outletId} showAllOption={false} />
-
       </div>
 
+      {/* Grid 2 Kolom: Form Input Mutasi & Daftar Sisa Stok */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Form Penyesuaian Stok */}
+        {/* Left Column: Form Adjust Stok */}
         <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-xs p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-xs uppercase tracking-wider text-[#54382B] flex items-center gap-2">
-              <Plus className="w-4 h-4" /> Restock / Opname
+              <Plus className="w-4 h-4" /> Input Mutasi Stok
             </h3>
-            <span className="text-[10px] text-[#8E867C] font-semibold">{currentOutletName}</span>
+            <span className="text-[10px] font-bold text-[#8E867C]">{currentOutletName}</span>
           </div>
 
           <form action={adjustStock} className="space-y-3.5 text-xs">
             <input type="hidden" name="outletId" value={outletId} />
 
             <div>
-              <label className="block font-bold text-[#4A4238] mb-1.5">Pilih Produk</label>
+              <label className="block font-bold text-[#4A4238] mb-1.5">Pilih Menu / Bahan</label>
               <select
                 name="productId"
                 required
-                className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
+                className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-semibold"
               >
-                <option value="">-- Pilih Produk --</option>
                 {productList.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name} (Sisa: {stockMap[p.id] ?? 0})
+                    {p.name} (Sisa: {stockMap[p.id] ?? 0} pcs)
                   </option>
                 ))}
               </select>
@@ -107,16 +122,18 @@ export default async function StockPage({
                 <label className="block font-bold text-[#4A4238] mb-1.5">Jenis Mutasi</label>
                 <select
                   name="type"
-                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-semibold"
+                  required
+                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-bold"
                 >
-                  <option value="in">Masuk (Restock)</option>
-                  <option value="out">Keluar (Waste/Rusak)</option>
-                  <option value="adjustment">Koreksi Opname</option>
+                  <option value="in">Stok Masuk (+)</option>
+                  <option value="out">Stok Keluar (-)</option>
+                  <option value="adjustment">Penyesuaian (Opname)</option>
+                  <option value="waste">Rusak / Basi (-)</option>
                 </select>
               </div>
 
               <div>
-                <label className="block font-bold text-[#4A4238] mb-1.5">Jumlah (Qty)</label>
+                <label className="block font-bold text-[#4A4238] mb-1.5">Jumlah (Pcs)</label>
                 <input
                   type="number"
                   name="quantity"
@@ -152,7 +169,7 @@ export default async function StockPage({
         <div className="lg:col-span-2 bg-white rounded-3xl border border-[#EBE7DF] shadow-xs p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-sm text-[#201C1A]">Sisa Stok: {currentOutletName}</h3>
-            <span className="text-xs text-[#8E867C]">{productList.length} Menu</span>
+            <span className="text-xs text-[#8E867C]">{totalItems} Menu Terdaftar</span>
           </div>
 
           <div className="overflow-x-auto">
@@ -187,64 +204,69 @@ export default async function StockPage({
                     </tr>
                   );
                 })}
-                {productList.length === 0 && (
-                  <tr>
-                    <td colSpan={3} className="text-center py-6 text-[#9E968B] text-xs">
-                      Belum ada data produk.
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls */}
+          <PaginationControls
+            currentPage={page}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            pageSize={pageSize}
+          />
         </div>
       </div>
 
-      {/* SECTION 2: Riwayat Mutasi Log */}
+      {/* SECTION 2: Log Riwayat Mutasi Stok */}
       <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-xs p-6 space-y-4">
-        <h3 className="font-bold text-base text-[#201C1A]">Riwayat Log Mutasi Stok ({currentOutletName})</h3>
+        <h3 className="font-bold text-base text-[#201C1A]">Log Riwayat Mutasi Stok</h3>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-[#F0ECE4] bg-[#FAF8F5] text-[#8E867C] text-[10px] font-bold uppercase tracking-wider">
-                <th className="py-3.5 px-4">Waktu</th>
-                <th className="py-3.5 px-4">Produk</th>
-                <th className="py-3.5 px-4">Tipe Mutasi</th>
-                <th className="py-3.5 px-4">Jumlah (Qty)</th>
-                <th className="py-3.5 px-4">Catatan / Ref</th>
+                <th className="py-3 px-4">Waktu</th>
+                <th className="py-3 px-4">Produk</th>
+                <th className="py-3 px-4">Tipe Mutasi</th>
+                <th className="py-3 px-4 text-right">Jumlah</th>
+                <th className="py-3 px-4">Catatan</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F4F0E8]">
               {movementList.map((m) => (
                 <tr key={m.id} className="hover:bg-[#FBF9F6]">
                   <td className="py-3 px-4 text-[#7A7268] whitespace-nowrap">{formatDate(m.createdAt)}</td>
-                  <td className="py-3 px-4 font-bold text-[#201C1A]">{productMap[m.productId] || m.productId}</td>
-                  <td className="py-3 px-4 text-[11px] capitalize">
+                  <td className="py-3 px-4 font-bold text-[#201C1A]">
+                    {productMap[m.productId] || m.productId}
+                  </td>
+                  <td className="py-3 px-4">
                     <span
-                      className={`px-2.5 py-0.5 rounded-lg font-bold ${
-                        m.type === 'in'
+                      className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase ${
+                        m.type === 'in' || m.type === 'po_receive'
                           ? 'bg-[#EBF6EE] text-[#2D7A47]'
-                          : m.type === 'out'
-                          ? 'bg-[#FBEBE8] text-[#964B3B]'
-                          : 'bg-[#F2EDE5] text-[#54382B]'
+                          : 'bg-[#FBEBE8] text-[#964B3B]'
                       }`}
                     >
-                      {m.type === 'in' ? 'Masuk (Restock)' : m.type === 'out' ? 'Keluar (POS)' : m.type}
+                      {m.type === 'in'
+                        ? 'Masuk'
+                        : m.type === 'out'
+                        ? 'Keluar'
+                        : m.type === 'po_receive'
+                        ? 'PO Terima'
+                        : m.type}
                     </span>
                   </td>
-                  <td className="py-3 px-4 font-black">
-                    <span className={m.quantity > 0 ? 'text-[#2D7A47]' : 'text-[#964B3B]'}>
-                      {m.quantity > 0 ? `+${m.quantity}` : m.quantity} pcs
-                    </span>
+                  <td className="py-3 px-4 text-right font-black text-[#201C1A]">
+                    {m.quantity > 0 ? `+${m.quantity}` : m.quantity} pcs
                   </td>
-                  <td className="py-3 px-4 text-[#7A7268]">{m.notes || m.referenceId || '-'}</td>
+                  <td className="py-3 px-4 text-[#7A7268]">{m.notes || '-'}</td>
                 </tr>
               ))}
               {movementList.length === 0 && (
                 <tr>
                   <td colSpan={5} className="text-center py-8 text-[#9E968B] text-xs">
-                    Belum ada log mutasi stok pada outlet ini.
+                    Belum ada riwayat mutasi stok.
                   </td>
                 </tr>
               )}

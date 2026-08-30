@@ -286,5 +286,19 @@ describe('E2E Integration Test: Complete POS & Business Lifecycle Workflow', () 
       .from(stock)
       .where(and(eq(stock.outletId, TEST_OUTLET_ID), eq(stock.productId, TEST_PRODUCT_ID)));
     expect(restoredStock.quantity).toBe(50); // Restored back to 50 pcs!
+
+    // Cleanup test data
+    await db.delete(profitSharingLedger).where(eq(profitSharingLedger.outletId, TEST_OUTLET_ID));
+    await db.delete(profitSharingRules).where(eq(profitSharingRules.outletId, TEST_OUTLET_ID));
+    await db.delete(orderItems).where(eq(orderItems.orderId, orderId));
+    await db.delete(orders).where(eq(orders.id, orderId));
+    await db.delete(expenses).where(eq(expenses.outletId, TEST_OUTLET_ID));
+    await db.delete(shifts).where(eq(shifts.outletId, TEST_OUTLET_ID));
+    await db.delete(stockMovements).where(eq(stockMovements.outletId, TEST_OUTLET_ID));
+    await db.delete(stock).where(eq(stock.outletId, TEST_OUTLET_ID));
+    await db.delete(products).where(eq(products.id, TEST_PRODUCT_ID));
+    await db.delete(user).where(eq(user.id, TEST_USER_ID));
+    await db.delete(outlets).where(eq(outlets.id, TEST_OUTLET_ID));
   });
 });
+
