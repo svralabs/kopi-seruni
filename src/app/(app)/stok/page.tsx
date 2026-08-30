@@ -4,6 +4,8 @@ import { formatDate } from '@/lib/utils';
 import { adjustStock } from '@/app/actions/stock';
 import { eq, and, isNull, desc } from 'drizzle-orm';
 import { Warehouse, Plus, ArrowDownLeft, ArrowUpRight, RotateCcw, Store } from 'lucide-react';
+import OutletFilter from '@/components/outlet-filter';
+
 
 export default async function StockPage({
   searchParams,
@@ -67,23 +69,8 @@ export default async function StockPage({
         </div>
 
         {/* Outlet Switcher Filter */}
-        <div className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-2xl border border-[#EBE7DF] shadow-xs text-xs">
-          <Store className="w-4 h-4 text-[#54382B]" />
-          <span className="text-[11px] font-bold text-[#8E867C]">Outlet:</span>
-          <select
-            defaultValue={outletId}
-            onChange={(e) => {
-              window.location.href = `/stok?outletId=${e.target.value}`;
-            }}
-            className="text-xs font-bold text-[#201C1A] bg-transparent border-none focus:outline-none cursor-pointer"
-          >
-            {allOutlets.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <OutletFilter outlets={allOutlets} selectedOutletId={outletId} showAllOption={false} />
+
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

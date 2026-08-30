@@ -4,6 +4,8 @@ import { formatRupiah, formatDate } from '@/lib/utils';
 import { createExpense } from '@/app/actions/expenses';
 import { desc, eq } from 'drizzle-orm';
 import { Plus, WalletCards, Store, ArrowRight } from 'lucide-react';
+import OutletFilter from '@/components/outlet-filter';
+
 
 export default async function ExpensesPage({
   searchParams,
@@ -52,27 +54,8 @@ export default async function ExpensesPage({
 
         <div className="flex items-center gap-3">
           {/* Outlet Filter */}
-          <div className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-2xl border border-[#EBE7DF] shadow-xs text-xs">
-            <Store className="w-4 h-4 text-[#54382B]" />
-            <span className="text-[11px] font-bold text-[#8E867C]">Outlet:</span>
-            <select
-              defaultValue={outletId}
-              onChange={(e) => {
-                const url = new URL(window.location.href);
-                if (e.target.value === 'all') url.searchParams.delete('outletId');
-                else url.searchParams.set('outletId', e.target.value);
-                window.location.href = url.toString();
-              }}
-              className="text-xs font-bold text-[#201C1A] bg-transparent border-none focus:outline-none cursor-pointer"
-            >
-              <option value="all">Semua Cabang</option>
-              {allOutlets.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <OutletFilter outlets={allOutlets} selectedOutletId={outletId} />
+
 
           <div className="bg-white px-5 py-2 rounded-2xl border border-[#EBE7DF] shadow-xs text-right">
             <p className="text-[10px] text-[#8E867C] font-semibold uppercase tracking-wider">Total Beban</p>

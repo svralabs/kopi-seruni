@@ -14,6 +14,8 @@ import {
   Layers,
   Store,
 } from 'lucide-react';
+import OutletFilter from '@/components/outlet-filter';
+
 
 export default async function DashboardPage({
   searchParams,
@@ -124,27 +126,8 @@ export default async function DashboardPage({
         {/* Filter Controls (Outlet & Periode) */}
         <div className="flex flex-wrap items-center gap-3">
           {/* Outlet Filter Dropdown */}
-          <div className="flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-2xl border border-[#EBE7DF] shadow-xs text-xs">
-            <Store className="w-3.5 h-3.5 text-[#54382B]" />
-            <span className="text-[11px] font-bold text-[#8E867C]">Outlet:</span>
-            <select
-              value={outletId}
-              onChange={(e) => {
-                const url = new URL(window.location.href);
-                if (e.target.value === 'all') url.searchParams.delete('outletId');
-                else url.searchParams.set('outletId', e.target.value);
-                window.location.href = url.toString();
-              }}
-              className="text-xs font-bold text-[#201C1A] bg-transparent border-none focus:outline-none cursor-pointer"
-            >
-              <option value="all">Semua Cabang</option>
-              {allOutlets.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <OutletFilter outlets={allOutlets} selectedOutletId={outletId} />
+
 
           {/* Period Filter Tabs */}
           <div className="flex items-center gap-1 bg-white p-1 rounded-2xl border border-[#EBE7DF] shadow-xs text-xs">
