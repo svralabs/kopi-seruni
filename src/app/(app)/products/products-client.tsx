@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { createProduct } from '@/app/actions/products';
+import { createProduct, updateProduct } from '@/app/actions/products';
 import { formatRupiah } from '@/lib/utils';
-import type { Category } from '@/lib/schema';
+import type { Category, Product } from '@/lib/schema';
 import { 
   Package, 
   Plus, 
@@ -13,6 +13,7 @@ import {
   AlertTriangle, 
   X, 
   Trash2,
+  Pencil,
   ArrowRight
 } from 'lucide-react';
 import DeleteProductButton from './delete-button';
@@ -36,6 +37,7 @@ export default function ProductsClient({
   pageSize: number;
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
 
@@ -206,7 +208,17 @@ export default function ProductsClient({
                     </span>
                   </td>
                   <td className="py-3 px-4 text-right">
-                    <DeleteProductButton productId={prod.id} />
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setEditingProduct(prod)}
+                        className="p-1.5 bg-[#FAF8F5] hover:bg-[#F2EDE5] text-[#54382B] rounded-xl border border-[#E5E0D6] transition-colors cursor-pointer"
+                        title="Edit Menu & HPP"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <DeleteProductButton productId={prod.id} />
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -239,46 +251,34 @@ export default function ProductsClient({
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
           <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-2xl max-w-md w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-[#F0ECE4] pb-3">
-              <div className="flex items-center gap-2 text-[#54382B]">
-                <Plus className="w-4 h-4" />
-                <h3 className="font-bold text-sm text-[#201C1A]">Tambah Menu / Produk Baru</h3>
-              </div>
+              <h3 className="font-bold text-base text-[#201C1A]">Tambah Menu Baru</h3>
               <button
-                type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="text-[#9E968B] hover:text-[#201C1A] p-1 rounded-lg"
+                className="text-[#8E867C] hover:text-[#201C1A] cursor-pointer"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form
-              action={async (formData) => {
-                await createProduct(formData);
-                setIsModalOpen(false);
-              }}
-              className="space-y-3.5 text-xs"
-            >
+            <form action={createProduct} className="space-y-3.5 text-xs">
               <div>
-                <label className="block font-bold text-[#4A4238] mb-1.5">
-                  Nama Menu <span className="text-red-500">*</span>
-                </label>
+                <label className="block font-bold text-[#4A4238] mb-1.5">Nama Menu / Produk</label>
                 <input
                   type="text"
                   name="name"
                   required
-                  placeholder="Contoh: Es Kopi Susu Seruni"
-                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-bold"
+                  placeholder="Contoh: Kopi Susu Gula Aren"
+                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
                 />
               </div>
 
               <div>
-                <label className="block font-bold text-[#4A4238] mb-1.5">Kategori Menu</label>
+                <label className="block font-bold text-[#4A4238] mb-1.5">Kategori</label>
                 <select
                   name="categoryId"
-                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
+                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] cursor-pointer"
                 >
-                  <option value="">Pilih Kategori (Opsional)</option>
+                  <option value="">-- Tanpa Kategori --</option>
                   {categoriesList.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
@@ -289,16 +289,125 @@ export default function ProductsClient({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-[#4A4238] mb-1.5">
-                    Harga Jual (Rp) <span className="text-red-500">*</span>
-                  </label>
+                  <label className="block font-bold text-[#4A4238] mb-1.5">Harga Jual (Rp)</label>
                   <input
                     type="number"
                     name="price"
                     required
                     min="0"
                     step="500"
-                    placeholder="22000"
+                    placeholder="20000"
+                    className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-[#4A4238] mb-1.5">HPP (Modal)</label>
+                  <input
+                    type="number"
+                    name="costPrice"
+                    min="0"
+                    step="500"
+                    placeholder="10000"
+                    className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="flex-1 py-2.5 border border-[#E5E0D6] text-[#7A7268] font-bold rounded-2xl hover:bg-[#FAF8F5] cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl shadow-xs cursor-pointer"
+                >
+                  Simpan Menu
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 4. MODAL DIALOG: EDIT PRODUK & HPP */}
+      {editingProduct && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-2xl max-w-md w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-[#F0ECE4] pb-3">
+              <div>
+                <h3 className="font-bold text-base text-[#201C1A]">Edit Menu & HPP</h3>
+                <p className="text-[11px] text-[#8E867C]">Perbarui harga jual, HPP modal, dan status</p>
+              </div>
+              <button
+                onClick={() => setEditingProduct(null)}
+                className="text-[#8E867C] hover:text-[#201C1A] cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              action={async (formData) => {
+                await updateProduct(editingProduct.id, formData);
+                setEditingProduct(null);
+              }}
+              className="space-y-3.5 text-xs"
+            >
+              <div>
+                <label className="block font-bold text-[#4A4238] mb-1.5">Nama Menu / Produk</label>
+                <input
+                  type="text"
+                  name="name"
+                  required
+                  defaultValue={editingProduct.name}
+                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-[#4A4238] mb-1.5">Kategori</label>
+                  <select
+                    name="categoryId"
+                    defaultValue={editingProduct.categoryId || ''}
+                    className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] cursor-pointer"
+                  >
+                    <option value="">-- Tanpa Kategori --</option>
+                    {categoriesList.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#4A4238] mb-1.5">Status Menu</label>
+                  <select
+                    name="isActive"
+                    defaultValue={editingProduct.isActive ? '1' : '0'}
+                    className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] cursor-pointer font-bold"
+                  >
+                    <option value="1">Aktif Dijual</option>
+                    <option value="0">Nonaktif / Habis</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-[#4A4238] mb-1.5">Harga Jual (Rp)</label>
+                  <input
+                    type="number"
+                    name="price"
+                    required
+                    min="0"
+                    step="500"
+                    defaultValue={editingProduct.price}
                     className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-black"
                   />
                 </div>
@@ -310,7 +419,8 @@ export default function ProductsClient({
                     name="costPrice"
                     min="0"
                     step="500"
-                    placeholder="8500"
+                    defaultValue={editingProduct.costPrice || ''}
+                    placeholder="Contoh: 8500"
                     className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-bold"
                   />
                 </div>
@@ -321,7 +431,7 @@ export default function ProductsClient({
                 <textarea
                   name="description"
                   rows={2}
-                  placeholder="Kopi espresso dengan susu segar dan gula aren asli..."
+                  defaultValue={editingProduct.description || ''}
                   className="w-full px-3.5 py-2 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl text-xs focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
                 />
               </div>
@@ -329,16 +439,16 @@ export default function ProductsClient({
               <div className="flex items-center gap-2 pt-3">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-2.5 border border-[#E5E0D6] text-[#7A7268] font-bold rounded-2xl hover:bg-[#FAF8F5]"
+                  onClick={() => setEditingProduct(null)}
+                  className="flex-1 py-2.5 border border-[#E5E0D6] text-[#7A7268] font-bold rounded-2xl hover:bg-[#FAF8F5] cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl shadow-xs"
+                  className="flex-1 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl shadow-xs cursor-pointer"
                 >
-                  Simpan Menu
+                  Simpan Perubahan
                 </button>
               </div>
             </form>

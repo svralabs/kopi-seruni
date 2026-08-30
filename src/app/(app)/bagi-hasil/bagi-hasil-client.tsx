@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { formatRupiah, formatDate } from '@/lib/utils';
-import { createRule, generateProfitSharing, markSharePaid } from '@/app/actions/profit-sharing';
+import { createRule, updateRule, generateProfitSharing, markSharePaid } from '@/app/actions/profit-sharing';
 import { 
   Users2, 
   Plus, 
@@ -14,7 +14,8 @@ import {
   X, 
   Trash2,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  Pencil
 } from 'lucide-react';
 import { ToggleRuleButton, DeleteRuleButton } from './client-buttons';
 
@@ -31,6 +32,7 @@ export default function BagiHasilClient({
 }) {
   const [activeTab, setActiveTab] = useState<'rules' | 'ledger'>('rules');
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
+  const [editingRule, setEditingRule] = useState<any | null>(null);
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
 
   const [period, setPeriod] = useState(() => {
@@ -50,17 +52,28 @@ export default function BagiHasilClient({
 
   const handleGenerate = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!period || netProfitInput <= 0) {
+      alert('Mohon isi periode dan nominal laba bersih yang valid');
+      return;
+    }
+
+    const [year, month] = period.split('-').map(Number);
+    const fromDate = Math.floor(new Date(year, month - 1, 1).getTime() / 1000);
+    const toDate = Math.floor(new Date(year, month, 0, 23, 59, 59).getTime() / 1000);
+
     startTransition(async () => {
-      const [year, month] = period.split('-').map(Number);
-      const periodStart = Math.floor(new Date(year, (month || 1) - 1, 1).getTime() / 1000);
-      const periodEnd = Math.floor(new Date(year, month || 1, 0, 23, 59, 59).getTime() / 1000);
-      await generateProfitSharing(currentOutletId, periodStart, periodEnd, netProfitInput);
-      setIsGenerateModalOpen(false);
+      try {
+        await generateProfitSharing(currentOutletId, fromDate, toDate, netProfitInput);
+        setIsGenerateModalOpen(false);
+        setActiveTab('ledger');
+      } catch (err: any) {
+        alert(err?.message || 'Gagal generate bagi hasil');
+      }
     });
   };
 
   const handleMarkPaid = (id: string) => {
-    if (!confirm('Tandai bagi hasil ini sudah dibayarkan/transfer ke owner?')) return;
+    if (!confirm('Tandai bagi hasil ini sudah ditransfer lunas ke penerima?')) return;
     startTransition(async () => {
       await markSharePaid(id, currentOutletId);
     });
@@ -68,34 +81,34 @@ export default function BagiHasilClient({
 
   return (
     <div className="space-y-6">
-      {/* Header & Primary Actions */}
+      {/* Header & Setup Modal Trigger */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-[#201C1A]">
-            Bagi Hasil & Profit Sharing Multi-Owner
+            Bagi Hasil & Multi-Owner
           </h1>
           <p className="text-xs text-[#8E867C] mt-0.5">
-            Kelola persentase kepemilikan owner dan pembagian dividen laba bersih di {currentOutletName}
+            Manajemen persentase kepemilikan modal dan perhitungan dividen laba bersih toko
           </p>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
-            onClick={() => setIsGenerateModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white border border-[#EBE7DF] hover:bg-[#FAF8F5] text-xs font-bold text-[#54382B] rounded-2xl shadow-xs transition-colors"
+            onClick={() => setIsRuleModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#FAF8F5] hover:bg-[#F2ECE3] text-[#201C1A] text-xs font-bold rounded-2xl border border-[#E5E0D6] shadow-2xs transition-colors cursor-pointer"
           >
-            <Calculator className="w-3.5 h-3.5" />
-            <span>Generate Periode</span>
+            <Plus className="w-4 h-4" />
+            <span>Setup Owner</span>
           </button>
 
           <button
             type="button"
-            onClick={() => setIsRuleModalOpen(true)}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white text-xs font-bold rounded-2xl shadow-xs transition-colors"
+            onClick={() => setIsGenerateModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white text-xs font-bold rounded-2xl shadow-xs transition-colors cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
-            <span>Setup Owner</span>
+            <Calculator className="w-4 h-4" />
+            <span>Generate Periode</span>
           </button>
         </div>
       </div>
@@ -104,17 +117,17 @@ export default function BagiHasilClient({
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white rounded-3xl border border-[#EBE7DF] p-5 shadow-xs flex items-center justify-between">
           <div>
-            <p className="text-xs font-bold text-[#8E867C]">Alokasi Hak Owner</p>
+            <p className="text-xs font-bold text-[#8E867C]">Total Alokasi Dividen</p>
             <h3 className="text-2xl font-black text-[#54382B] mt-1">{totalPercentage}%</h3>
           </div>
-          <div className="w-10 h-10 rounded-2xl bg-[#F4EFE6] border border-[#E5DEC3] flex items-center justify-center text-[#54382B]">
+          <div className="w-10 h-10 rounded-2xl bg-[#FAF8F5] border border-[#ECE7DE] flex items-center justify-center text-[#54382B]">
             <PieChart className="w-5 h-5" />
           </div>
         </div>
 
         <div className="bg-white rounded-3xl border border-[#EBE7DF] p-5 shadow-xs flex items-center justify-between">
           <div>
-            <p className="text-xs font-bold text-[#8E867C]">Kas Toko / Cadangan Modal</p>
+            <p className="text-xs font-bold text-[#8E867C]">Laba Ditahan / Kas Toko</p>
             <h3 className="text-2xl font-black text-[#2D7A47] mt-1">{retainedPercentage}%</h3>
           </div>
           <div className="w-10 h-10 rounded-2xl bg-[#EBF6EE] border border-[#D1EBD8] flex items-center justify-center text-[#2D7A47]">
@@ -124,29 +137,29 @@ export default function BagiHasilClient({
 
         <div className="bg-white rounded-3xl border border-[#EBE7DF] p-5 shadow-xs flex items-center justify-between">
           <div>
-            <p className="text-xs font-bold text-[#8E867C]">Total Owner / Investor</p>
+            <p className="text-xs font-bold text-[#8E867C]">Jumlah Partner Terdaftar</p>
             <h3 className="text-2xl font-black text-[#201C1A] mt-1">{rulesList.length} Orang</h3>
           </div>
-          <div className="w-10 h-10 rounded-2xl bg-[#FAF8F5] border border-[#ECE7DE] flex items-center justify-center text-[#7A7268]">
+          <div className="w-10 h-10 rounded-2xl bg-[#FAF8F5] border border-[#ECE7DE] flex items-center justify-center text-[#201C1A]">
             <Users2 className="w-5 h-5" />
           </div>
         </div>
       </div>
 
-      {/* Visual Progress Bar Alokasi */}
-      <div className="bg-white rounded-3xl border border-[#EBE7DF] p-4 shadow-xs space-y-2">
+      {/* Progress Allocation Bar */}
+      <div className="bg-white rounded-3xl border border-[#EBE7DF] p-5 shadow-xs space-y-2">
         <div className="flex justify-between text-xs font-bold">
-          <span className="text-[#54382B]">Hak Owner ({totalPercentage}%)</span>
-          <span className="text-[#2D7A47]">Kas Bisnis ({retainedPercentage}%)</span>
+          <span className="text-[#201C1A]">Proporsi Distribusi Laba ({currentOutletName})</span>
+          <span className="text-[#54382B]">{totalPercentage}% Terbagi / {retainedPercentage}% Kas Cadangan</span>
         </div>
-        <div className="w-full bg-[#FAF8F5] rounded-full h-3 p-0.5 border border-[#EBE7DF] flex overflow-hidden">
+        <div className="w-full h-3 bg-[#FAF8F5] border border-[#ECE7DE] rounded-full overflow-hidden flex">
           <div
-            className="bg-[#54382B] h-full rounded-l-full transition-all"
-            style={{ width: `${Math.min(100, totalPercentage)}%` }}
+            style={{ width: `${totalPercentage}%` }}
+            className="bg-[#54382B] h-full transition-all duration-500"
           />
           <div
-            className="bg-[#2D7A47] h-full rounded-r-full transition-all"
             style={{ width: `${retainedPercentage}%` }}
+            className="bg-[#2D7A47] h-full transition-all duration-500"
           />
         </div>
       </div>
@@ -159,7 +172,7 @@ export default function BagiHasilClient({
             <button
               type="button"
               onClick={() => setActiveTab('rules')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-bold transition-all ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
                 activeTab === 'rules'
                   ? 'bg-white text-[#201C1A] shadow-xs'
                   : 'text-[#8E867C] hover:text-[#201C1A]'
@@ -171,7 +184,7 @@ export default function BagiHasilClient({
             <button
               type="button"
               onClick={() => setActiveTab('ledger')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-bold transition-all ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
                 activeTab === 'ledger'
                   ? 'bg-white text-[#201C1A] shadow-xs'
                   : 'text-[#8E867C] hover:text-[#201C1A]'
@@ -207,7 +220,15 @@ export default function BagiHasilClient({
                     <td className="py-3.5 px-4">
                       <ToggleRuleButton id={r.id} currentStatus={r.isActive} />
                     </td>
-                    <td className="py-3.5 px-4 text-right">
+                    <td className="py-3.5 px-4 text-right whitespace-nowrap space-x-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setEditingRule(r)}
+                        className="p-1 text-[#54382B] hover:bg-[#F2EDE5] bg-[#FAF8F5] border border-[#E5E0D6] rounded-xl transition-colors inline-flex cursor-pointer"
+                        title="Edit Aturan"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
                       <DeleteRuleButton id={r.id} name={r.name} />
                     </td>
                   </tr>
@@ -248,25 +269,26 @@ export default function BagiHasilClient({
                       {formatRupiah(l.shareAmount)}
                     </td>
                     <td className="py-3.5 px-4">
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                          l.status === 'paid'
-                            ? 'bg-[#EBF6EE] text-[#2D7A47] border border-[#D1EBD8]'
-                            : 'bg-[#FDF4E5] text-[#96631E] border border-[#F5E2BE]'
-                        }`}
-                      >
-                        {l.status === 'paid' ? 'Lunas Ditransfer' : 'Menunggu Transfer'}
-                      </span>
+                      {l.paidAt ? (
+                        <span className="px-2.5 py-0.5 rounded-full bg-[#EBF6EE] text-[#2D7A47] font-bold text-[10px] border border-[#D1EBD8]">
+                          Lunas ({formatDate(l.paidAt)})
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-0.5 rounded-full bg-[#FDF4E5] text-[#96631E] font-bold text-[10px] border border-[#F2E0C4]">
+                          Pending
+                        </span>
+                      )}
                     </td>
                     <td className="py-3.5 px-4 text-right">
-                      {l.status === 'pending' && (
+                      {!l.paidAt && (
                         <button
                           type="button"
                           disabled={isPending}
                           onClick={() => handleMarkPaid(l.id)}
-                          className="px-3 py-1 bg-[#2D7A47] hover:bg-[#236338] text-white font-bold rounded-xl text-xs transition-colors shadow-xs"
+                          className="px-3 py-1 bg-[#EBF6EE] hover:bg-[#DDF0E2] text-[#2D7A47] font-bold rounded-xl text-[11px] transition-colors disabled:opacity-50 inline-flex items-center gap-1 border border-[#D1EBD8] cursor-pointer"
                         >
-                          Tandai Lunas
+                          <CheckCircle className="w-3 h-3" />
+                          <span>Tandai Lunas</span>
                         </button>
                       )}
                     </td>
@@ -275,7 +297,7 @@ export default function BagiHasilClient({
                 {ledgerList.length === 0 && (
                   <tr>
                     <td colSpan={6} className="text-center py-12 text-[#9E968B] text-xs">
-                      Belum ada ledger bagi hasil yang digenerate.
+                      Belum ada ledger bagi hasil. Klik tombol &quot;Generate Periode&quot; di atas untuk mengalkulasi laba.
                     </td>
                   </tr>
                 )}
@@ -285,19 +307,19 @@ export default function BagiHasilClient({
         )}
       </div>
 
-      {/* 3. MODAL DIALOG 1: TAMBAH OWNER / RULE */}
+      {/* 3. MODAL DIALOG 1: SETUP OWNER / RULE BARU */}
       {isRuleModalOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
           <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-2xl max-w-md w-full p-6 space-y-4">
             <div className="flex items-center justify-between border-b border-[#F0ECE4] pb-3">
               <div className="flex items-center gap-2 text-[#54382B]">
                 <Plus className="w-4 h-4" />
-                <h3 className="font-bold text-sm text-[#201C1A]">Setup Pemilik / Investor Baru</h3>
+                <h3 className="font-bold text-sm text-[#201C1A]">Setup Pemilik & Hak Bagi Hasil</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setIsRuleModalOpen(false)}
-                className="text-[#9E968B] hover:text-[#201C1A] p-1 rounded-lg"
+                className="text-[#9E968B] hover:text-[#201C1A] p-1 rounded-lg cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -314,14 +336,96 @@ export default function BagiHasilClient({
 
               <div>
                 <label className="block font-bold text-[#4A4238] mb-1.5">
-                  Nama Pemilik / Investor <span className="text-red-500">*</span>
+                  Nama Pemilik / Mitra Investor <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   name="name"
                   required
-                  placeholder="Contoh: Owner A / Pak Budi"
-                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-bold"
+                  placeholder="Contoh: Owner A (Fahmi)"
+                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-semibold"
+                />
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className="font-bold text-[#4A4238]">
+                    Persentase Hak Bagi Hasil (%) <span className="text-red-500">*</span>
+                  </label>
+                  <span className="text-[10px] text-[#8E867C]">Maks: {retainedPercentage}%</span>
+                </div>
+                <input
+                  type="number"
+                  name="percentage"
+                  required
+                  min="1"
+                  max={retainedPercentage}
+                  step="1"
+                  placeholder={`Contoh: ${Math.min(25, retainedPercentage)}`}
+                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-black text-sm"
+                />
+              </div>
+
+              <div className="p-3 bg-[#FAF8F5] rounded-2xl border border-[#ECE7DE] text-[11px] text-[#7A7268]">
+                Sisa porsi kas yang belum dialokasikan untuk cabang ini: <strong>{retainedPercentage}%</strong>
+              </div>
+
+              <div className="flex items-center gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setIsRuleModalOpen(false)}
+                  className="flex-1 py-2.5 border border-[#E5E0D6] text-[#7A7268] font-bold rounded-2xl hover:bg-[#FAF8F5] cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={retainedPercentage <= 0}
+                  className="flex-1 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl shadow-xs disabled:opacity-50 cursor-pointer"
+                >
+                  Simpan Hak Owner
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 4. MODAL DIALOG: EDIT ATURAN BAGI HASIL */}
+      {editingRule && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-2xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-[#F0ECE4] pb-3">
+              <div>
+                <h3 className="font-bold text-base text-[#201C1A]">Edit Aturan Bagi Hasil</h3>
+                <p className="text-[11px] text-[#8E867C]">Perbarui nama partner atau persentase hak</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingRule(null)}
+                className="text-[#9E968B] hover:text-[#201C1A] p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form
+              action={async (formData) => {
+                await updateRule(editingRule.id, formData);
+                setEditingRule(null);
+              }}
+              className="space-y-3.5 text-xs"
+            >
+              <div>
+                <label className="block font-bold text-[#4A4238] mb-1.5">
+                  Nama Pemilik / Mitra Investor <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  required
+                  defaultValue={editingRule.name}
+                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-semibold"
                 />
               </div>
 
@@ -334,30 +438,26 @@ export default function BagiHasilClient({
                   name="percentage"
                   required
                   min="1"
-                  max={retainedPercentage || 100}
+                  max={100}
                   step="1"
-                  placeholder={retainedPercentage ? `${retainedPercentage}` : '30'}
+                  defaultValue={editingRule.percentage}
                   className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-black text-sm"
                 />
-                <p className="text-[10px] text-[#8E867C] mt-1">
-                  Sisa kuota kepemilikan tersedia: <strong className="text-[#2D7A47]">{retainedPercentage}%</strong>
-                </p>
               </div>
 
               <div className="flex items-center gap-2 pt-3">
                 <button
                   type="button"
-                  onClick={() => setIsRuleModalOpen(false)}
-                  className="flex-1 py-2.5 border border-[#E5E0D6] text-[#7A7268] font-bold rounded-2xl hover:bg-[#FAF8F5]"
+                  onClick={() => setEditingRule(null)}
+                  className="flex-1 py-2.5 border border-[#E5E0D6] text-[#7A7268] font-bold rounded-2xl hover:bg-[#FAF8F5] cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  disabled={retainedPercentage <= 0}
-                  className="flex-1 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl shadow-xs disabled:opacity-50"
+                  className="flex-1 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl shadow-xs cursor-pointer"
                 >
-                  Simpan Hak Owner
+                  Simpan Perubahan
                 </button>
               </div>
             </form>
@@ -365,7 +465,7 @@ export default function BagiHasilClient({
         </div>
       )}
 
-      {/* 3. MODAL DIALOG 2: GENERATE PERIODE DIVIDEN */}
+      {/* 5. MODAL DIALOG: GENERATE PERIODE DIVIDEN */}
       {isGenerateModalOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
           <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-2xl max-w-md w-full p-6 space-y-4">
@@ -377,7 +477,7 @@ export default function BagiHasilClient({
               <button
                 type="button"
                 onClick={() => setIsGenerateModalOpen(false)}
-                className="text-[#9E968B] hover:text-[#201C1A] p-1 rounded-lg"
+                className="text-[#9E968B] hover:text-[#201C1A] p-1 rounded-lg cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -423,14 +523,14 @@ export default function BagiHasilClient({
                 <button
                   type="button"
                   onClick={() => setIsGenerateModalOpen(false)}
-                  className="flex-1 py-2.5 border border-[#E5E0D6] text-[#7A7268] font-bold rounded-2xl hover:bg-[#FAF8F5]"
+                  className="flex-1 py-2.5 border border-[#E5E0D6] text-[#7A7268] font-bold rounded-2xl hover:bg-[#FAF8F5] cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={isPending}
-                  className="flex-1 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl shadow-xs disabled:opacity-50"
+                  className="flex-1 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl shadow-xs disabled:opacity-50 cursor-pointer"
                 >
                   {isPending ? 'Memproses...' : 'Generate Ledger'}
                 </button>

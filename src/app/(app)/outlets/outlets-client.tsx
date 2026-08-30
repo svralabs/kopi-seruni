@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { createOutlet } from '@/app/actions/outlets';
+import { createOutlet, updateOutlet } from '@/app/actions/outlets';
 import { formatDate } from '@/lib/utils';
 import type { Outlet } from '@/lib/schema';
 import { 
@@ -14,7 +14,8 @@ import {
   Building2, 
   X,
   Search,
-  CheckCircle
+  CheckCircle,
+  Pencil
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -24,6 +25,7 @@ export default function OutletsClient({
   outletList: Outlet[];
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingOutlet, setEditingOutlet] = useState<Outlet | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   const totalCount = outletList.length;
@@ -51,7 +53,7 @@ export default function OutletsClient({
         <button
           type="button"
           onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white text-xs font-bold rounded-2xl shadow-xs transition-colors self-start sm:self-auto"
+          className="flex items-center gap-2 px-4 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white text-xs font-bold rounded-2xl shadow-xs transition-colors self-start sm:self-auto cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           <span>Tambah Cabang Baru</span>
@@ -62,8 +64,8 @@ export default function OutletsClient({
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white rounded-3xl border border-[#EBE7DF] p-5 shadow-xs flex items-center justify-between">
           <div>
-            <p className="text-xs font-bold text-[#8E867C]">Total Cabang Terdaftar</p>
-            <h3 className="text-2xl font-black text-[#201C1A] mt-1">{totalCount} Cabang</h3>
+            <p className="text-xs font-bold text-[#8E867C]">Total Cabang Toko</p>
+            <h3 className="text-2xl font-black text-[#201C1A] mt-1">{totalCount} Outlet</h3>
           </div>
           <div className="w-10 h-10 rounded-2xl bg-[#FAF8F5] border border-[#ECE7DE] flex items-center justify-center text-[#54382B]">
             <Store className="w-5 h-5" />
@@ -73,7 +75,7 @@ export default function OutletsClient({
         <div className="bg-white rounded-3xl border border-[#EBE7DF] p-5 shadow-xs flex items-center justify-between">
           <div>
             <p className="text-xs font-bold text-[#8E867C]">Status Operasional</p>
-            <h3 className="text-2xl font-black text-[#2D7A47] mt-1">{totalCount} Aktif</h3>
+            <h3 className="text-2xl font-black text-[#2D7A47] mt-1">100% Aktif</h3>
           </div>
           <div className="w-10 h-10 rounded-2xl bg-[#EBF6EE] border border-[#D1EBD8] flex items-center justify-center text-[#2D7A47]">
             <CheckCircle className="w-5 h-5" />
@@ -82,10 +84,10 @@ export default function OutletsClient({
 
         <div className="bg-white rounded-3xl border border-[#EBE7DF] p-5 shadow-xs flex items-center justify-between">
           <div>
-            <p className="text-xs font-bold text-[#8E867C]">Kategori Multi-Branch</p>
-            <h3 className="text-2xl font-black text-[#54382B] mt-1">Satu Sistem</h3>
+            <p className="text-xs font-bold text-[#8E867C]">Kategori Outlet</p>
+            <h3 className="text-2xl font-black text-[#54382B] mt-1">Multi-Branch</h3>
           </div>
-          <div className="w-10 h-10 rounded-2xl bg-[#F4EFE6] border border-[#E5DEC3] flex items-center justify-center text-[#54382B]">
+          <div className="w-10 h-10 rounded-2xl bg-[#FAF8F5] border border-[#ECE7DE] flex items-center justify-center text-[#54382B]">
             <Building2 className="w-5 h-5" />
           </div>
         </div>
@@ -94,7 +96,7 @@ export default function OutletsClient({
       {/* 2. FULL-WIDTH DATA TABLE */}
       <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-xs p-6 space-y-4">
         {/* Search Header */}
-        <div className="flex items-center justify-between pb-2 border-b border-[#F0ECE4]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#F0ECE4]">
           <div className="relative flex-1 max-w-sm">
             <Search className="w-4 h-4 text-[#8E867C] absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
@@ -137,10 +139,18 @@ export default function OutletsClient({
                       Aktif
                     </span>
                   </td>
-                  <td className="py-3.5 px-4 text-right">
+                  <td className="py-3.5 px-4 text-right whitespace-nowrap space-x-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setEditingOutlet(outlet)}
+                      className="p-1.5 text-[#54382B] hover:bg-[#F2EDE5] bg-[#FAF8F5] border border-[#E5E0D6] rounded-xl transition-colors inline-flex cursor-pointer"
+                      title="Edit Cabang"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
                     <Link
                       href={`/pos?outletId=${outlet.id}`}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#FAF8F5] hover:bg-[#2E2520] hover:text-white text-[#54382B] font-bold rounded-xl text-xs border border-[#E5E0D6] transition-all"
+                      className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#FAF8F5] hover:bg-[#2E2520] hover:text-white text-[#54382B] font-bold rounded-xl text-xs border border-[#E5E0D6] transition-all cursor-pointer"
                     >
                       <span>Buka POS</span>
                       <ArrowRight className="w-3.5 h-3.5" />
@@ -177,7 +187,7 @@ export default function OutletsClient({
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="text-[#9E968B] hover:text-[#201C1A] p-1 rounded-lg"
+                className="text-[#9E968B] hover:text-[#201C1A] p-1 rounded-lg cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -199,7 +209,7 @@ export default function OutletsClient({
                   name="name"
                   required
                   placeholder="Contoh: Kopi Seruni - Cabang Riau"
-                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-bold"
+                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-semibold"
                 />
               </div>
 
@@ -208,18 +218,18 @@ export default function OutletsClient({
                 <textarea
                   name="address"
                   rows={2}
-                  placeholder="Contoh: Jl. L. L. R.E. Martadinata No. 50, Bandung"
+                  placeholder="Jl. LLRE Martadinata No. 85, Cihapit, Bandung"
                   className="w-full px-3.5 py-2 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl text-xs focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
                 />
               </div>
 
               <div>
-                <label className="block font-bold text-[#4A4238] mb-1.5">No. Telepon / WhatsApp</label>
+                <label className="block font-bold text-[#4A4238] mb-1.5">Nomor Telepon / WA Outlet</label>
                 <input
                   type="text"
                   name="phone"
-                  placeholder="Contoh: 0812-3456-7890"
-                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl text-xs focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
+                  placeholder="0812-3456-7890"
+                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
                 />
               </div>
 
@@ -227,15 +237,93 @@ export default function OutletsClient({
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-2.5 border border-[#E5E0D6] text-[#7A7268] font-bold rounded-2xl hover:bg-[#FAF8F5]"
+                  className="flex-1 py-2.5 border border-[#E5E0D6] text-[#7A7268] font-bold rounded-2xl hover:bg-[#FAF8F5] cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl shadow-xs"
+                  className="flex-1 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl shadow-xs cursor-pointer"
                 >
                   Daftarkan Cabang
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 4. MODAL DIALOG: EDIT CABANG */}
+      {editingOutlet && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-2xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-[#F0ECE4] pb-3">
+              <div>
+                <h3 className="font-bold text-base text-[#201C1A]">Ubah Data Cabang Outlet</h3>
+                <p className="text-[11px] text-[#8E867C]">Perbarui nama, alamat, atau nomor kontak cabang</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingOutlet(null)}
+                className="text-[#9E968B] hover:text-[#201C1A] p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form
+              action={async (formData) => {
+                await updateOutlet(editingOutlet.id, formData);
+                setEditingOutlet(null);
+              }}
+              className="space-y-3.5 text-xs"
+            >
+              <div>
+                <label className="block font-bold text-[#4A4238] mb-1.5">
+                  Nama Cabang Outlet <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  required
+                  defaultValue={editingOutlet.name}
+                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-[#4A4238] mb-1.5">Alamat Lengkap</label>
+                <textarea
+                  name="address"
+                  rows={2}
+                  defaultValue={editingOutlet.address || ''}
+                  className="w-full px-3.5 py-2 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl text-xs focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-[#4A4238] mb-1.5">Nomor Telepon / WA Outlet</label>
+                <input
+                  type="text"
+                  name="phone"
+                  defaultValue={editingOutlet.phone || ''}
+                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setEditingOutlet(null)}
+                  className="flex-1 py-2.5 border border-[#E5E0D6] text-[#7A7268] font-bold rounded-2xl hover:bg-[#FAF8F5] cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl shadow-xs cursor-pointer"
+                >
+                  Simpan Perubahan
                 </button>
               </div>
             </form>

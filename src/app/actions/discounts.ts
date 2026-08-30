@@ -62,6 +62,44 @@ export async function toggleDiscount(id: string, currentStatus: number) {
   revalidatePath('/pos');
 }
 
+export async function updateDiscount(id: string, formData: FormData) {
+  const session = await getSession();
+  if (!session) redirect('/login');
+
+  const outletId = (formData.get('outletId') as string) || 'out_default';
+  const name = formData.get('name') as string;
+  const type = formData.get('type') as 'percentage' | 'fixed';
+  const value = Number(formData.get('value'));
+  const minPurchase = Number(formData.get('minPurchase') || 0);
+
+  if (!name || name.trim() === '') {
+    throw new Error('Nama voucher/diskon wajib diisi');
+  }
+
+  if (!value || value <= 0) {
+    throw new Error('Nilai diskon harus lebih dari 0');
+  }
+
+  if (type === 'percentage' && value > 100) {
+    throw new Error('Diskon persentase tidak boleh melebihi 100%');
+  }
+
+  await db
+    .update(discounts)
+    .set({
+      outletId,
+      name: name.trim(),
+      type,
+      value,
+      minPurchase,
+    })
+    .where(eq(discounts.id, id));
+
+  revalidatePath('/discounts');
+  revalidatePath('/pos');
+  return { success: true };
+}
+
 export async function deleteDiscount(id: string) {
   const session = await getSession();
   if (!session) redirect('/login');
@@ -76,3 +114,4 @@ export async function deleteDiscount(id: string) {
   revalidatePath('/discounts');
   revalidatePath('/pos');
 }
+

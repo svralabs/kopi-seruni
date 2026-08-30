@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { formatRupiah, formatDateTime } from '@/lib/utils';
-import { createExpense } from '@/app/actions/expenses';
+import { createExpense, updateExpense, deleteExpense } from '@/app/actions/expenses';
 import type { Outlet } from '@/lib/schema';
 import { 
   Plus, 
@@ -12,7 +12,8 @@ import {
   X, 
   Search, 
   ArrowRight,
-  Filter
+  Pencil,
+  Trash2
 } from 'lucide-react';
 import PaginationControls from '@/components/pagination-controls';
 
@@ -36,10 +37,18 @@ export default function ExpensesClient({
   totalAmount: number;
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<any | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isPending, startTransition] = useTransition();
 
   const averageAmount = totalItems > 0 ? Math.round(totalAmount / totalItems) : 0;
+
+  const handleDelete = (id: string) => {
+    if (!confirm('Yakin ingin menghapus catatan pengeluaran ini?')) return;
+    startTransition(async () => {
+      await deleteExpense(id);
+    });
+  };
 
   const filteredList = expensesList.filter((e) => {
     const desc = e.description?.toLowerCase() || '';
@@ -65,7 +74,7 @@ export default function ExpensesClient({
         <button
           type="button"
           onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white text-xs font-bold rounded-2xl shadow-xs transition-colors self-start sm:self-auto"
+          className="flex items-center gap-2 px-4 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white text-xs font-bold rounded-2xl shadow-xs transition-colors self-start sm:self-auto cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           <span>Catat Pengeluaran</span>
@@ -131,6 +140,7 @@ export default function ExpensesClient({
                 <th className="py-3.5 px-4">Kategori</th>
                 <th className="py-3.5 px-4">Keterangan Pengeluaran</th>
                 <th className="py-3.5 px-4 text-right">Nominal Beban</th>
+                <th className="py-3.5 px-4 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F4F0E8]">
@@ -149,16 +159,35 @@ export default function ExpensesClient({
                   <td className="py-3.5 px-4 text-right font-black text-sm text-[#964B3B]">
                     {formatRupiah(e.amount)}
                   </td>
+                  <td className="py-3.5 px-4 text-right whitespace-nowrap space-x-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setEditingExpense(e)}
+                      className="p-1.5 text-[#54382B] hover:bg-[#F2EDE5] bg-[#FAF8F5] border border-[#E5E0D6] rounded-xl transition-colors inline-flex cursor-pointer"
+                      title="Edit Pengeluaran"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isPending}
+                      onClick={() => handleDelete(e.id)}
+                      className="p-1.5 text-[#964B3B] hover:bg-[#FBEBE8] rounded-xl transition-colors inline-flex cursor-pointer"
+                      title="Hapus Pengeluaran"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </td>
                 </tr>
               ))}
 
               {filteredList.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="text-center py-12 text-[#9E968B]">
+                  <td colSpan={6} className="text-center py-12 text-[#9E968B]">
                     <WalletCards className="w-8 h-8 mx-auto mb-2 text-[#D5CEC2]" />
                     <p className="font-bold text-xs text-[#4A4238]">Belum ada data pengeluaran</p>
                     <p className="text-[11px] text-[#9E968B] mt-0.5">
-                      Klik tombol &quot;Catat Pengeluaran&quot; di atas untuk mencatat kas keluar.
+                      Klik tombol &quot;Catat Pengeluaran&quot; di atas untuk memasukkan pengeluaran baru.
                     </p>
                   </td>
                 </tr>
@@ -172,23 +201,22 @@ export default function ExpensesClient({
           totalPages={totalPages}
           totalItems={totalItems}
           pageSize={pageSize}
-          pageParam="page"
         />
       </div>
 
-      {/* 3. MODAL DIALOG: CATAT PENGELUARAN */}
+      {/* 3. MODAL: CATAT PENGELUARAN BARU */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
           <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-2xl max-w-md w-full p-6 space-y-4">
             <div className="flex items-center justify-between border-b border-[#F0ECE4] pb-3">
               <div className="flex items-center gap-2 text-[#54382B]">
                 <Plus className="w-4 h-4" />
-                <h3 className="font-bold text-sm text-[#201C1A]">Catat Pengeluaran Baru</h3>
+                <h3 className="font-bold text-sm text-[#201C1A]">Catat Pengeluaran Kas</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="text-[#9E968B] hover:text-[#201C1A] p-1 rounded-lg"
+                className="text-[#9E968B] hover:text-[#201C1A] p-1 rounded-lg cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -234,7 +262,7 @@ export default function ExpensesClient({
                   <label className="block font-bold text-[#4A4238] mb-1.5">Cabang Outlet</label>
                   <select
                     name="outletId"
-                    className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
+                    className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] cursor-pointer"
                   >
                     {outlets.map((o) => (
                       <option key={o.id} value={o.id}>
@@ -248,7 +276,7 @@ export default function ExpensesClient({
                   <label className="block font-bold text-[#4A4238] mb-1.5">Kategori</label>
                   <select
                     name="categoryId"
-                    className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
+                    className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] cursor-pointer"
                   >
                     <option value="">Umum / Lainnya</option>
                     {categories.map((c) => (
@@ -264,15 +292,121 @@ export default function ExpensesClient({
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-2.5 border border-[#E5E0D6] text-[#7A7268] font-bold rounded-2xl hover:bg-[#FAF8F5]"
+                  className="flex-1 py-2.5 border border-[#E5E0D6] text-[#7A7268] font-bold rounded-2xl hover:bg-[#FAF8F5] cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl shadow-xs"
+                  className="flex-1 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl shadow-xs cursor-pointer"
                 >
                   Simpan Pengeluaran
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 4. MODAL: EDIT / KOREKSI PENGELUARAN */}
+      {editingExpense && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-2xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-[#F0ECE4] pb-3">
+              <div>
+                <h3 className="font-bold text-base text-[#201C1A]">Koreksi Catatan Pengeluaran</h3>
+                <p className="text-[11px] text-[#8E867C]">Perbaiki keterangan atau nominal beban</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingExpense(null)}
+                className="text-[#9E968B] hover:text-[#201C1A] p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form
+              action={async (formData) => {
+                await updateExpense(editingExpense.id, formData);
+                setEditingExpense(null);
+              }}
+              className="space-y-3.5 text-xs"
+            >
+              <div>
+                <label className="block font-bold text-[#4A4238] mb-1.5">
+                  Keterangan / Keperluan <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="description"
+                  required
+                  defaultValue={editingExpense.description}
+                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-[#4A4238] mb-1.5">
+                  Nominal Pengeluaran (Rp) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  name="amount"
+                  required
+                  min="1000"
+                  step="1"
+                  defaultValue={editingExpense.amount}
+                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-black text-sm"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-[#4A4238] mb-1.5">Cabang Outlet</label>
+                  <select
+                    name="outletId"
+                    defaultValue={editingExpense.outletId || ''}
+                    className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] cursor-pointer"
+                  >
+                    {outlets.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#4A4238] mb-1.5">Kategori</label>
+                  <select
+                    name="categoryId"
+                    defaultValue={editingExpense.categoryId || ''}
+                    className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] cursor-pointer"
+                  >
+                    <option value="">Umum / Lainnya</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setEditingExpense(null)}
+                  className="flex-1 py-2.5 border border-[#E5E0D6] text-[#7A7268] font-bold rounded-2xl hover:bg-[#FAF8F5] cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl shadow-xs cursor-pointer"
+                >
+                  Simpan Perubahan
                 </button>
               </div>
             </form>

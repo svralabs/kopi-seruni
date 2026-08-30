@@ -44,3 +44,57 @@ export async function createExpense(formData: FormData) {
   revalidatePath('/dashboard');
   revalidatePath('/profit-loss');
 }
+
+export async function updateExpense(id: string, formData: FormData) {
+  const session = await getSession();
+  if (!session) redirect('/login');
+
+  const description = formData.get('description') as string;
+  const amount = Math.round(Number(formData.get('amount')) || 0);
+  const paymentMethod = (formData.get('paymentMethod') as string) || 'cash';
+  const categoryId = (formData.get('categoryId') as string) || null;
+  const expenseDateInput = formData.get('expenseDate') as string;
+  const outletId = (formData.get('outletId') as string) || 'out_default';
+
+  if (!description || amount <= 0) {
+    throw new Error('Deskripsi dan nominal pengeluaran wajib diisi');
+  }
+
+  const expenseDate = expenseDateInput
+    ? Math.floor(new Date(expenseDateInput).getTime() / 1000)
+    : Math.floor(Date.now() / 1000);
+
+  const { eq } = await import('drizzle-orm');
+
+  await db
+    .update(expenses)
+    .set({
+      outletId,
+      categoryId,
+      description: description.trim(),
+      amount,
+      paymentMethod,
+      expenseDate,
+    })
+    .where(eq(expenses.id, id));
+
+  revalidatePath('/expenses');
+  revalidatePath('/dashboard');
+  revalidatePath('/profit-loss');
+  return { success: true };
+}
+
+export async function deleteExpense(id: string) {
+  const session = await getSession();
+  if (!session) redirect('/login');
+
+  const { eq } = await import('drizzle-orm');
+
+  await db.delete(expenses).where(eq(expenses.id, id));
+
+  revalidatePath('/expenses');
+  revalidatePath('/dashboard');
+  revalidatePath('/profit-loss');
+  return { success: true };
+}
+

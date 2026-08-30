@@ -48,6 +48,56 @@ export async function createRule(formData: FormData) {
   revalidatePath('/bagi-hasil');
 }
 
+export async function updateRule(id: string, formData: FormData) {
+  const session = await getSession();
+  if (!session) redirect('/login');
+
+  const name = formData.get('name') as string;
+  const percentage = Math.round(Number(formData.get('percentage')) || 0);
+
+  if (!name || percentage <= 0 || percentage > 100) {
+    throw new Error('Nama penerima dan persentase (1-100%) wajib diisi');
+  }
+
+  const [targetRule] = await db
+    .select()
+    .from(profitSharingRules)
+    .where(eq(profitSharingRules.id, id));
+
+  if (!targetRule) throw new Error('Data aturan bagi hasil tidak ditemukan');
+
+  const otherRules = await db
+    .select()
+    .from(profitSharingRules)
+    .where(
+      and(
+        eq(profitSharingRules.outletId, targetRule.outletId),
+        eq(profitSharingRules.isActive, 1)
+      )
+    );
+
+  const currentOtherTotal = otherRules
+    .filter((r) => r.id !== id)
+    .reduce((sum, r) => sum + r.percentage, 0);
+
+  if (targetRule.isActive === 1 && currentOtherTotal + percentage > 100) {
+    throw new Error(
+      `Total alokasi melebihi 100% (saat ini ${currentOtherTotal}% + ${percentage}% = ${currentOtherTotal + percentage}%).`
+    );
+  }
+
+  await db
+    .update(profitSharingRules)
+    .set({
+      name: name.trim(),
+      percentage,
+    })
+    .where(eq(profitSharingRules.id, id));
+
+  revalidatePath('/bagi-hasil');
+  return { success: true };
+}
+
 export async function toggleRule(id: string, currentStatus: number) {
   const session = await getSession();
   if (!session) redirect('/login');
