@@ -1,6 +1,10 @@
+import { config } from 'dotenv';
+config({ path: '.env.local' });
+
 import { drizzle } from 'drizzle-orm/libsql';
 import { createClient } from '@libsql/client';
 import * as schema from './schema';
+
 
 // Singleton — guard hot-reload Next.js dev
 const globalForDb = global as unknown as { db: ReturnType<typeof drizzle> };

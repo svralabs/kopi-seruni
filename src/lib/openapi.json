@@ -1,0 +1,349 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Kopi Seruni POS & Outlet Management API",
+    "description": "Dokumentasi API lengkap untuk sistem Point of Sale (POS), Manajemen Multi-Outlet, Shift Kasir, Inventori Stok, Laba Rugi, dan Bagi Hasil Toko Kopi Seruni.\n\n### Catatan Arsitektur Finansial:\n- Semua nominal mata uang menggunakan integer rupiah murni (contoh: `25000` untuk Rp 25.000).\n- Semua operasi checkout & void menggunakan atomic database transactions di Turso (libSQL).\n- Autentikasi didukung oleh BetterAuth dengan session berbasis cookie dan API token.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Svralabs Development Team",
+      "email": "svralabs@gmail.com",
+      "url": "https://github.com/svralabs/kopi-seruni-pos"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local Development Server"
+    },
+    {
+      "url": "https://pos.kopiseruni.com",
+      "description": "Production Server"
+    }
+  ],
+  "tags": [
+    { "name": "Auth", "description": "Autentikasi & Manajemen Sesi (BetterAuth)" },
+    { "name": "POS & Orders", "description": "Transaksi Kasir, Checkout Atomic, & Void Order" },
+    { "name": "Products & Categories", "description": "Katalog Menu, Kategori, Harga Jual, & HPP" },
+    { "name": "Shift Kasir", "description": "Buka/Tutup Shift & Rekonsiliasi Kas Laci" },
+    { "name": "Expenses", "description": "Pencatatan Beban & Pengeluaran Operasional" },
+    { "name": "Stock & Inventory", "description": "Monitor Sisa Stok & Mutasi Log" },
+    { "name": "Profit Sharing", "description": "Setup Aturan & Buku Besar (Ledger) Bagi Hasil" },
+    { "name": "Media Upload", "description": "Presigned URL Upload Foto ke Cloudflare R2" }
+  ],
+  "paths": {
+    "/api/auth/sign-in/email": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Login dengan Email & Password",
+        "description": "Masuk ke sistem POS menggunakan kredensial email dan password yang terdaftar.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": { "type": "string", "format": "email", "example": "owner@kopiseruni.com" },
+                  "password": { "type": "string", "format": "password", "example": "password123" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login berhasil, session token diset di cookie",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string", "example": "usr_94b81c2f3056" },
+                        "email": { "type": "string", "example": "owner@kopiseruni.com" },
+                        "name": { "type": "string", "example": "Owner Seruni" }
+                      }
+                    },
+                    "session": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" },
+                        "token": { "type": "string" },
+                        "expiresAt": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Email atau password tidak valid" }
+        }
+      }
+    },
+    "/api/auth/sign-out": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Logout / Hapus Sesi",
+        "responses": {
+          "200": { "description": "Berhasil logout dan menghapus cookie sesi" }
+        }
+      }
+    },
+    "/api/actions/checkout": {
+      "post": {
+        "tags": ["POS & Orders"],
+        "summary": "Proses Checkout Transaksi POS (Atomic)",
+        "description": "Menyimpan transaksi order baru, snapshot rincian items, dan otomatis mengurangi stok produk secara atomic dalam satu DB transaction.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckoutPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transaksi checkout berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "orderId": { "type": "string", "example": "ord_a1b2c3d4e5f6" },
+                    "total": { "type": "integer", "example": 55500 }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Data pesanan tidak valid" }
+        }
+      }
+    },
+    "/api/actions/void-order": {
+      "post": {
+        "tags": ["POS & Orders"],
+        "summary": "Void / Batalkan Transaksi Order",
+        "description": "Membatalkan order dan mengembalikan kuantitas stok yang terjual (stock movement: void_return).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["orderId", "outletId"],
+                "properties": {
+                  "orderId": { "type": "string", "example": "ord_a1b2c3d4e5f6" },
+                  "outletId": { "type": "string", "example": "out_default" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Order berhasil dibatalkan dan stok dikembalikan" }
+        }
+      }
+    },
+    "/api/actions/shift/open": {
+      "post": {
+        "tags": ["Shift Kasir"],
+        "summary": "Buka Shift Kasir Baru",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["outletId", "openingCash"],
+                "properties": {
+                  "outletId": { "type": "string", "example": "out_default" },
+                  "openingCash": { "type": "integer", "example": 100000, "description": "Modal awal di laci kasir (rupiah integer)" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Shift berhasil dibuka",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "shiftId": { "type": "string", "example": "shf_84b72c1d90ef" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/actions/shift/close": {
+      "post": {
+        "tags": ["Shift Kasir"],
+        "summary": "Tutup Shift & Rekonsiliasi Kas Laci",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["shiftId", "outletId", "closingCash"],
+                "properties": {
+                  "shiftId": { "type": "string", "example": "shf_84b72c1d90ef" },
+                  "outletId": { "type": "string", "example": "out_default" },
+                  "closingCash": { "type": "integer", "example": 850000, "description": "Uang tunai fisik di laci saat tutup" },
+                  "notes": { "type": "string", "example": "Kas cocok dengan transaksi tunai" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Shift berhasil ditutup",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "expectedCash": { "type": "integer", "example": 850000 },
+                    "closingCash": { "type": "integer", "example": 850000 },
+                    "diff": { "type": "integer", "example": 0, "description": "Selisih kas (closingCash - expectedCash)" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/actions/profit-sharing/generate": {
+      "post": {
+        "tags": ["Profit Sharing"],
+        "summary": "Generate Ledger Bagi Hasil per Periode",
+        "description": "Menghitung nominal hak bagi hasil per penerima berdasarkan Laba Bersih (Net Profit) dan membuat entri buku besar.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["outletId", "periodStart", "periodEnd", "netProfit"],
+                "properties": {
+                  "outletId": { "type": "string", "example": "out_default" },
+                  "periodStart": { "type": "integer", "example": 1785628800, "description": "Unix timestamp awal periode" },
+                  "periodEnd": { "type": "integer", "example": 1788220799, "description": "Unix timestamp akhir periode" },
+                  "netProfit": { "type": "integer", "example": 15000000, "description": "Nominal laba bersih periode (rupiah integer)" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Buku besar bagi hasil berhasil digenerate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": { "type": "string", "example": "Owner A" },
+                      "percentage": { "type": "integer", "example": 40 },
+                      "shareAmount": { "type": "integer", "example": 6000000 }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/actions/upload": {
+      "post": {
+        "tags": ["Media Upload"],
+        "summary": "Minta Presigned URL Upload Foto ke R2",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["contentType"],
+                "properties": {
+                  "contentType": { "type": "string", "enum": ["image/jpeg", "image/png", "image/webp"], "example": "image/webp" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Presigned PUT URL dan URL publik gambar",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "signedUrl": { "type": "string" },
+                    "key": { "type": "string" },
+                    "publicUrl": { "type": "string", "example": "https://media.kopiseruni.com/products/uuid.webp" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CheckoutPayload": {
+        "type": "object",
+        "required": ["outletId", "shiftId", "items", "taxRate", "paymentMethod"],
+        "properties": {
+          "outletId": { "type": "string", "example": "out_default" },
+          "shiftId": { "type": "string", "example": "shf_default" },
+          "customerName": { "type": "string", "example": "Meja 04 / Bpk. Budi" },
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/CheckoutItem" }
+          },
+          "discountId": { "type": "string", "nullable": true },
+          "discountType": { "type": "string", "enum": ["percentage", "fixed"], "nullable": true },
+          "discountValue": { "type": "integer", "nullable": true },
+          "taxRate": { "type": "integer", "example": 11, "description": "Tarif PPN persen (11%)" },
+          "paymentMethod": { "type": "string", "enum": ["cash", "qris", "transfer", "debit"], "example": "cash" },
+          "notes": { "type": "string", "nullable": true }
+        }
+      },
+      "CheckoutItem": {
+        "type": "object",
+        "required": ["productId", "productName", "productPrice", "costPrice", "quantity"],
+        "properties": {
+          "productId": { "type": "string", "example": "prd_coffee_latte" },
+          "productName": { "type": "string", "example": "Es Kopi Susu Seruni" },
+          "productPrice": { "type": "integer", "example": 25000, "description": "Harga jual rupiah integer" },
+          "costPrice": { "type": "integer", "example": 8000, "description": "HPP modal rupiah integer" },
+          "quantity": { "type": "integer", "example": 2 },
+          "notes": { "type": "string", "example": "Ice, Size M, Gula 50%" }
+        }
+      }
+    }
+  }
+}

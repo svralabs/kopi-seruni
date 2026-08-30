@@ -18,10 +18,12 @@
         "name": "next"
       }
     ],
+    "types": ["bun"],
     "paths": {
       "@/*": ["./src/*"]
     }
   },
+
   "include": [
     "next-env.d.ts",
     "**/*.ts",

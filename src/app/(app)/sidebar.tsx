@@ -13,6 +13,7 @@ import {
   WalletCards,
   TrendingUp,
   Users2,
+  BookOpen,
   LogOut,
 } from 'lucide-react';
 
@@ -25,7 +26,9 @@ const NAV_ITEMS = [
   { href: '/expenses', label: 'Pengeluaran', icon: WalletCards },
   { href: '/profit-loss', label: 'Laba Rugi', icon: TrendingUp },
   { href: '/bagi-hasil', label: 'Bagi Hasil', icon: Users2 },
+  { href: '/api-docs', label: 'Dokumentasi API', icon: BookOpen },
 ];
+
 
 export default function Sidebar({ userName = 'Kasir' }: { userName?: string }) {
   const pathname = usePathname();
