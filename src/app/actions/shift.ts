@@ -2,9 +2,8 @@
 import { db } from '@/lib/db';
 import { shifts, orders } from '@/lib/schema';
 import { getSession } from '@/lib/auth-helpers';
-import { eq, and, sum } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
-import { sql } from 'drizzle-orm';
 
 export async function openShift(outletId: string, openingCash: number) {
   const session = await getSession();
@@ -31,7 +30,11 @@ export async function closeShift(shiftId: string, outletId: string, closingCash:
   const now = Math.floor(Date.now() / 1000);
 
   // Hitung expected cash: modal awal + total semua order cash di shift ini
-  const shift = await db.query.shifts.findFirst({ where: eq(shifts.id, shiftId) });
+  const [shift] = await db
+    .select()
+    .from(shifts)
+    .where(eq(shifts.id, shiftId))
+    .limit(1);
   if (!shift) throw new Error('Shift tidak ditemukan');
 
   const [cashResult] = await db

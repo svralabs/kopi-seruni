@@ -5,7 +5,9 @@ import {
   integer,
   uniqueIndex,
   index,
+  primaryKey,
 } from 'drizzle-orm/sqlite-core';
+
 
 // ================================================================
 // HELPERS
@@ -84,8 +86,9 @@ export const settings = sqliteTable('settings', {
   outletId: text('outlet_id').notNull().references(() => outlets.id),
   key: text('key').notNull(),
   value: text('value').notNull(),
-}, (t) => [{ pk: [t.outletId, t.key] }]);
+}, (t) => [primaryKey({ columns: [t.outletId, t.key] })]);
 // Keys: 'tax_rate' ('11'), 'tax_enabled' ('1'), 'store_name'
+
 
 // ================================================================
 // MASTER DATA
