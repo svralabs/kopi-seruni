@@ -1,201 +1,93 @@
 import { db } from '@/lib/db';
 import { expenses, expenseCategories, outlets } from '@/lib/schema';
-import { formatRupiah, formatDate } from '@/lib/utils';
-import { createExpense } from '@/app/actions/expenses';
-import { desc, eq, sql } from 'drizzle-orm';
-import { Plus, WalletCards, Store, ArrowRight, FileSpreadsheet } from 'lucide-react';
-import PaginationControls from '@/components/pagination-controls';
-
+import ExpensesClient from './expenses-client';
+import { getDateRangeFromParams } from '@/lib/utils';
+import { desc, eq, sql, and, gte, lte } from 'drizzle-orm';
 
 export default async function ExpensesPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ outletId?: string; page?: string }>;
+  searchParams?: Promise<{ 
+    outletId?: string; 
+    page?: string;
+    period?: string;
+    from?: string;
+    to?: string;
+  }>;
 }) {
-  const resolvedParams = searchParams ? await searchParams : {};
-  const outletId = resolvedParams.outletId || 'all';
-  const page = Math.max(1, Number(resolvedParams.page || 1));
+  const params = await searchParams;
+  const outletId = params?.outletId || 'all';
+  const page = Math.max(1, Number(params?.page || 1));
   const pageSize = 15;
   const offset = (page - 1) * pageSize;
 
+  const { startEpoch, endEpoch } = getDateRangeFromParams(params);
+
   let allOutlets: any[] = [];
-  let expenseList: any[] = [];
   let categoryList: any[] = [];
-  let totalExpense = 0;
+  let expensesList: any[] = [];
   let totalItems = 0;
   let totalPages = 1;
+  let totalAmount = 0;
 
   try {
     allOutlets = await db.select().from(outlets);
+    categoryList = await db.select().from(expenseCategories);
 
-    const condition = outletId !== 'all' ? eq(expenses.outletId, outletId) : undefined;
+    const conditions: any[] = [];
+    if (outletId !== 'all') {
+      conditions.push(eq(expenses.outletId, outletId));
+    }
+    if (startEpoch > 0) conditions.push(gte(expenses.expenseDate, startEpoch));
+    if (endEpoch > 0) conditions.push(lte(expenses.expenseDate, endEpoch));
 
-    // Total expense sum
-    const sumQuery = await db
-      .select({ total: sql<number>`COALESCE(SUM(amount), 0)`, count: sql<number>`COUNT(*)` })
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const countAndSum = await db
+      .select({
+        count: sql<number>`COUNT(*)`,
+        sum: sql<number>`COALESCE(SUM(${expenses.amount}), 0)`,
+      })
       .from(expenses)
-      .where(condition);
+      .where(whereClause);
 
-    totalExpense = Number(sumQuery[0]?.total || 0);
-    totalItems = Number(sumQuery[0]?.count || 0);
+    totalItems = Number(countAndSum[0]?.count || 0);
+    totalAmount = Number(countAndSum[0]?.sum || 0);
     totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
 
-    expenseList = await db
+    const rawExpenses = await db
       .select({
         expense: expenses,
+        category: expenseCategories,
         outlet: outlets,
       })
       .from(expenses)
+      .leftJoin(expenseCategories, eq(expenses.categoryId, expenseCategories.id))
       .leftJoin(outlets, eq(expenses.outletId, outlets.id))
-      .where(condition)
+      .where(whereClause)
       .orderBy(desc(expenses.expenseDate))
       .limit(pageSize)
       .offset(offset);
 
-    categoryList = await db.select().from(expenseCategories);
+    expensesList = rawExpenses.map((r) => ({
+      ...r.expense,
+      categoryName: r.category?.name || 'Umum',
+      outletName: r.outlet?.name || 'Outlet Utama',
+    }));
   } catch (e) {
     console.warn('Error fetching expenses:', e);
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header Bento */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-[#201C1A]">
-            Pengeluaran & Beban Operasional
-          </h1>
-          <p className="text-xs text-[#8E867C] mt-0.5">
-            Catat semua belanja bahan baku, operasional harian, dan kas keluar per outlet
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {/* Export CSV/Excel */}
-          <a
-            href={`/api/export/expenses${outletId !== 'all' ? `?outletId=${outletId}` : ''}`}
-            download
-            className="flex items-center gap-2 bg-white px-3.5 py-2.5 rounded-2xl border border-[#EBE7DF] hover:bg-[#FAF8F5] text-xs font-bold text-[#2D7A47] shadow-xs transition-colors"
-          >
-            <FileSpreadsheet className="w-4 h-4 text-[#2D7A47]" />
-            <span>Ekspor Excel (.csv)</span>
-          </a>
-
-          <div className="bg-white px-5 py-2 rounded-2xl border border-[#EBE7DF] shadow-xs text-right">
-            <p className="text-[10px] text-[#8E867C] font-semibold uppercase tracking-wider">Total Beban</p>
-            <p className="text-lg font-black text-[#964B3B]">{formatRupiah(totalExpense)}</p>
-          </div>
-        </div>
-
-      </div>
-
-      {/* Form Bento: Catat Pengeluaran */}
-      <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-xs p-6">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-[#54382B] mb-4 flex items-center gap-2">
-          <Plus className="w-4 h-4" /> Catat Pengeluaran Baru
-        </h3>
-
-        <form action={createExpense} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 items-end text-xs">
-          <div className="lg:col-span-2">
-            <label className="block font-bold text-[#4A4238] mb-1.5">Keterangan / Keperluan</label>
-            <input
-              type="text"
-              name="description"
-              required
-              placeholder="Contoh: Beli Susu Fresh Milk 10 Liter & Es Batu"
-              className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
-            />
-          </div>
-
-          <div>
-            <label className="block font-bold text-[#4A4238] mb-1.5">Cabang Outlet</label>
-            <select
-              name="outletId"
-              defaultValue={outletId !== 'all' ? outletId : allOutlets[0]?.id || 'out_default'}
-              className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
-            >
-              {allOutlets.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block font-bold text-[#4A4238] mb-1.5">Nominal (Rp)</label>
-            <input
-              type="number"
-              name="amount"
-              required
-              min="1000"
-              step="1"
-              placeholder="75000"
-              className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-black"
-            />
-          </div>
-
-          <div>
-            <button
-              type="submit"
-              className="w-full py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl transition-all shadow-xs"
-            >
-              Simpan Pengeluaran
-            </button>
-          </div>
-        </form>
-      </div>
-
-      {/* Tabel Riwayat Pengeluaran */}
-      <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-xs overflow-hidden p-6 space-y-4">
-        <h3 className="font-bold text-base text-[#201C1A]">Riwayat Beban Pengeluaran</h3>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-[#F0ECE4] bg-[#FAF8F5] text-[#8E867C] text-[10px] font-bold uppercase tracking-wider">
-                <th className="py-3.5 px-4">Tanggal</th>
-                <th className="py-3.5 px-4">Outlet</th>
-                <th className="py-3.5 px-4">Keterangan</th>
-                <th className="py-3.5 px-4">Metode Bayar</th>
-                <th className="py-3.5 px-4 text-right">Nominal</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#F4F0E8]">
-              {expenseList.map((row) => (
-                <tr key={row.expense.id} className="hover:bg-[#FBF9F6]">
-                  <td className="py-3 px-4 text-[#7A7268] whitespace-nowrap">{formatDate(row.expense.expenseDate)}</td>
-                  <td className="py-3 px-4 font-bold text-[#201C1A]">{row.outlet?.name || 'Pusat'}</td>
-                  <td className="py-3 px-4 font-medium text-[#201C1A]">{row.expense.description}</td>
-                  <td className="py-3 px-4">
-                    <span className="px-2.5 py-0.5 rounded-lg bg-[#FAF8F5] border border-[#E8E3DA] text-[#54382B] text-[10px] font-bold uppercase">
-                      {row.expense.paymentMethod}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-right font-black text-[#964B3B] text-sm">
-                    {formatRupiah(row.expense.amount)}
-                  </td>
-                </tr>
-              ))}
-              {expenseList.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="text-center py-8 text-[#9E968B] text-xs">
-                    Belum ada data pengeluaran.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination Controls */}
-        <PaginationControls
-          currentPage={page}
-          totalPages={totalPages}
-          totalItems={totalItems}
-          pageSize={pageSize}
-        />
-      </div>
-    </div>
+    <ExpensesClient
+      expensesList={expensesList}
+      categories={categoryList}
+      outlets={allOutlets}
+      totalItems={totalItems}
+      totalPages={totalPages}
+      currentPage={page}
+      pageSize={pageSize}
+      totalAmount={totalAmount}
+    />
   );
 }

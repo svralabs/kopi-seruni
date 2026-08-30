@@ -59,3 +59,98 @@ export function formatDateTime(epoch: number): string {
     minute: '2-digit',
   }).format(fromUnix(epoch));
 }
+
+/** Parse searchParams (period, from, to) menjadi rentang UNIX epoch & label teks */
+export function getDateRangeFromParams(params?: {
+  period?: string;
+  from?: string | number;
+  to?: string | number;
+}): {
+  startEpoch: number;
+  endEpoch: number;
+  label: string;
+} {
+  const now = new Date();
+  const period = params?.period || 'today';
+
+  if (period === 'custom') {
+    let startEpoch = 0;
+    let endEpoch = Math.floor(Date.now() / 1000);
+
+    if (params?.from) {
+      const fromVal = Number(params.from);
+      if (!isNaN(fromVal) && fromVal > 1000000000) {
+        startEpoch = fromVal;
+      } else {
+        startEpoch = Math.floor(new Date(String(params.from) + 'T00:00:00').getTime() / 1000);
+      }
+    }
+
+    if (params?.to) {
+      const toVal = Number(params.to);
+      if (!isNaN(toVal) && toVal > 1000000000) {
+        endEpoch = toVal;
+      } else {
+        endEpoch = Math.floor(new Date(String(params.to) + 'T23:59:59').getTime() / 1000);
+      }
+    }
+
+    const fromDateStr = startEpoch > 0 ? formatDate(startEpoch) : '';
+    const toDateStr = endEpoch > 0 ? formatDate(endEpoch) : '';
+    const label = fromDateStr && toDateStr ? `${fromDateStr} - ${toDateStr}` : 'Kustom';
+
+    return { startEpoch, endEpoch, label };
+  }
+
+  if (period === 'today') {
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    return {
+      startEpoch: Math.floor(startOfDay.getTime() / 1000),
+      endEpoch: Math.floor(endOfDay.getTime() / 1000),
+      label: 'Hari Ini',
+    };
+  }
+
+  if (period === '7d') {
+    const startOf7d = new Date(now.getTime() - 7 * 86400 * 1000);
+    return {
+      startEpoch: Math.floor(startOf7d.getTime() / 1000),
+      endEpoch: Math.floor(now.getTime() / 1000),
+      label: 'Minggu Ini (7 Hari)',
+    };
+  }
+
+  if (period === 'this_month') {
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+    return {
+      startEpoch: Math.floor(startOfMonth.getTime() / 1000),
+      endEpoch: Math.floor(now.getTime() / 1000),
+      label: now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
+    };
+  }
+
+  if (period === 'all') {
+    return {
+      startEpoch: 0,
+      endEpoch: 0,
+      label: 'Semua Periode',
+    };
+  }
+
+  if (period === '30d') {
+    const startOf30d = new Date(now.getTime() - 30 * 86400 * 1000);
+    return {
+      startEpoch: Math.floor(startOf30d.getTime() / 1000),
+      endEpoch: Math.floor(now.getTime() / 1000),
+      label: '30 Hari Terakhir',
+    };
+  }
+
+  return {
+    startEpoch: 0,
+    endEpoch: 0,
+    label: 'Semua Periode',
+  };
+}
+

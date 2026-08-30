@@ -297,44 +297,6 @@ export default function POSClient({
 
   return (
     <div className="space-y-4">
-      {/* ============================================================ */}
-      {/* TOP BAR: OUTLET SWITCHER & STATUS SHIFT */}
-      {/* ============================================================ */}
-      <div className="bg-white rounded-3xl border border-[#EBE7DF] p-4 shadow-xs flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-[#FAF8F5] border border-[#EBE7DF] flex items-center justify-center text-[#54382B]">
-            <Store className="w-5 h-5" />
-          </div>
-          <div>
-            <span className="text-[10px] uppercase font-bold tracking-wider text-[#8E867C] block">
-              Cabang Kasir Aktif
-            </span>
-            <p className="font-serif font-black text-sm text-[#201C1A]">
-              {currentOutlet.name}
-            </p>
-          </div>
-        </div>
-
-
-        <div className="flex items-center gap-3 text-xs">
-          <div className="px-3.5 py-1.5 rounded-full bg-[#FAF8F5] border border-[#ECE7DE] flex items-center gap-2">
-            <span className="text-[#8E867C]">Kasir:</span>
-            <span className="font-bold text-[#201C1A]">{kasirName}</span>
-          </div>
-
-          <div
-            className={`px-3.5 py-1.5 rounded-full border flex items-center gap-2 font-bold text-[11px] ${
-              shiftId
-                ? 'bg-[#EBF6EE] text-[#2D7A47] border-[#D1EBD8]'
-                : 'bg-[#FDF4E5] text-[#96631E] border-[#F5E2BE]'
-            }`}
-          >
-            <Clock className="w-3.5 h-3.5" />
-            <span>{shiftId ? 'Shift Aktif' : 'Shift Belum Dibuka'}</span>
-          </div>
-        </div>
-      </div>
-
       <div className="flex flex-col xl:flex-row gap-6">
         {/* ============================================================ */}
         {/* LEFT COLUMN: BENTO MENU CATALOG (65%) */}
@@ -342,13 +304,33 @@ export default function POSClient({
         <div className="flex-1 flex flex-col min-w-0 space-y-6">
           {/* Bento Category Block */}
           <div className="bg-white rounded-3xl border border-[#EBE7DF] p-5 shadow-xs">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-bold text-[#201C1A] tracking-tight">
-                Pilih Kategori
-              </h2>
-              <span className="text-xs font-medium text-[#9B9389]">
-                {categories.length + 1} Kategori Tersedia
-              </span>
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+              <div className="flex items-center gap-3">
+                <h2 className="text-base font-bold text-[#201C1A] tracking-tight">
+                  Pilih Kategori
+                </h2>
+                <span className="text-xs font-medium text-[#9B9389]">
+                  ({categories.length + 1} Tersedia)
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-2 text-xs">
+                <div className="px-3 py-1.5 rounded-full bg-[#FAF8F5] border border-[#ECE7DE] flex items-center gap-1.5">
+                  <span className="text-[#8E867C] text-[10px]">Kasir:</span>
+                  <span className="font-bold text-[#201C1A] text-[11px]">{kasirName}</span>
+                </div>
+
+                <div
+                  className={`px-3 py-1.5 rounded-full border flex items-center gap-1.5 font-bold text-[10px] ${
+                    shiftId
+                      ? 'bg-[#EBF6EE] text-[#2D7A47] border-[#D1EBD8]'
+                      : 'bg-[#FDF4E5] text-[#96631E] border-[#F5E2BE]'
+                  }`}
+                >
+                  <Clock className="w-3 h-3" />
+                  <span>{shiftId ? 'Shift Aktif' : 'Shift Belum Dibuka'}</span>
+                </div>
+              </div>
             </div>
 
             {/* Horizontal Categories */}

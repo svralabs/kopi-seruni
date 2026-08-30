@@ -51,7 +51,7 @@ export default function SettingsClient({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-2 gap-6 text-xs">
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start text-xs">
         <input type="hidden" name="outletId" value={currentOutlet.id} />
 
         {/* Card 1: Pengaturan Pajak & Finansial */}

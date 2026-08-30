@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { formatRupiah, formatDateTime } from '@/lib/utils';
 import { voidOrder } from '@/app/actions/checkout';
 import ReceiptModal, { type ReceiptData } from '@/components/receipt-modal';
@@ -23,8 +23,7 @@ import {
   FileSpreadsheet,
 } from 'lucide-react';
 import PaginationControls from '@/components/pagination-controls';
-
-
+import SortableTh from '@/components/sortable-th';
 
 export interface OrderWithDetails extends Order {
   outletName: string;
@@ -52,10 +51,14 @@ export default function OrdersClient({
 }) {
 
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  
   const [selectedOutlet, setSelectedOutlet] = useState<string>(currentOutletId || 'all');
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'voided'>('all');
-  const [paymentFilter, setPaymentFilter] = useState<'all' | 'cash' | 'qris' | 'transfer' | 'debit'>('all');
+  
+  const searchQuery = searchParams.get('q') || '';
+  const statusFilter = searchParams.get('status') || 'all';
+  const paymentFilter = searchParams.get('payment') || 'all';
 
   // Thermal modal receipt state
   const [activeReceipt, setActiveReceipt] = useState<ReceiptData | null>(null);
@@ -64,27 +67,27 @@ export default function OrdersClient({
   const [voidingOrder, setVoidingOrder] = useState<OrderWithDetails | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  // Filter orders
-  const filteredOrders = initialOrders.filter((order) => {
-    const matchOutlet = selectedOutlet === 'all' || order.outletId === selectedOutlet;
-    const matchStatus = statusFilter === 'all' || order.status === statusFilter;
-    const matchPayment = paymentFilter === 'all' || order.paymentMethod === paymentFilter;
-    const matchSearch =
-      order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (order.customerName && order.customerName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      order.items.some((i) => i.productName.toLowerCase().includes(searchQuery.toLowerCase()));
+  const updateFilter = (key: string, value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value && value !== 'all') {
+      params.set(key, value);
+    } else {
+      params.delete(key);
+    }
+    // reset to page 1 on filter change
+    if (params.has('page')) params.set('page', '1');
+    
+    router.push(`${pathname}?${params.toString()}`);
+  };
 
-    return matchOutlet && matchStatus && matchPayment && matchSearch;
-  });
-
-  // KPI Metrics
-  const totalRevenue = filteredOrders
+  // KPI Metrics (Calculated on current page data as before)
+  const totalRevenue = initialOrders
     .filter((o) => o.status === 'completed')
     .reduce((sum, o) => sum + o.total, 0);
 
-  const totalTransactions = filteredOrders.length;
-  const completedCount = filteredOrders.filter((o) => o.status === 'completed').length;
-  const voidedCount = filteredOrders.filter((o) => o.status === 'voided').length;
+  const totalTransactions = initialOrders.length;
+  const completedCount = initialOrders.filter((o) => o.status === 'completed').length;
+  const voidedCount = initialOrders.filter((o) => o.status === 'voided').length;
 
   const handleOpenReceipt = (order: OrderWithDetails) => {
     const receipt: ReceiptData = {
@@ -199,9 +202,12 @@ export default function OrdersClient({
           <Search className="w-4 h-4 text-[#9E968B] absolute left-4 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Cari no struk, nama pelanggan, atau nama menu..."
+            defaultValue={searchQuery}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') updateFilter('q', e.currentTarget.value);
+            }}
+            onBlur={(e) => updateFilter('q', e.target.value)}
+            placeholder="Cari no struk atau pelanggan (Enter untuk mencari)..."
             className="w-full pl-11 pr-4 py-2.5 bg-[#FAF8F5] border border-[#EAE5DC] rounded-2xl text-xs focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
           />
         </div>
@@ -210,7 +216,7 @@ export default function OrdersClient({
         <div className="flex items-center gap-1.5 bg-[#FAF8F5] p-1 rounded-2xl border border-[#ECE7DE]">
           <button
             type="button"
-            onClick={() => setStatusFilter('all')}
+            onClick={() => updateFilter('status', 'all')}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
               statusFilter === 'all'
                 ? 'bg-white text-[#201C1A] shadow-xs'
@@ -221,7 +227,7 @@ export default function OrdersClient({
           </button>
           <button
             type="button"
-            onClick={() => setStatusFilter('completed')}
+            onClick={() => updateFilter('status', 'completed')}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
               statusFilter === 'completed'
                 ? 'bg-white text-[#2D7A47] shadow-xs'
@@ -232,7 +238,7 @@ export default function OrdersClient({
           </button>
           <button
             type="button"
-            onClick={() => setStatusFilter('voided')}
+            onClick={() => updateFilter('status', 'voided')}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
               statusFilter === 'voided'
                 ? 'bg-white text-[#964B3B] shadow-xs'
@@ -246,7 +252,7 @@ export default function OrdersClient({
         {/* Payment Method Filter */}
         <select
           value={paymentFilter}
-          onChange={(e) => setPaymentFilter(e.target.value as any)}
+          onChange={(e) => updateFilter('payment', e.target.value)}
           className="px-3.5 py-2.5 bg-[#FAF8F5] border border-[#EAE5DC] rounded-2xl text-xs font-bold text-[#4A4238] focus:outline-none"
         >
           <option value="all">Semua Metode Bayar</option>
@@ -263,17 +269,17 @@ export default function OrdersClient({
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-[#F0ECE4] bg-[#FAF8F5] text-[#8E867C] text-[10px] font-bold uppercase tracking-wider">
-                <th className="py-3.5 px-4">No. Struk / Waktu</th>
+                <SortableTh label="No. Struk / Waktu" field="createdAt" />
                 <th className="py-3.5 px-4">Outlet & Kasir</th>
                 <th className="py-3.5 px-4">Pelanggan</th>
                 <th className="py-3.5 px-4">Item Menu</th>
-                <th className="py-3.5 px-4">Total & Metode</th>
-                <th className="py-3.5 px-4">Status</th>
+                <SortableTh label="Total & Metode" field="total" />
+                <SortableTh label="Status" field="status" />
                 <th className="py-3.5 px-4 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F4F0E8]">
-              {filteredOrders.map((order) => (
+              {initialOrders.map((order) => (
                 <tr key={order.id} className="hover:bg-[#FBF9F6] transition-colors">
                   {/* Order ID & Time */}
                   <td className="py-3.5 px-4">
@@ -361,7 +367,7 @@ export default function OrdersClient({
                 </tr>
               ))}
 
-              {filteredOrders.length === 0 && (
+              {initialOrders.length === 0 && (
                 <tr>
                   <td colSpan={7} className="text-center py-12 text-[#9E968B]">
                     <Receipt className="w-10 h-10 mx-auto mb-2 text-[#D5CEC2] stroke-[1.2]" />

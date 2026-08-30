@@ -1,16 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { orders, outlets, user } from '@/lib/schema';
-import { eq, and, desc } from 'drizzle-orm';
-import { formatDateTime } from '@/lib/utils';
+import { eq, and, desc, gte, lte } from 'drizzle-orm';
+import { formatDateTime, getDateRangeFromParams } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const outletId = searchParams.get('outletId') || 'all';
   const status = searchParams.get('status') || 'all';
+  const period = searchParams.get('period') || undefined;
+  const from = searchParams.get('from') || undefined;
+  const to = searchParams.get('to') || undefined;
+
+  const { startEpoch, endEpoch } = getDateRangeFromParams({ period, from, to });
 
   const conditions = [];
   if (outletId !== 'all') conditions.push(eq(orders.outletId, outletId));
+  if (startEpoch > 0) conditions.push(gte(orders.createdAt, startEpoch));
+  if (endEpoch > 0) conditions.push(lte(orders.createdAt, endEpoch));
   if (status !== 'all') conditions.push(eq(orders.status, status as any));
 
   const rows = await db

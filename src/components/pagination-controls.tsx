@@ -8,11 +8,13 @@ export default function PaginationControls({
   totalPages,
   totalItems,
   pageSize = 10,
+  pageParam = 'page',
 }: {
   currentPage: number;
   totalPages: number;
   totalItems: number;
   pageSize?: number;
+  pageParam?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -23,7 +25,7 @@ export default function PaginationControls({
   const goToPage = (page: number) => {
     if (page < 1 || page > totalPages) return;
     const params = new URLSearchParams(searchParams?.toString() || '');
-    params.set('page', page.toString());
+    params.set(pageParam, page.toString());
     const query = params.toString();
     router.push(query ? `${pathname}?${query}` : pathname);
   };

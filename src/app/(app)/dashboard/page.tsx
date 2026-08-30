@@ -1,7 +1,7 @@
 import { db } from '@/lib/db';
 import { orders, expenses, orderItems, outlets, user } from '@/lib/schema';
-import { formatRupiah, formatDateTime } from '@/lib/utils';
-import { sql, desc, eq, and, gte } from 'drizzle-orm';
+import { formatRupiah, formatDateTime, getDateRangeFromParams } from '@/lib/utils';
+import { sql, desc, eq, and, gte, lte } from 'drizzle-orm';
 import Link from 'next/link';
 import {
   TrendingUp,
@@ -15,28 +15,15 @@ import {
   Store,
 } from 'lucide-react';
 
-
-
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ period?: string; outletId?: string }>;
+  searchParams?: Promise<{ period?: string; outletId?: string; from?: string; to?: string }>;
 }) {
   const resolvedParams = searchParams ? await searchParams : {};
-  const period = resolvedParams.period || 'today';
   const outletId = resolvedParams.outletId || 'all';
 
-  const now = new Date();
-  let startEpoch = 0;
-
-  if (period === 'today') {
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    startEpoch = Math.floor(startOfDay.getTime() / 1000);
-  } else if (period === '7d') {
-    startEpoch = Math.floor(Date.now() / 1000) - 7 * 86400;
-  } else if (period === '30d') {
-    startEpoch = Math.floor(Date.now() / 1000) - 30 * 86400;
-  }
+  const { startEpoch, endEpoch, label: periodLabel } = getDateRangeFromParams(resolvedParams);
 
   let allOutlets: any[] = [];
   let totalRevenue = 0;
@@ -51,6 +38,7 @@ export default async function DashboardPage({
     // Filter conditions for orders
     const orderConditions = [eq(orders.status, 'completed')];
     if (startEpoch > 0) orderConditions.push(gte(orders.createdAt, startEpoch));
+    if (endEpoch > 0) orderConditions.push(lte(orders.createdAt, endEpoch));
     if (outletId !== 'all') orderConditions.push(eq(orders.outletId, outletId));
 
     const revenueQuery = await db
@@ -67,6 +55,7 @@ export default async function DashboardPage({
     // Filter conditions for expenses
     const expenseConditions = [];
     if (startEpoch > 0) expenseConditions.push(gte(expenses.expenseDate, startEpoch));
+    if (endEpoch > 0) expenseConditions.push(lte(expenses.expenseDate, endEpoch));
     if (outletId !== 'all') expenseConditions.push(eq(expenses.outletId, outletId));
 
     const expenseQuery = await db
@@ -124,7 +113,7 @@ export default async function DashboardPage({
 
 
       {/* KPI Bento Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 items-start">
         {/* KPI 1: Omset Penjualan */}
         <div className="bg-white rounded-3xl border border-[#EBE7DF] p-6 shadow-xs flex flex-col justify-between space-y-4">
           <div className="flex items-center justify-between">

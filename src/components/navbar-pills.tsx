@@ -48,6 +48,24 @@ export default function NavbarPills({
   const [customTo, setCustomTo] = useState('');
   const [isNotifOpen, setIsNotifOpen] = useState(false);
 
+  // Sync custom date state from URL params
+  useEffect(() => {
+    const rawFrom = searchParams?.get('from');
+    const rawTo = searchParams?.get('to');
+    if (rawFrom) {
+      const fromDate = new Date(Number(rawFrom) * 1000);
+      if (!isNaN(fromDate.getTime())) {
+        setCustomFrom(fromDate.toISOString().slice(0, 10));
+      }
+    }
+    if (rawTo) {
+      const toDate = new Date(Number(rawTo) * 1000);
+      if (!isNaN(toDate.getTime())) {
+        setCustomTo(toDate.toISOString().slice(0, 10));
+      }
+    }
+  }, [searchParams]);
+
   // If user enters a single-outlet-only page with no outletId or outletId='all', sync URL
   useEffect(() => {
     if (isSingleOutletOnly && (!rawOutletId || rawOutletId === 'all') && outlets.length > 0) {
@@ -86,8 +104,8 @@ export default function NavbarPills({
     e.preventDefault();
     if (!customFrom || !customTo) return;
 
-    const fromEpoch = Math.floor(new Date(customFrom).getTime() / 1000);
-    const toEpoch = Math.floor(new Date(customTo).getTime() / 1000) + 86399;
+    const fromEpoch = Math.floor(new Date(customFrom + 'T00:00:00').getTime() / 1000);
+    const toEpoch = Math.floor(new Date(customTo + 'T23:59:59').getTime() / 1000);
 
     const params = new URLSearchParams(searchParams?.toString() || '');
     params.set('period', 'custom');

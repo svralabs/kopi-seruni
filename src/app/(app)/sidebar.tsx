@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
@@ -24,6 +24,7 @@ import {
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
+  ChevronDown,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -62,43 +63,59 @@ export default function Sidebar({ userName = 'Kasir' }: { userName?: string }) {
       } bg-white border-r border-[#EBE7DF] flex flex-col h-screen sticky top-0 shrink-0 transition-all duration-300 z-30 select-none`}
     >
       {/* Brand Header with Collapse Toggle */}
-      <div className="p-4 border-b border-[#F0ECE4] flex items-center justify-between gap-3 shrink-0">
-        <Link href="/dashboard" className="flex items-center gap-3 overflow-hidden">
-          <div className="relative w-10 h-10 rounded-2xl overflow-hidden bg-[#F7F5F0] border border-[#E8E3DA] p-1 flex items-center justify-center shrink-0 shadow-xs">
-            <Image
-              src="/logo.webp"
-              alt="Toko Kopi Seruni"
-              width={36}
-              height={36}
-              className="object-contain"
-              priority
-            />
-          </div>
-          {!isCollapsed && (
-            <div className="hidden lg:block truncate">
-              <h1 className="font-serif font-black text-xs tracking-tight text-[#201C1A] leading-tight">
-                TOKO KOPI
-              </h1>
-              <p className="font-serif text-base font-bold text-[#54382B] -mt-0.5 tracking-tight">
-                Seruni
-              </p>
+      <div className="p-4 border-b border-[#F0ECE4] flex items-center justify-between shrink-0 min-h-[76px] gap-2">
+        {isCollapsed ? (
+          <button
+            type="button"
+            onClick={() => setIsCollapsed(false)}
+            className="w-full flex justify-center items-center group py-1"
+            title="Perluas Sidebar"
+          >
+            <div className="relative w-11 h-11 rounded-2xl overflow-hidden bg-[#F7F5F0] border border-[#E8E3DA] p-1.5 flex items-center justify-center shadow-xs group-hover:border-[#54382B] group-hover:scale-105 transition-all">
+              <Image
+                src="/logo-banner.webp"
+                alt="Toko Kopi Seruni"
+                width={36}
+                height={36}
+                className="object-contain"
+                priority
+              />
             </div>
-          )}
-        </Link>
+          </button>
+        ) : (
+          <>
+            <Link 
+              href="/dashboard" 
+              className="flex-1 flex items-center justify-center overflow-hidden transition-transform hover:scale-[1.02]"
+              title="Toko Kopi Seruni"
+            >
+              <div className="relative w-full h-12 flex items-center justify-center">
+                <Image
+                  src="/logo-banner.webp"
+                  alt="Toko Kopi Seruni"
+                  width={200}
+                  height={56}
+                  className="object-contain object-center h-full w-auto mx-auto"
+                  priority
+                />
+              </div>
+            </Link>
 
-        {/* Toggle Button */}
-        <button
-          type="button"
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="hidden lg:flex p-1.5 rounded-xl hover:bg-[#FAF8F5] text-[#8E867C] hover:text-[#201C1A] transition-colors"
-          title={isCollapsed ? 'Perluas Sidebar' : 'Ciutkan Sidebar'}
-        >
-          {isCollapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
-        </button>
+            {/* Toggle Button */}
+            <button
+              type="button"
+              onClick={() => setIsCollapsed(true)}
+              className="hidden lg:flex p-1.5 rounded-xl hover:bg-[#FAF8F5] text-[#8E867C] hover:text-[#201C1A] transition-colors shrink-0"
+              title="Ciutkan Sidebar"
+            >
+              <PanelLeftClose className="w-4 h-4" />
+            </button>
+          </>
+        )}
       </div>
 
       {/* Navigation Links */}
-      <nav className="flex-1 p-3 space-y-1.5 overflow-y-auto custom-scrollbar">
+      <nav className="flex-1 p-3 space-y-1.5 overflow-y-auto overflow-x-hidden custom-scrollbar">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const isActive =
@@ -109,49 +126,57 @@ export default function Sidebar({ userName = 'Kasir' }: { userName?: string }) {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center ${
-                isCollapsed ? 'justify-center' : 'justify-center lg:justify-start'
-              } gap-3.5 px-3 py-2.5 rounded-2xl font-medium text-xs transition-all duration-200 ${
+              className={`flex items-center px-3 py-2.5 rounded-2xl font-medium text-xs transition-all duration-300 overflow-hidden whitespace-nowrap ${
                 isActive
                   ? 'bg-[#2E2520] text-[#FAF8F5] shadow-md shadow-[#2E2520]/15 font-bold'
                   : 'text-[#7A7268] hover:text-[#201C1A] hover:bg-[#F5F2EB]'
               }`}
               title={item.label}
             >
-              <Icon
-                className={`w-4 h-4 shrink-0 transition-transform ${
-                  isActive ? 'text-[#EFE9E1]' : 'text-[#8C847B]'
-                }`}
-              />
-              {!isCollapsed && (
-                <span className="hidden lg:inline-block tracking-tight truncate">{item.label}</span>
-              )}
+              <div className={`flex items-center justify-center shrink-0 transition-all duration-300 ${isCollapsed ? 'w-full' : 'w-4 mr-3.5'}`}>
+                <Icon
+                  className={`w-4 h-4 transition-transform ${
+                    isActive ? 'text-[#EFE9E1]' : 'text-[#8C847B]'
+                  }`}
+                />
+              </div>
+              <span className={`hidden lg:inline transition-all duration-300 ease-in-out truncate ${
+                isCollapsed ? 'max-w-0 opacity-0' : 'max-w-[200px] opacity-100'
+              }`}>
+                {item.label}
+              </span>
             </Link>
           );
         })}
       </nav>
 
       {/* User Info & Logout */}
-      <div className="p-3 border-t border-[#F0ECE4] bg-[#FAF8F4] shrink-0">
-        {!isCollapsed && (
-          <div className="hidden lg:flex items-center justify-between gap-2 px-2 py-1.5 mb-2">
-            <div className="truncate">
-              <p className="text-[10px] font-medium text-[#9B9489] uppercase tracking-wider">Login</p>
-              <p className="text-xs font-bold text-[#201C1A] truncate">{userName}</p>
-            </div>
-            <span className="w-2 h-2 rounded-full bg-emerald-500 ring-4 ring-emerald-100" />
+      <div className="p-3 border-t border-[#F0ECE4] bg-[#FAF8F4] shrink-0 overflow-hidden">
+        <div className={`hidden lg:flex items-center justify-between gap-2 overflow-hidden whitespace-nowrap transition-all duration-300 ease-in-out ${
+          isCollapsed ? 'max-h-0 opacity-0 mb-0 px-0 py-0' : 'max-h-16 opacity-100 mb-2 px-2 py-1.5'
+        }`}>
+          <div className="truncate flex-1">
+            <p className="text-[10px] font-medium text-[#9B9489] uppercase tracking-wider">Login</p>
+            <p className="text-xs font-bold text-[#201C1A] truncate">{userName}</p>
           </div>
-        )}
+          <span className="w-2 h-2 shrink-0 rounded-full bg-emerald-500 ring-4 ring-emerald-100" />
+        </div>
 
         <button
           onClick={handleLogout}
-          className={`w-full flex items-center ${
-            isCollapsed ? 'justify-center' : 'justify-center lg:justify-start'
-          } gap-2 px-3 py-2 text-xs font-bold text-[#964B3B] hover:text-red-700 hover:bg-[#FBEBE8] rounded-xl border border-[#F3DAD5] transition-colors`}
+          className={`flex items-center px-3 py-2 text-xs font-bold text-[#964B3B] hover:text-red-700 hover:bg-[#FBEBE8] rounded-xl border border-[#F3DAD5] transition-all duration-300 overflow-hidden whitespace-nowrap ${
+            isCollapsed ? 'w-full justify-center' : 'w-full justify-start'
+          }`}
           title="Keluar Akun"
         >
-          <LogOut className="w-4 h-4 shrink-0" />
-          {!isCollapsed && <span className="hidden lg:inline">Keluar Akun</span>}
+          <div className={`flex items-center justify-center shrink-0 transition-all duration-300 ${isCollapsed ? 'w-full' : 'w-4 mr-2'}`}>
+            <LogOut className="w-4 h-4" />
+          </div>
+          <span className={`hidden lg:inline transition-all duration-300 ease-in-out ${
+            isCollapsed ? 'max-w-0 opacity-0' : 'max-w-[100px] opacity-100'
+          }`}>
+            Keluar Akun
+          </span>
         </button>
       </div>
     </aside>

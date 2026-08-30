@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { formatRupiah, formatDate } from '@/lib/utils';
+import { formatRupiah } from '@/lib/utils';
 import { createDiscount, toggleDiscount, deleteDiscount } from '@/app/actions/discounts';
 import type { Discount, Outlet } from '@/lib/schema';
-import { Plus, Tag, Trash2, Power, Percent, ArrowRight } from 'lucide-react';
+import { Plus, Tag, Trash2, ArrowRight, X, CheckCircle, Percent, Coins, Search } from 'lucide-react';
 
 export default function DiscountsClient({
   discountsList,
@@ -15,7 +15,10 @@ export default function DiscountsClient({
   outlets: Outlet[];
   currentOutletId?: string;
 }) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>('percentage');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [isPending, startTransition] = useTransition();
 
   const handleToggle = (id: string, currentStatus: number) => {
@@ -31,187 +34,312 @@ export default function DiscountsClient({
     });
   };
 
+  // Metrics
+  const totalCount = discountsList.length;
+  const activeCount = discountsList.filter((d) => d.isActive === 1).length;
+  const inactiveCount = totalCount - activeCount;
+
+  // Filtered List
+  const filteredList = discountsList.filter((d) => {
+    const matchQuery = d.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchStatus =
+      statusFilter === 'all'
+        ? true
+        : statusFilter === 'active'
+        ? d.isActive === 1
+        : d.isActive === 0;
+    return matchQuery && matchStatus;
+  });
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-[#201C1A]">
-          Diskon & Voucher Promo
-        </h1>
-        <p className="text-xs text-[#8E867C] mt-0.5">
-          Atur promo potongan harga persentase atau nominal rupiah untuk kasir POS
-        </p>
+      {/* Top Header & Primary Action Button */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-[#201C1A]">
+            Diskon & Voucher Promo
+          </h1>
+          <p className="text-xs text-[#8E867C] mt-0.5">
+            Kelola diskon persentase dan potongan harga rupiah yang berlaku di kasir POS
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setIsModalOpen(true)}
+          className="flex items-center gap-2 px-4 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white text-xs font-bold rounded-2xl shadow-xs transition-colors self-start sm:self-auto"
+        >
+          <Plus className="w-4 h-4" />
+          <span>Buat Promo Baru</span>
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: Form Tambah Promo */}
-        <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-xs p-6 space-y-4">
-          <div className="flex items-center gap-2 text-[#54382B]">
-            <Plus className="w-4 h-4" />
-            <h3 className="font-bold text-xs uppercase tracking-wider">Buat Promo Baru</h3>
+      {/* 1. TOP SUMMARY CARDS */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white rounded-3xl border border-[#EBE7DF] p-5 shadow-xs flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-[#8E867C]">Total Promo</p>
+            <h3 className="text-2xl font-black text-[#201C1A] mt-1">{totalCount} Voucher</h3>
+          </div>
+          <div className="w-10 h-10 rounded-2xl bg-[#FAF8F5] border border-[#ECE7DE] flex items-center justify-center text-[#54382B]">
+            <Tag className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div className="bg-white rounded-3xl border border-[#EBE7DF] p-5 shadow-xs flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-[#8E867C]">Promo Aktif (POS)</p>
+            <h3 className="text-2xl font-black text-[#2D7A47] mt-1">{activeCount} Voucher</h3>
+          </div>
+          <div className="w-10 h-10 rounded-2xl bg-[#EBF6EE] border border-[#D1EBD8] flex items-center justify-center text-[#2D7A47]">
+            <CheckCircle className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div className="bg-white rounded-3xl border border-[#EBE7DF] p-5 shadow-xs flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-[#8E867C]">Promo Nonaktif</p>
+            <h3 className="text-2xl font-black text-[#8E867C] mt-1">{inactiveCount} Voucher</h3>
+          </div>
+          <div className="w-10 h-10 rounded-2xl bg-[#F2EFE8] border border-[#E2DDD3] flex items-center justify-center text-[#8E867C]">
+            <Percent className="w-5 h-5" />
+          </div>
+        </div>
+      </div>
+
+      {/* 2. FULL-WIDTH DATA TABLE */}
+      <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-xs p-6 space-y-4">
+        {/* Table Filters Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#F0ECE4]">
+          {/* Search Box */}
+          <div className="relative flex-1 max-w-sm">
+            <Search className="w-4 h-4 text-[#8E867C] absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Cari promo..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-3.5 py-2 bg-[#F9F7F2] border border-[#E5E0D6] rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
+            />
           </div>
 
-          <form action={createDiscount} className="space-y-3.5 text-xs">
-            <div>
-              <label className="block font-bold text-[#4A4238] mb-1.5">Nama Promo / Voucher</label>
-              <input
-                type="text"
-                name="name"
-                required
-                placeholder="Contoh: Diskon Grand Opening 20%"
-                className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-bold"
-              />
-            </div>
-
-            <div>
-              <label className="block font-bold text-[#4A4238] mb-1.5">Cabang Outlet</label>
-              <select
-                name="outletId"
-                className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
+          {/* Status Quick Filter Tabs */}
+          <div className="flex items-center gap-1 bg-[#F9F7F2] p-1 rounded-xl border border-[#E5E0D6] text-xs">
+            {(
+              [
+                { key: 'all', label: 'Semua' },
+                { key: 'active', label: 'Aktif' },
+                { key: 'inactive', label: 'Nonaktif' },
+              ] as const
+            ).map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setStatusFilter(t.key)}
+                className={`px-3 py-1 rounded-lg font-bold transition-all text-xs ${
+                  statusFilter === t.key
+                    ? 'bg-white text-[#201C1A] shadow-xs'
+                    : 'text-[#8E867C] hover:text-[#201C1A]'
+                }`}
               >
-                {outlets.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.name}
-                  </option>
-                ))}
-              </select>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="border-b border-[#F0ECE4] bg-[#FAF8F5] text-[#8E867C] text-[10px] font-bold uppercase tracking-wider">
+                <th className="py-3.5 px-4">Nama Promo / Voucher</th>
+                <th className="py-3.5 px-4">Cabang Penempatan</th>
+                <th className="py-3.5 px-4">Nilai Potongan</th>
+                <th className="py-3.5 px-4">Syarat Belanja</th>
+                <th className="py-3.5 px-4">Status</th>
+                <th className="py-3.5 px-4 text-right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#F4F0E8]">
+              {filteredList.map((d) => (
+                <tr key={d.id} className="hover:bg-[#FBF9F6] transition-colors">
+                  <td className="py-3.5 px-4 font-bold text-[#201C1A]">{d.name}</td>
+                  <td className="py-3.5 px-4 font-medium text-[#7A7268]">{d.outletName}</td>
+                  <td className="py-3.5 px-4 font-black text-sm text-[#201C1A]">
+                    {d.type === 'percentage' ? `${d.value}%` : formatRupiah(d.value)}
+                  </td>
+                  <td className="py-3.5 px-4 text-[#7A7268]">
+                    {d.minPurchase && d.minPurchase > 0 ? `Min. ${formatRupiah(d.minPurchase)}` : 'Tanpa minimum'}
+                  </td>
+                  <td className="py-3.5 px-4">
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                        d.isActive
+                          ? 'bg-[#EBF6EE] text-[#2D7A47] border border-[#D1EBD8]'
+                          : 'bg-[#F2EFE8] text-[#8E867C] border border-[#E2DDD3]'
+                      }`}
+                    >
+                      {d.isActive ? 'Aktif' : 'Nonaktif'}
+                    </span>
+                  </td>
+                  <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
+                    <button
+                      type="button"
+                      disabled={isPending}
+                      onClick={() => handleToggle(d.id, d.isActive)}
+                      className={`px-3 py-1 rounded-xl text-xs font-bold border transition-colors ${
+                        d.isActive
+                          ? 'border-[#EBE7DF] text-[#7A7268] hover:bg-[#FAF8F5]'
+                          : 'border-[#D1EBD8] bg-[#EBF6EE] text-[#2D7A47] hover:bg-[#DDF0E2]'
+                      }`}
+                    >
+                      {d.isActive ? 'Nonaktifkan' : 'Aktifkan'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isPending}
+                      onClick={() => handleDelete(d.id)}
+                      className="p-1.5 text-[#964B3B] hover:bg-[#FBEBE8] rounded-xl transition-colors inline-flex"
+                      title="Hapus Promo"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+
+              {filteredList.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="text-center py-12 text-[#9E968B]">
+                    <Tag className="w-8 h-8 mx-auto mb-2 text-[#D5CEC2]" />
+                    <p className="font-bold text-xs text-[#4A4238]">Tidak ada promo yang cocok</p>
+                    <p className="text-[11px] text-[#9E968B] mt-0.5">
+                      Klik tombol &quot;Buat Promo Baru&quot; di atas untuk menambahkan voucher promo.
+                    </p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* 3. TRANSACTIONAL / SETUP MODAL DIALOG */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-2xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-[#F0ECE4] pb-3">
+              <div className="flex items-center gap-2 text-[#54382B]">
+                <Plus className="w-4 h-4" />
+                <h3 className="font-bold text-sm text-[#201C1A]">Buat Promo / Voucher Baru</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="text-[#9E968B] hover:text-[#201C1A] p-1 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <form
+              action={async (formData) => {
+                await createDiscount(formData);
+                setIsModalOpen(false);
+              }}
+              className="space-y-3.5 text-xs"
+            >
               <div>
-                <label className="block font-bold text-[#4A4238] mb-1.5">Tipe Diskon</label>
+                <label className="block font-bold text-[#4A4238] mb-1.5">
+                  Nama Promo / Voucher <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  required
+                  placeholder="Contoh: Diskon Grand Opening 20%"
+                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-[#4A4238] mb-1.5">Cabang Outlet Penerima</label>
                 <select
-                  name="type"
-                  value={discountType}
-                  onChange={(e) => setDiscountType(e.target.value as any)}
-                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-semibold"
+                  name="outletId"
+                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
                 >
-                  <option value="percentage">Persen (%)</option>
-                  <option value="fixed">Nominal (Rp)</option>
+                  {outlets.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.name}
+                    </option>
+                  ))}
                 </select>
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-[#4A4238] mb-1.5">Tipe Diskon</label>
+                  <select
+                    name="type"
+                    value={discountType}
+                    onChange={(e) => setDiscountType(e.target.value as any)}
+                    className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-bold"
+                  >
+                    <option value="percentage">Persen (%)</option>
+                    <option value="fixed">Nominal Tetap (Rp)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#4A4238] mb-1.5">
+                    {discountType === 'percentage' ? 'Nilai (%)' : 'Potongan (Rp)'}{' '}
+                    <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    name="value"
+                    required
+                    min="1"
+                    max={discountType === 'percentage' ? 100 : undefined}
+                    step="1"
+                    placeholder={discountType === 'percentage' ? '15' : '10000'}
+                    className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-black"
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="block font-bold text-[#4A4238] mb-1.5">
-                  {discountType === 'percentage' ? 'Nilai (%)' : 'Potongan (Rp)'}
-                </label>
+                <label className="block font-bold text-[#4A4238] mb-1.5">Minimal Belanja (Rp, Opsional)</label>
                 <input
                   type="number"
-                  name="value"
-                  required
-                  min="1"
-                  max={discountType === 'percentage' ? 100 : undefined}
-                  step="1"
-                  placeholder={discountType === 'percentage' ? '15' : '10000'}
-                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-black"
+                  name="minPurchase"
+                  min="0"
+                  step="1000"
+                  placeholder="0 (Tanpa minimum belanja)"
+                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
                 />
               </div>
-            </div>
 
-            <div>
-              <label className="block font-bold text-[#4A4238] mb-1.5">Min. Belanja (Rp, Opsional)</label>
-              <input
-                type="number"
-                name="minPurchase"
-                min="0"
-                step="1000"
-                placeholder="0"
-                className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={isPending}
-              className="w-full py-3 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl text-xs transition-all shadow-xs flex items-center justify-center gap-1.5 mt-2 disabled:opacity-50"
-            >
-              <span>Simpan Promo</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </form>
-        </div>
-
-        {/* Right: Table Daftar Diskon */}
-        <div className="lg:col-span-2 bg-white rounded-3xl border border-[#EBE7DF] shadow-xs p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-bold text-sm text-[#201C1A]">Daftar Voucher & Diskon</h3>
-            <span className="text-xs text-[#8E867C]">{discountsList.length} Promo Terdaftar</span>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-[#F0ECE4] bg-[#FAF8F5] text-[#8E867C] text-[10px] font-bold uppercase tracking-wider">
-                  <th className="py-3 px-4">Nama Promo</th>
-                  <th className="py-3 px-4">Cabang</th>
-                  <th className="py-3 px-4">Nilai Potongan</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#F4F0E8]">
-                {discountsList.map((d) => (
-                  <tr key={d.id} className="hover:bg-[#FBF9F6]">
-                    <td className="py-3.5 px-4">
-                      <p className="font-bold text-[#201C1A]">{d.name}</p>
-                      {d.minPurchase && d.minPurchase > 0 ? (
-                        <p className="text-[10px] text-[#8E867C]">Min: {formatRupiah(d.minPurchase)}</p>
-                      ) : (
-                        <p className="text-[10px] text-[#8E867C]">Tanpa min. belanja</p>
-                      )}
-                    </td>
-                    <td className="py-3.5 px-4 font-semibold text-[#4A4238]">{d.outletName}</td>
-                    <td className="py-3.5 px-4 font-black text-[#54382B]">
-                      {d.type === 'percentage' ? `${d.value}%` : formatRupiah(d.value)}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          d.isActive === 1
-                            ? 'bg-[#EBF6EE] text-[#2D7A47] border border-[#D1EBD8]'
-                            : 'bg-[#F2EDE5] text-[#8E867C] border border-[#E0D8CC]'
-                        }`}
-                      >
-                        {d.isActive === 1 ? 'Aktif' : 'Nonaktif'}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-right space-x-2">
-                      <button
-                        type="button"
-                        onClick={() => handleToggle(d.id, d.isActive)}
-                        className={`px-2.5 py-1 rounded-xl text-[11px] font-bold border transition-colors ${
-                          d.isActive === 1
-                            ? 'bg-[#FAF8F5] hover:bg-[#F2ECE5] text-[#8E867C] border-[#E0D8CC]'
-                            : 'bg-[#EBF6EE] hover:bg-[#DCF0E2] text-[#2D7A47] border-[#D1EBD8]'
-                        }`}
-                      >
-                        {d.isActive === 1 ? 'Nonaktifkan' : 'Aktifkan'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(d.id)}
-                        className="p-1 text-[#9E968B] hover:text-[#964B3B] transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4 inline" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-
-                {discountsList.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="text-center py-12 text-[#9E968B]">
-                      <Tag className="w-8 h-8 mx-auto mb-2 text-[#D5CEC2]" />
-                      <p className="font-bold text-xs text-[#4A4238]">Belum ada promo terdaftar</p>
-                      <p className="text-[11px] text-[#9E968B] mt-0.5">Buat diskon pertama di sebelah kiri</p>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+              <div className="flex items-center gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="flex-1 py-2.5 border border-[#E5E0D6] text-[#7A7268] font-bold rounded-2xl hover:bg-[#FAF8F5]"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl shadow-xs"
+                >
+                  Simpan Promo
+                </button>
+              </div>
+            </form>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

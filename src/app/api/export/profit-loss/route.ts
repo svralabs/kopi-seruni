@@ -1,27 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { orders, expenses, orderItems } from '@/lib/schema';
-import { sql, eq, and, gte } from 'drizzle-orm';
-import { formatRupiah } from '@/lib/utils';
+import { sql, eq, and, gte, lte } from 'drizzle-orm';
+import { formatRupiah, getDateRangeFromParams } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const period = searchParams.get('period') || 'this_month';
+  const from = searchParams.get('from') || undefined;
+  const to = searchParams.get('to') || undefined;
   const outletId = searchParams.get('outletId') || 'all';
 
-  const now = new Date();
-  let startEpoch = 0;
-
-  if (period === 'this_month') {
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    startEpoch = Math.floor(startOfMonth.getTime() / 1000);
-  } else if (period === 'today') {
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    startEpoch = Math.floor(startOfDay.getTime() / 1000);
-  }
+  const { startEpoch, endEpoch, label: periodLabel } = getDateRangeFromParams({ period, from, to });
 
   const orderConditions = [eq(orders.status, 'completed')];
   if (startEpoch > 0) orderConditions.push(gte(orders.createdAt, startEpoch));
+  if (endEpoch > 0) orderConditions.push(lte(orders.createdAt, endEpoch));
   if (outletId !== 'all') orderConditions.push(eq(orders.outletId, outletId));
 
   const revenueQuery = await db
@@ -43,6 +37,7 @@ export async function GET(request: NextRequest) {
 
   const expenseConditions = [];
   if (startEpoch > 0) expenseConditions.push(gte(expenses.expenseDate, startEpoch));
+  if (endEpoch > 0) expenseConditions.push(lte(expenses.expenseDate, endEpoch));
   if (outletId !== 'all') expenseConditions.push(eq(expenses.outletId, outletId));
 
   const expenseQuery = await db
@@ -58,7 +53,7 @@ export async function GET(request: NextRequest) {
 
   const rows = [
     ['LAPORAN LABA RUGI — KOPI SERUNI', ''],
-    ['Periode', period.toUpperCase()],
+    ['Periode', periodLabel.toUpperCase()],
     ['Cabang Outlet', outletId.toUpperCase()],
     ['Waktu Ekspor', new Date().toLocaleString('id-ID')],
     ['', ''],
