@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { adjustStock } from '@/app/actions/stock';
 import { formatDate } from '@/lib/utils';
 import { 
@@ -13,7 +14,8 @@ import {
   X, 
   ArrowRight,
   History,
-  FileSpreadsheet
+  FileSpreadsheet,
+  FlaskConical,
 } from 'lucide-react';
 
 export default function StockClient({
@@ -21,15 +23,25 @@ export default function StockClient({
   movementList,
   outlets,
   currentOutletId = 'out_default',
+  rawMaterialList = [],
+  rawMaterialMovementList = [],
+  initialTab = 'produk',
 }: {
   productStockList: any[];
   movementList: any[];
   outlets: any[];
   currentOutletId?: string;
+  rawMaterialList?: any[];
+  rawMaterialMovementList?: any[];
+  initialTab?: string;
 }) {
+  const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'inventory' | 'history'>('inventory');
+  const [activeTab, setActiveTab] = useState<'inventory' | 'bahan-baku' | 'history'>(
+    initialTab === 'bahan-baku' ? 'bahan-baku' : initialTab === 'history' ? 'history' : 'inventory'
+  );
   const [searchQuery, setSearchQuery] = useState('');
+  const [rmSearchQuery, setRmSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'safe' | 'low' | 'out'>('all');
   const [isPending, startTransition] = useTransition();
 
@@ -134,7 +146,19 @@ export default function StockClient({
               }`}
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>Sisa Stok Bahan ({productStockList.length})</span>
+              <span>Sisa Stok Produk ({productStockList.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('bahan-baku')}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-bold transition-all ${
+                activeTab === 'bahan-baku'
+                  ? 'bg-white text-[#201C1A] shadow-xs'
+                  : 'text-[#8E867C] hover:text-[#201C1A]'
+              }`}
+            >
+              <FlaskConical className="w-3.5 h-3.5" />
+              <span>Bahan Baku ({rawMaterialList.length})</span>
             </button>
             <button
               type="button"
@@ -238,7 +262,83 @@ export default function StockClient({
           </div>
         )}
 
-        {/* Tab 2: Log Riwayat Mutasi */}
+        {/* Tab 2: Bahan Baku */}
+        {activeTab === 'bahan-baku' && (
+          <div className="space-y-3">
+            {/* Search bahan baku */}
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-[#8E867C] absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Cari bahan baku..."
+                value={rmSearchQuery}
+                onChange={(e) => setRmSearchQuery(e.target.value)}
+                className="w-full sm:w-64 pl-8 pr-3 py-1.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
+              />
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-[#F0ECE4] bg-[#FAF8F5] text-[#8E867C] text-[10px] font-bold uppercase tracking-wider">
+                    <th className="py-3.5 px-4">Nama Bahan Baku</th>
+                    <th className="py-3.5 px-4 text-right">Satuan</th>
+                    <th className="py-3.5 px-4 text-right">Stok Saat Ini</th>
+                    <th className="py-3.5 px-4 text-right">Harga / Satuan</th>
+                    <th className="py-3.5 px-4 text-right">Nilai Stok</th>
+                    <th className="py-3.5 px-4 text-right">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#F4F0E8]">
+                  {rawMaterialList
+                    .filter(({ material: m }) =>
+                      m.name.toLowerCase().includes(rmSearchQuery.toLowerCase())
+                    )
+                    .map(({ material: m, stock: s }) => {
+                      const qty = s?.quantityOnHand ?? 0;
+                      const nilai = qty * (m.costPerUnit ?? 0);
+                      const isLow = qty > 0 && qty < 500;
+                      const isOut = qty <= 0;
+                      return (
+                        <tr key={m.id} className="hover:bg-[#FBF9F6] transition-colors">
+                          <td className="py-3.5 px-4 font-bold text-[#201C1A]">{m.name}</td>
+                          <td className="py-3.5 px-4 text-right text-[#5C5650]">{m.unit}</td>
+                          <td className="py-3.5 px-4 text-right font-black text-[#201C1A]">
+                            {qty.toLocaleString('id-ID')} {m.unit}
+                          </td>
+                          <td className="py-3.5 px-4 text-right text-[#5C5650]">
+                            Rp {(m.costPerUnit ?? 0).toLocaleString('id-ID')}
+                          </td>
+                          <td className="py-3.5 px-4 text-right font-bold text-[#201C1A]">
+                            Rp {nilai.toLocaleString('id-ID')}
+                          </td>
+                          <td className="py-3.5 px-4 text-right">
+                            <span className={`text-[10px] px-3 py-1 rounded-full font-bold uppercase ${
+                              isOut
+                                ? 'bg-[#FBEBE8] text-[#964B3B] border border-[#F3DAD5]'
+                                : isLow
+                                ? 'bg-[#FDF4E5] text-[#96631E] border border-[#F2E0C4]'
+                                : 'bg-[#EBF6EE] text-[#2D7A47] border border-[#D1EBD8]'
+                            }`}>
+                              {isOut ? 'Habis' : isLow ? 'Menipis' : 'Aman'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  {rawMaterialList.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="text-center py-12 text-[#9E968B] text-xs">
+                        Belum ada data bahan baku. Bahan baku akan muncul setelah resep menu dikonfigurasi.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 3: Log Riwayat Mutasi */}
         {activeTab === 'history' && (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">

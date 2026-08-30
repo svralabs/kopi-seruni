@@ -1,6 +1,9 @@
 'use server';
 import { db } from '@/lib/db';
-import { orders, orderItems, stock, stockMovements, shifts, discounts } from '@/lib/schema';
+import {
+  orders, orderItems, stock, stockMovements, shifts, discounts,
+  rawMaterials, productRecipes, rawMaterialStock, rawMaterialMovements,
+} from '@/lib/schema';
 import { getSession } from '@/lib/auth-helpers';
 import { calcDiscount, calcTax, calcTotal } from '@/lib/utils';
 import { eq, and, isNull, sql } from 'drizzle-orm';
@@ -114,7 +117,7 @@ export async function checkout(payload: CheckoutPayload) {
       })),
     );
 
-    // 3. Decrement stock + insert movement per item
+    // 3. Decrement product stock + insert movement per item
     for (const item of payload.items) {
       const existingStock = await tx
         .select()
@@ -157,6 +160,40 @@ export async function checkout(payload: CheckoutPayload) {
         createdBy: session.user.id,
         createdAt: now,
       });
+    }
+
+    // 4. Deduct raw material stock based on product recipes (ingredient-based tracking)
+    for (const item of payload.items) {
+      const recipes = await tx
+        .select({
+          rawMaterialId: productRecipes.rawMaterialId,
+          quantityUsed: productRecipes.quantityUsed,
+        })
+        .from(productRecipes)
+        .where(eq(productRecipes.productId, item.productId));
+
+      for (const recipe of recipes) {
+        const totalDeduct = recipe.quantityUsed * item.quantity;
+        // Deduct from raw material stock (floor at 0)
+        await tx.run(sql`
+          UPDATE raw_material_stock
+          SET quantity_on_hand = MAX(0, quantity_on_hand - ${totalDeduct}),
+              updated_at = ${now}
+          WHERE outlet_id = ${payload.outletId}
+            AND raw_material_id = ${recipe.rawMaterialId}
+        `);
+        // Insert usage movement log
+        await tx.insert(rawMaterialMovements).values({
+          id: `rmm_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`,
+          outletId: payload.outletId,
+          rawMaterialId: recipe.rawMaterialId,
+          type: 'usage',
+          quantity: -totalDeduct,
+          referenceId: orderId,
+          createdBy: session.user.id,
+          createdAt: now,
+        });
+      }
     }
   });
 

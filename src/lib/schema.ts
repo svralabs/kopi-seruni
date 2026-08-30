@@ -211,6 +211,52 @@ export const stockMovements = sqliteTable('stock_movements', {
 }, (t) => [index('idx_stock_movements').on(t.outletId, t.productId, t.createdAt)]);
 
 // ================================================================
+// BAHAN BAKU (Raw Materials) — Ingredient-based inventory
+// ================================================================
+export const rawMaterials = sqliteTable('raw_materials', {
+  id: id('rm'),
+  outletId: text('outlet_id').notNull().references(() => outlets.id),
+  name: text('name').notNull(),
+  unit: text('unit', { enum: ['gr', 'ml', 'pcs', 'lbr', 'kg', 'liter'] }).notNull().default('gr'),
+  costPerUnit: integer('cost_per_unit').notNull().default(0), // rupiah per unit
+  createdAt: integer('created_at').notNull().default(now),
+  deletedAt: integer('deleted_at'),
+}, (t) => [index('idx_raw_materials_outlet').on(t.outletId)]);
+
+// Resep per produk — N bahan baku per 1 porsi menu
+export const productRecipes = sqliteTable('product_recipes', {
+  id: id('pr'),
+  productId: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  rawMaterialId: text('raw_material_id').notNull().references(() => rawMaterials.id, { onDelete: 'cascade' }),
+  quantityUsed: integer('quantity_used').notNull(), // qty per 1 porsi, e.g. 30 = 30gr
+}, (t) => [
+  uniqueIndex('uq_recipe_product_material').on(t.productId, t.rawMaterialId),
+  index('idx_recipe_product').on(t.productId),
+]);
+
+// Stok bahan baku per outlet
+export const rawMaterialStock = sqliteTable('raw_material_stock', {
+  id: id('rms'),
+  outletId: text('outlet_id').notNull().references(() => outlets.id),
+  rawMaterialId: text('raw_material_id').notNull().references(() => rawMaterials.id, { onDelete: 'cascade' }),
+  quantityOnHand: integer('quantity_on_hand').notNull().default(0),
+  updatedAt: integer('updated_at').notNull().default(now),
+}, (t) => [uniqueIndex('uq_rms_outlet_material').on(t.outletId, t.rawMaterialId)]);
+
+// Log mutasi bahan baku
+export const rawMaterialMovements = sqliteTable('raw_material_movements', {
+  id: id('rmm'),
+  outletId: text('outlet_id').notNull().references(() => outlets.id),
+  rawMaterialId: text('raw_material_id').notNull().references(() => rawMaterials.id),
+  type: text('type', { enum: ['purchase', 'usage', 'adjustment', 'waste'] }).notNull(),
+  quantity: integer('quantity').notNull(), // positif = masuk, negatif = keluar
+  referenceId: text('reference_id'),       // order_id atau expense_id
+  notes: text('notes'),
+  createdBy: text('created_by').notNull().references(() => user.id),
+  createdAt: integer('created_at').notNull().default(now),
+}, (t) => [index('idx_rmm_outlet_material').on(t.outletId, t.rawMaterialId, t.createdAt)]);
+
+// ================================================================
 // PURCHASE ORDER
 // ================================================================
 export const purchaseOrders = sqliteTable('purchase_orders', {
@@ -281,3 +327,7 @@ export type Stock = typeof stock.$inferSelect;
 export type Discount = typeof discounts.$inferSelect;
 export type ProfitSharingRule = typeof profitSharingRules.$inferSelect;
 export type ProfitSharingLedger = typeof profitSharingLedger.$inferSelect;
+export type RawMaterial = typeof rawMaterials.$inferSelect;
+export type ProductRecipe = typeof productRecipes.$inferSelect;
+export type RawMaterialStock = typeof rawMaterialStock.$inferSelect;
+export type RawMaterialMovement = typeof rawMaterialMovements.$inferSelect;
