@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
-import { products, categories, discounts, shifts, outlets } from '@/lib/schema';
-import { getOutlets } from '@/lib/queries';
+import { products, shifts, outlets } from '@/lib/schema';
+import { getOutlets, getCategories, getActiveDiscounts } from '@/lib/queries';
 import { getSession } from '@/lib/auth-helpers';
 import POSClient from './pos-client';
 import { eq, and, isNull } from 'drizzle-orm';
@@ -31,14 +31,8 @@ export default async function POSPage({
           .select()
           .from(products)
           .where(and(eq(products.isActive, 1), isNull(products.deletedAt))),
-        db
-          .select()
-          .from(categories)
-          .where(isNull(categories.deletedAt)),
-        db
-          .select()
-          .from(discounts)
-          .where(and(eq(discounts.isActive, 1), isNull(discounts.deletedAt))),
+        getCategories(),
+        getActiveDiscounts(),
         db
           .select()
           .from(shifts)

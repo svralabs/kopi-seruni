@@ -1,5 +1,4 @@
-import { db } from '@/lib/db';
-import { categories } from '@/lib/schema';
+import { getCategories } from '@/lib/queries';
 import { createProduct } from '@/app/actions/products';
 import Link from 'next/link';
 import { ArrowLeft, Save } from 'lucide-react';
@@ -7,7 +6,7 @@ import { ArrowLeft, Save } from 'lucide-react';
 export default async function NewProductPage() {
   let categoryList: any[] = [];
   try {
-    categoryList = await db.select().from(categories);
+    categoryList = await getCategories();
   } catch (e) {
     console.warn('Categories query error:', e);
   }

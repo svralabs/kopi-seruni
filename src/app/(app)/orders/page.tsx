@@ -1,8 +1,8 @@
 import { db } from '@/lib/db';
-import { orders, orderItems, outlets, user } from '@/lib/schema';
+import { orders, outlets, user } from '@/lib/schema';
 import { getOutlets } from '@/lib/queries';
 import OrdersClient, { type OrderWithDetails } from './orders-client';
-import { desc, asc, eq, inArray, sql, and, like, or, gte, lte } from 'drizzle-orm';
+import { desc, asc, eq, sql, and, like, or, gte, lte } from 'drizzle-orm';
 import { getDateRangeFromParams } from '@/lib/utils';
 
 export default async function OrdersPage({
@@ -98,31 +98,13 @@ export default async function OrdersPage({
     totalItems = Number(countRes[0]?.count || 0);
     totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
 
-    const orderIds = baseOrders.map((b) => b.order.id);
-
-    let allItems: any[] = [];
-    if (orderIds.length > 0) {
-      allItems = await db
-        .select()
-        .from(orderItems)
-        .where(inArray(orderItems.orderId, orderIds));
-    }
-
-    const itemsByOrder: Record<string, any[]> = {};
-    allItems.forEach((item) => {
-      if (!itemsByOrder[item.orderId]) {
-        itemsByOrder[item.orderId] = [];
-      }
-      itemsByOrder[item.orderId].push(item);
-    });
-
     ordersList = baseOrders.map((b) => ({
       ...b.order,
       outletName: b.outlet?.name || 'Kopi Seruni',
       outletAddress: b.outlet?.address,
       outletPhone: b.outlet?.phone,
       kasirName: b.user?.name || 'Kasir',
-      items: itemsByOrder[b.order.id] || [],
+      items: [],
     }));
   } catch (e) {
     console.warn('Error fetching orders:', e);

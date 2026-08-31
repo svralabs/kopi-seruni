@@ -247,3 +247,13 @@ export async function voidOrder(orderId: string, outletId: string) {
 
   return { success: true };
 }
+
+export async function getOrderItems(orderId: string) {
+  const session = await getSession();
+  if (!session) redirect('/login');
+
+  return db
+    .select()
+    .from(orderItems)
+    .where(eq(orderItems.orderId, orderId));
+}

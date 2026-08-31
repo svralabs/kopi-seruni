@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
-import { products, categories, outlets } from '@/lib/schema';
-import { getOutlets } from '@/lib/queries';
+import { products, outlets } from '@/lib/schema';
+import { getOutlets, getCategories } from '@/lib/queries';
 import ProductsClient from './products-client';
 import { isNull, desc, sql, eq, and } from 'drizzle-orm';
 
@@ -46,7 +46,7 @@ export default async function ProductsPage({
         .orderBy(desc(products.createdAt))
         .limit(pageSize)
         .offset(offset),
-      db.select().from(categories),
+      getCategories(),
     ]);
 
     allOutlets = outletsRes;

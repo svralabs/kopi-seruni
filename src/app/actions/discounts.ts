@@ -4,7 +4,7 @@ import { db } from '@/lib/db';
 import { discounts } from '@/lib/schema';
 import { getSession } from '@/lib/auth-helpers';
 import { eq } from 'drizzle-orm';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 export async function createDiscount(formData: FormData) {
@@ -43,6 +43,7 @@ export async function createDiscount(formData: FormData) {
     createdAt: now,
   });
 
+  revalidateTag('discounts', 'max');
   revalidatePath('/discounts');
   revalidatePath('/pos');
 }
@@ -58,6 +59,7 @@ export async function toggleDiscount(id: string, currentStatus: number) {
     .set({ isActive: nextStatus })
     .where(eq(discounts.id, id));
 
+  revalidateTag('discounts', 'max');
   revalidatePath('/discounts');
   revalidatePath('/pos');
 }
@@ -95,6 +97,7 @@ export async function updateDiscount(id: string, formData: FormData) {
     })
     .where(eq(discounts.id, id));
 
+  revalidateTag('discounts', 'max');
   revalidatePath('/discounts');
   revalidatePath('/pos');
   return { success: true };
@@ -111,6 +114,7 @@ export async function deleteDiscount(id: string) {
     .set({ deletedAt: now })
     .where(eq(discounts.id, id));
 
+  revalidateTag('discounts', 'max');
   revalidatePath('/discounts');
   revalidatePath('/pos');
 }

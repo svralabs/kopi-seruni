@@ -4,7 +4,7 @@ import { db } from '@/lib/db';
 import { outlets } from '@/lib/schema';
 import { getSession } from '@/lib/auth-helpers';
 import { eq } from 'drizzle-orm';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 export async function createOutlet(formData: FormData) {
@@ -30,6 +30,7 @@ export async function createOutlet(formData: FormData) {
     createdAt: now,
   });
 
+  revalidateTag('outlets', 'max');
   revalidatePath('/outlets');
   revalidatePath('/pos');
 }
@@ -55,6 +56,7 @@ export async function updateOutlet(id: string, formData: FormData) {
     })
     .where(eq(outlets.id, id));
 
+  revalidateTag('outlets', 'max');
   revalidatePath('/outlets');
   revalidatePath('/pos');
 }

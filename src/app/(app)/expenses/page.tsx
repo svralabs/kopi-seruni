@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { expenses, expenseCategories, outlets } from '@/lib/schema';
-import { getOutlets } from '@/lib/queries';
+import { getOutlets, getExpenseCategories } from '@/lib/queries';
 import ExpensesClient from './expenses-client';
 import { getDateRangeFromParams } from '@/lib/utils';
 import { desc, eq, sql, and, gte, lte } from 'drizzle-orm';
@@ -43,7 +43,7 @@ export default async function ExpensesPage({
 
     const [outletsRes, categoryRes, countAndSumRes, rawExpenses] = await Promise.all([
       getOutlets(),
-      db.select().from(expenseCategories),
+      getExpenseCategories(),
       db
         .select({
           count: sql<number>`COUNT(*)`,

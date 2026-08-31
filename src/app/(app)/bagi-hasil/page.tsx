@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { profitSharingRules, profitSharingLedger, outlets } from '@/lib/schema';
-import { getOutlets } from '@/lib/queries';
+import { getOutlets, getProfitSharingRules } from '@/lib/queries';
 import BagiHasilClient from './bagi-hasil-client';
 import { desc, eq } from 'drizzle-orm';
 
@@ -19,10 +19,7 @@ export default async function BagiHasilPage({
   try {
     const [outletsRes, rulesRes, rawLedger] = await Promise.all([
       getOutlets(),
-      db
-        .select()
-        .from(profitSharingRules)
-        .where(eq(profitSharingRules.outletId, outletId)),
+      getProfitSharingRules(outletId),
       db
         .select({
           ledger: profitSharingLedger,

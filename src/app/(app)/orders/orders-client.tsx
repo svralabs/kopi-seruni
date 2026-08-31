@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { formatRupiah, formatDateTime } from '@/lib/utils';
-import { voidOrder } from '@/app/actions/checkout';
+import { voidOrder, getOrderItems } from '@/app/actions/checkout';
 import ReceiptModal, { type ReceiptData } from '@/components/receipt-modal';
 import type { Order, OrderItem, Outlet } from '@/lib/schema';
 import {
@@ -89,7 +89,17 @@ export default function OrdersClient({
   const completedCount = initialOrders.filter((o) => o.status === 'completed').length;
   const voidedCount = initialOrders.filter((o) => o.status === 'voided').length;
 
-  const handleOpenReceipt = (order: OrderWithDetails) => {
+  const handleOpenReceipt = async (order: OrderWithDetails) => {
+    let items = order.items || [];
+    if (!items || items.length === 0) {
+      try {
+        const fetched = await getOrderItems(order.id);
+        items = fetched as OrderItem[];
+      } catch (err) {
+        console.warn('Error fetching order items:', err);
+      }
+    }
+
     const receipt: ReceiptData = {
       orderId: order.id,
       outletName: order.outletName,
@@ -98,7 +108,7 @@ export default function OrdersClient({
       kasirName: order.kasirName,
       customerName: order.customerName,
       createdAt: order.createdAt,
-      items: order.items.map((i) => ({
+      items: items.map((i) => ({
         productName: i.productName,
         quantity: i.quantity,
         productPrice: i.productPrice,

@@ -149,6 +149,7 @@ export const orders = sqliteTable('orders', {
 }, (t) => [
   index('idx_orders_outlet_created').on(t.outletId, t.createdAt),
   index('idx_orders_shift').on(t.shiftId),
+  index('idx_orders_filter').on(t.outletId, t.status, t.createdAt),
 ]);
 
 export const orderItems = sqliteTable('order_items', {
@@ -161,7 +162,10 @@ export const orderItems = sqliteTable('order_items', {
   quantity: integer('quantity').notNull(),
   subtotal: integer('subtotal').notNull(),       // productPrice * quantity
   notes: text('notes'),
-}, (t) => [index('idx_order_items_order').on(t.orderId)]);
+}, (t) => [
+  index('idx_order_items_order').on(t.orderId),
+  index('idx_order_items_order_product').on(t.orderId, t.productId),
+]);
 
 // ================================================================
 // EXPENSES

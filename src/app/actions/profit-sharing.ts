@@ -5,7 +5,7 @@ import { profitSharingRules, profitSharingLedger, orders, orderItems, expenses }
 import { getSession } from '@/lib/auth-helpers';
 import { calcShare } from '@/lib/utils';
 import { eq, and, sql, gte, lte } from 'drizzle-orm';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 export async function createRule(formData: FormData) {
@@ -45,6 +45,7 @@ export async function createRule(formData: FormData) {
     createdAt: now,
   });
 
+  revalidateTag('profit_sharing_rules', 'max');
   revalidatePath('/bagi-hasil');
 }
 
@@ -94,6 +95,7 @@ export async function updateRule(id: string, formData: FormData) {
     })
     .where(eq(profitSharingRules.id, id));
 
+  revalidateTag('profit_sharing_rules', 'max');
   revalidatePath('/bagi-hasil');
   return { success: true };
 }
@@ -135,6 +137,7 @@ export async function toggleRule(id: string, currentStatus: number) {
     .set({ isActive: nextStatus })
     .where(eq(profitSharingRules.id, id));
 
+  revalidateTag('profit_sharing_rules', 'max');
   revalidatePath('/bagi-hasil');
   return { success: true };
 }
@@ -145,6 +148,7 @@ export async function deleteRule(id: string) {
 
   await db.delete(profitSharingRules).where(eq(profitSharingRules.id, id));
 
+  revalidateTag('profit_sharing_rules', 'max');
   revalidatePath('/bagi-hasil');
   return { success: true };
 }
