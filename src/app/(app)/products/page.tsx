@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { products, outlets } from '@/lib/schema';
 import { getOutlets, getCategories } from '@/lib/queries';
+import { requireAuthRole } from '@/lib/auth-helpers';
 import ProductsClient from './products-client';
 import { isNull, desc, sql, eq, and } from 'drizzle-orm';
 
@@ -9,6 +10,7 @@ export default async function ProductsPage({
 }: {
   searchParams?: Promise<{ page?: string; outletId?: string }>;
 }) {
+  await requireAuthRole(['owner', 'manager']);
   const params = searchParams ? await searchParams : {};
   const outletId = params.outletId || 'all';
   const page = Math.max(1, Number(params.page || 1));

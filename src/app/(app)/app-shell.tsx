@@ -26,33 +26,37 @@ import {
   X,
 } from 'lucide-react';
 
-const NAV_ITEMS = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/pos', label: 'Kasir POS', icon: UtensilsCrossed },
-  { href: '/orders', label: 'Riwayat Transaksi', icon: Receipt },
-  { href: '/products', label: 'Produk & Menu', icon: Package },
-  { href: '/discounts', label: 'Diskon & Promo', icon: Tag },
-  { href: '/stok', label: 'Stok & Inventori', icon: Warehouse },
-  { href: '/shift', label: 'Shift Kasir', icon: Clock },
-  { href: '/expenses', label: 'Pengeluaran', icon: WalletCards },
-  { href: '/profit-loss', label: 'Laba Rugi', icon: TrendingUp },
-  { href: '/bagi-hasil', label: 'Bagi Hasil', icon: Users2 },
-  { href: '/outlets', label: 'Kelola Outlet', icon: Store },
-  { href: '/staff', label: 'Staff & Kasir', icon: UserCog },
-  { href: '/settings', label: 'Pengaturan', icon: Settings },
+const ALL_NAV_ITEMS = [
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['owner', 'manager'] },
+  { href: '/pos', label: 'Kasir POS', icon: UtensilsCrossed, roles: ['owner', 'manager', 'kasir'] },
+  { href: '/orders', label: 'Riwayat Transaksi', icon: Receipt, roles: ['owner', 'manager', 'kasir'] },
+  { href: '/products', label: 'Produk & Menu', icon: Package, roles: ['owner', 'manager'] },
+  { href: '/discounts', label: 'Diskon & Promo', icon: Tag, roles: ['owner', 'manager'] },
+  { href: '/stok', label: 'Stok & Inventori', icon: Warehouse, roles: ['owner', 'manager'] },
+  { href: '/shift', label: 'Shift Kasir', icon: Clock, roles: ['owner', 'manager', 'kasir'] },
+  { href: '/expenses', label: 'Pengeluaran', icon: WalletCards, roles: ['owner', 'manager'] },
+  { href: '/profit-loss', label: 'Laba Rugi', icon: TrendingUp, roles: ['owner'] },
+  { href: '/bagi-hasil', label: 'Bagi Hasil', icon: Users2, roles: ['owner'] },
+  { href: '/outlets', label: 'Kelola Outlet', icon: Store, roles: ['owner'] },
+  { href: '/staff', label: 'Staff & Kasir', icon: UserCog, roles: ['owner'] },
+  { href: '/settings', label: 'Pengaturan', icon: Settings, roles: ['owner', 'manager'] },
 ];
 
 export default function AppShell({
   userName = 'Kasir / Owner',
+  userRole = 'kasir',
   children,
 }: {
   userName?: string;
+  userRole?: 'owner' | 'manager' | 'kasir';
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+
+  const navItems = ALL_NAV_ITEMS.filter((item) => item.roles.includes(userRole));
 
   const handleLogout = async () => {
     await authClient.signOut();
@@ -124,7 +128,7 @@ export default function AppShell({
 
         {/* Navigation Links */}
         <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto custom-scrollbar">
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const Icon = item.icon;
             const isActive =
               pathname === item.href ||
@@ -161,9 +165,22 @@ export default function AppShell({
           {!isDesktopCollapsed && (
             <div className="flex items-center justify-between gap-2 mb-1.5 px-2 py-0.5">
               <div className="truncate flex-1">
-                <p className="text-[9px] font-medium text-[#9B9489] uppercase tracking-wider">
-                  Login Kasir
-                </p>
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <p className="text-[9px] font-bold text-[#9B9489] uppercase tracking-wider">
+                    {userRole === 'owner' ? 'Owner' : userRole === 'manager' ? 'Manajer' : 'Kasir'}
+                  </p>
+                  <span
+                    className={`text-[8px] font-black uppercase px-1 py-0.2 rounded ${
+                      userRole === 'owner'
+                        ? 'bg-[#FAF3E8] text-[#96631E] border border-[#F2E0C4]'
+                        : userRole === 'manager'
+                        ? 'bg-[#EBF6EE] text-[#2D7A47] border border-[#D1EBD8]'
+                        : 'bg-[#FAF8F5] text-[#4A4238] border border-[#E5E0D6]'
+                    }`}
+                  >
+                    {userRole}
+                  </span>
+                </div>
                 <p className="text-xs font-bold text-[#201C1A] truncate">{userName}</p>
               </div>
               <span className="w-2 h-2 shrink-0 rounded-full bg-emerald-500 ring-4 ring-emerald-100" />
@@ -224,7 +241,7 @@ export default function AppShell({
 
             {/* Drawer Navigation Links */}
             <nav className="flex-1 p-3 space-y-1 overflow-y-auto custom-scrollbar">
-              {NAV_ITEMS.map((item) => {
+              {navItems.map((item) => {
                 const Icon = item.icon;
                 const isActive =
                   pathname === item.href ||
@@ -252,7 +269,22 @@ export default function AppShell({
             <div className="p-4 border-t border-[#F0ECE4] bg-[#FAF8F4] shrink-0 space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-[10px] font-bold text-[#8E867C] uppercase">Login Kasir</p>
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <p className="text-[10px] font-bold text-[#8E867C] uppercase">
+                      {userRole === 'owner' ? 'Owner' : userRole === 'manager' ? 'Manajer' : 'Kasir'}
+                    </p>
+                    <span
+                      className={`text-[8px] font-black uppercase px-1 py-0.2 rounded ${
+                        userRole === 'owner'
+                          ? 'bg-[#FAF3E8] text-[#96631E] border border-[#F2E0C4]'
+                          : userRole === 'manager'
+                          ? 'bg-[#EBF6EE] text-[#2D7A47] border border-[#D1EBD8]'
+                          : 'bg-[#FAF8F5] text-[#4A4238] border border-[#E5E0D6]'
+                      }`}
+                    >
+                      {userRole}
+                    </span>
+                  </div>
                   <p className="text-xs font-black text-[#201C1A]">{userName}</p>
                 </div>
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-4 ring-emerald-100" />

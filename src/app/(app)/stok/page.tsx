@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { products, rawMaterials, rawMaterialStock, rawMaterialMovements, productRecipes } from '@/lib/schema';
 import { getOutlets } from '@/lib/queries';
+import { requireAuthRole } from '@/lib/auth-helpers';
 import StockClient from './stock-client';
 import { eq, and, isNull, desc } from 'drizzle-orm';
 
@@ -9,6 +10,7 @@ export default async function StockPage({
 }: {
   searchParams?: Promise<{ outletId?: string; tab?: string }>;
 }) {
+  await requireAuthRole(['owner', 'manager']);
   const resolvedParams = searchParams ? await searchParams : {};
   const outletId = resolvedParams.outletId || 'out_default';
   const tab = resolvedParams.tab || 'bahan-baku';

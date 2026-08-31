@@ -1,7 +1,7 @@
 import { db } from '@/lib/db';
 import { products, shifts, outlets, productRecipes, rawMaterials, rawMaterialStock } from '@/lib/schema';
 import { getOutlets, getCategories, getActiveDiscounts } from '@/lib/queries';
-import { getSession } from '@/lib/auth-helpers';
+import { getSession, requireAuthRole } from '@/lib/auth-helpers';
 import POSClient from './pos-client';
 import { eq, and, isNull } from 'drizzle-orm';
 
@@ -10,7 +10,7 @@ export default async function POSPage({
 }: {
   searchParams: Promise<{ outletId?: string }>;
 }) {
-  const session = await getSession();
+  const { session } = await requireAuthRole(['owner', 'manager', 'kasir']);
   const kasirName = session?.user?.name || 'Kasir Seruni';
 
   const params = await searchParams;

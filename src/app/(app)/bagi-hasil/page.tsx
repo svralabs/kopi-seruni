@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { profitSharingRules, profitSharingLedger, outlets } from '@/lib/schema';
 import { getOutlets, getProfitSharingRules } from '@/lib/queries';
+import { requireAuthRole } from '@/lib/auth-helpers';
 import BagiHasilClient from './bagi-hasil-client';
 import { desc, eq } from 'drizzle-orm';
 
@@ -9,6 +10,7 @@ export default async function BagiHasilPage({
 }: {
   searchParams?: Promise<{ outletId?: string }>;
 }) {
+  await requireAuthRole(['owner']);
   const resolvedParams = searchParams ? await searchParams : {};
   const outletId = resolvedParams.outletId || 'out_default';
 

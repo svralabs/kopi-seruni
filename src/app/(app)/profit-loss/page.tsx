@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { orders, expenses, orderItems, outlets } from '@/lib/schema';
 import { getOutlets } from '@/lib/queries';
+import { requireAuthRole } from '@/lib/auth-helpers';
 import { formatRupiah, getDateRangeFromParams } from '@/lib/utils';
 import { sql, eq, and, gte, lte } from 'drizzle-orm';
 import Link from 'next/link';
@@ -11,6 +12,7 @@ export default async function ProfitLossPage({
 }: {
   searchParams?: Promise<{ period?: string; outletId?: string; from?: string; to?: string }>;
 }) {
+  await requireAuthRole(['owner']);
   const resolvedParams = searchParams ? await searchParams : {};
   const outletId = resolvedParams.outletId || 'all';
 

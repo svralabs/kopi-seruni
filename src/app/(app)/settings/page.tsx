@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { outlets, settings } from '@/lib/schema';
 import { getOutlets } from '@/lib/queries';
+import { requireAuthRole } from '@/lib/auth-helpers';
 import SettingsClient from './settings-client';
 import { eq } from 'drizzle-orm';
 
@@ -9,6 +10,7 @@ export default async function SettingsPage({
 }: {
   searchParams?: Promise<{ outletId?: string }>;
 }) {
+  await requireAuthRole(['owner', 'manager']);
   const resolvedParams = searchParams ? await searchParams : {};
   const outletId = resolvedParams.outletId || 'out_default';
 

@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { orders, outlets, user } from '@/lib/schema';
 import { getOutlets } from '@/lib/queries';
+import { requireAuthRole } from '@/lib/auth-helpers';
 import OrdersClient, { type OrderWithDetails } from './orders-client';
 import { desc, asc, eq, sql, and, like, or, gte, lte } from 'drizzle-orm';
 import { getDateRangeFromParams } from '@/lib/utils';
@@ -21,6 +22,7 @@ export default async function OrdersPage({
     to?: string;
   }>;
 }) {
+  const { role } = await requireAuthRole(['owner', 'manager', 'kasir']);
   const params = await searchParams;
   const outletId = params?.outletId || 'all';
   const page = Math.max(1, Number(params?.page || 1));
@@ -115,6 +117,7 @@ export default async function OrdersPage({
       initialOrders={ordersList}
       outlets={allOutlets}
       currentOutletId={params?.outletId}
+      userRole={role}
       pagination={{
         currentPage: page,
         totalPages,

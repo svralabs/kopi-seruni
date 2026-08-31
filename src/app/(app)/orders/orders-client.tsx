@@ -38,11 +38,13 @@ export default function OrdersClient({
   initialOrders,
   outlets,
   currentOutletId,
+  userRole = 'kasir',
   pagination,
 }: {
   initialOrders: OrderWithDetails[];
   outlets: Outlet[];
   currentOutletId?: string;
+  userRole?: 'owner' | 'manager' | 'kasir';
   pagination?: {
     currentPage: number;
     totalPages: number;
@@ -365,7 +367,7 @@ export default function OrdersClient({
                       <span>Cetak Nota</span>
                     </button>
 
-                    {order.status === 'completed' && (
+                    {order.status === 'completed' && userRole !== 'kasir' && (
                       <button
                         type="button"
                         onClick={() => setVoidingOrder(order)}

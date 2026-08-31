@@ -1,10 +1,12 @@
 import { db } from '@/lib/db';
 import { user, userOutletRoles, outlets } from '@/lib/schema';
 import { getOutlets } from '@/lib/queries';
+import { requireAuthRole } from '@/lib/auth-helpers';
 import StaffClient, { type StaffMember } from './staff-client';
 import { eq } from 'drizzle-orm';
 
 export default async function StaffPage() {
+  await requireAuthRole(['owner']);
   let allOutlets: any[] = [];
   let staffList: StaffMember[] = [];
 

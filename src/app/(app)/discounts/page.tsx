@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { discounts, outlets } from '@/lib/schema';
 import { getOutlets } from '@/lib/queries';
+import { requireAuthRole } from '@/lib/auth-helpers';
 import DiscountsClient from './discount-client';
 import { isNull, desc, eq, and } from 'drizzle-orm';
 
@@ -9,6 +10,7 @@ export default async function DiscountsPage({
 }: {
   searchParams?: Promise<{ outletId?: string }>;
 }) {
+  await requireAuthRole(['owner', 'manager']);
   const resolvedParams = searchParams ? await searchParams : {};
   const outletId = resolvedParams.outletId || 'all';
 

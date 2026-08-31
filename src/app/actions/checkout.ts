@@ -4,7 +4,7 @@ import {
   orders, orderItems, stock, stockMovements, shifts, discounts,
   rawMaterials, productRecipes, rawMaterialStock, rawMaterialMovements,
 } from '@/lib/schema';
-import { getSession } from '@/lib/auth-helpers';
+import { getSession, getCurrentUserRole } from '@/lib/auth-helpers';
 import { calcDiscount, calcTax, calcTotal } from '@/lib/utils';
 import { eq, and, isNull, sql } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
@@ -203,6 +203,11 @@ export async function checkout(payload: CheckoutPayload) {
 export async function voidOrder(orderId: string, outletId: string) {
   const session = await getSession();
   if (!session) redirect('/login');
+
+  const { role } = await getCurrentUserRole(session.user.id, outletId);
+  if (role === 'kasir') {
+    throw new Error('Akses Ditolak: Kasir dilarang membatalkan (void) transaksi. Hubungi Manajer atau Owner.');
+  }
 
   const now = Math.floor(Date.now() / 1000);
 

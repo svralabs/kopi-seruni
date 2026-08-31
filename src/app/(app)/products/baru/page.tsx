@@ -1,9 +1,11 @@
 import { getCategories, getOutlets } from '@/lib/queries';
+import { requireAuthRole } from '@/lib/auth-helpers';
 import { createProduct } from '@/app/actions/products';
 import Link from 'next/link';
 import { ArrowLeft, Save } from 'lucide-react';
 
 export default async function NewProductPage() {
+  await requireAuthRole(['owner', 'manager']);
   let categoryList: any[] = [];
   let outletList: any[] = [];
   try {

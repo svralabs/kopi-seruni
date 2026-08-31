@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { expenses, expenseCategories, outlets } from '@/lib/schema';
 import { getOutlets, getExpenseCategories } from '@/lib/queries';
+import { requireAuthRole } from '@/lib/auth-helpers';
 import ExpensesClient from './expenses-client';
 import { getDateRangeFromParams } from '@/lib/utils';
 import { desc, eq, sql, and, gte, lte } from 'drizzle-orm';
@@ -16,6 +17,7 @@ export default async function ExpensesPage({
     to?: string;
   }>;
 }) {
+  await requireAuthRole(['owner', 'manager']);
   const params = await searchParams;
   const outletId = params?.outletId || 'all';
   const page = Math.max(1, Number(params?.page || 1));

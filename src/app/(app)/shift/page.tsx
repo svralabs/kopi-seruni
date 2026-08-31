@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { shifts, outlets, user } from '@/lib/schema';
 import { getOutlets } from '@/lib/queries';
+import { requireAuthRole } from '@/lib/auth-helpers';
 import ShiftClient from './shift-client';
 import { desc, eq, isNull, and, sql } from 'drizzle-orm';
 
@@ -9,6 +10,7 @@ export default async function ShiftPage({
 }: {
   searchParams?: Promise<{ outletId?: string; page?: string }>;
 }) {
+  await requireAuthRole(['owner', 'manager', 'kasir']);
   const params = await searchParams;
   const outletId = params?.outletId || 'out_default';
   const page = Math.max(1, Number(params?.page || 1));
