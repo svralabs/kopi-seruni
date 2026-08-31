@@ -4,7 +4,7 @@ import { getOutlets, getExpenseCategories } from '@/lib/queries';
 import { requireAuthRole } from '@/lib/auth-helpers';
 import ExpensesClient from './expenses-client';
 import { getDateRangeFromParams } from '@/lib/utils';
-import { desc, eq, sql, and, gte, lte } from 'drizzle-orm';
+import { desc, eq, sql, and, gte, lte, inArray } from 'drizzle-orm';
 
 export default async function ExpensesPage({
   searchParams,
@@ -18,11 +18,9 @@ export default async function ExpensesPage({
   }>;
 }) {
   const params = await searchParams;
-  const { isOwner, effectiveOutletId, accessibleOutlets } = await requireAuthRole(
-    ['owner', 'manager'],
-    params?.outletId
-  );
-  const outletId = isOwner ? (params?.outletId || 'all') : effectiveOutletId;
+  const { isOwner, effectiveOutletId, accessibleOutlets, accessibleOutletIds } =
+    await requireAuthRole(['owner', 'manager'], params?.outletId);
+  const outletId = effectiveOutletId;
   const page = Math.max(1, Number(params?.page || 1));
   const pageSize = 15;
   const offset = (page - 1) * pageSize;
@@ -40,6 +38,8 @@ export default async function ExpensesPage({
     const conditions: any[] = [];
     if (outletId !== 'all') {
       conditions.push(eq(expenses.outletId, outletId));
+    } else {
+      conditions.push(inArray(expenses.outletId, accessibleOutletIds));
     }
     if (startEpoch > 0) conditions.push(gte(expenses.expenseDate, startEpoch));
     if (endEpoch > 0) conditions.push(lte(expenses.expenseDate, endEpoch));

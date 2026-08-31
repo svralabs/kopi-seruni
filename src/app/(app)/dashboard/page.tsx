@@ -3,7 +3,7 @@ import { orders, expenses, orderItems, outlets, user } from '@/lib/schema';
 import { getOutlets } from '@/lib/queries';
 import { requireAuthRole } from '@/lib/auth-helpers';
 import { formatRupiah, formatDateTime, getDateRangeFromParams } from '@/lib/utils';
-import { sql, desc, eq, and, gte, lte } from 'drizzle-orm';
+import { sql, desc, eq, and, gte, lte, inArray } from 'drizzle-orm';
 import Link from 'next/link';
 import {
   TrendingUp,
@@ -22,13 +22,16 @@ export default async function DashboardPage({
 }: {
   searchParams?: Promise<{ period?: string; outletId?: string; from?: string; to?: string }>;
 }) {
-  await requireAuthRole(['owner', 'manager']);
   const resolvedParams = searchParams ? await searchParams : {};
-  const outletId = resolvedParams.outletId || 'all';
+  const { effectiveOutletId, accessibleOutlets, accessibleOutletIds } = await requireAuthRole(
+    ['owner', 'manager'],
+    resolvedParams.outletId
+  );
+  const outletId = effectiveOutletId;
 
   const { startEpoch, endEpoch, label: periodLabel } = getDateRangeFromParams(resolvedParams);
 
-  let allOutlets: any[] = [];
+  let allOutlets: any[] = accessibleOutlets;
   let totalRevenue = 0;
   let totalTrx = 0;
   let totalExpenses = 0;
@@ -40,15 +43,21 @@ export default async function DashboardPage({
     const orderConditions = [eq(orders.status, 'completed')];
     if (startEpoch > 0) orderConditions.push(gte(orders.createdAt, startEpoch));
     if (endEpoch > 0) orderConditions.push(lte(orders.createdAt, endEpoch));
-    if (outletId !== 'all') orderConditions.push(eq(orders.outletId, outletId));
+    if (outletId !== 'all') {
+      orderConditions.push(eq(orders.outletId, outletId));
+    } else {
+      orderConditions.push(inArray(orders.outletId, accessibleOutletIds));
+    }
 
     // Filter conditions for expenses
     const expenseConditions = [];
     if (startEpoch > 0) expenseConditions.push(gte(expenses.expenseDate, startEpoch));
     if (endEpoch > 0) expenseConditions.push(lte(expenses.expenseDate, endEpoch));
-    if (outletId !== 'all') expenseConditions.push(eq(expenses.outletId, outletId));
-
-    const outletsPromise = getOutlets();
+    if (outletId !== 'all') {
+      expenseConditions.push(eq(expenses.outletId, outletId));
+    } else {
+      expenseConditions.push(inArray(expenses.outletId, accessibleOutletIds));
+    }
 
     const revenuePromise = db
       .select({
@@ -82,19 +91,21 @@ export default async function DashboardPage({
       .from(orders)
       .leftJoin(outlets, eq(orders.outletId, outlets.id))
       .leftJoin(user, eq(orders.kasirId, user.id))
-      .where(outletId !== 'all' ? eq(orders.outletId, outletId) : undefined)
+      .where(
+        outletId !== 'all'
+          ? eq(orders.outletId, outletId)
+          : inArray(orders.outletId, accessibleOutletIds)
+      )
       .orderBy(desc(orders.createdAt))
       .limit(5);
 
-    const [outletsRes, revenueRes, expenseRes, cogsRes, recentOrdersRes] = await Promise.all([
-      outletsPromise,
+    const [revenueRes, expenseRes, cogsRes, recentOrdersRes] = await Promise.all([
       revenuePromise,
       expensePromise,
       cogsPromise,
       recentOrdersPromise,
     ]);
 
-    allOutlets = outletsRes;
     totalRevenue = Number(revenueRes[0]?.total || 0);
     totalTrx = Number(revenueRes[0]?.count || 0);
     totalExpenses = Number(expenseRes[0]?.total || 0);

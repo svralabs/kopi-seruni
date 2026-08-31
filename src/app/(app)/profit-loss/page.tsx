@@ -3,7 +3,7 @@ import { orders, expenses, orderItems, outlets } from '@/lib/schema';
 import { getOutlets } from '@/lib/queries';
 import { requireAuthRole } from '@/lib/auth-helpers';
 import { formatRupiah, getDateRangeFromParams } from '@/lib/utils';
-import { sql, eq, and, gte, lte } from 'drizzle-orm';
+import { sql, eq, and, gte, lte, inArray } from 'drizzle-orm';
 import Link from 'next/link';
 import { TrendingUp, Coins, Receipt, WalletCards, BarChart3, Store, FileSpreadsheet } from 'lucide-react';
 
@@ -12,13 +12,16 @@ export default async function ProfitLossPage({
 }: {
   searchParams?: Promise<{ period?: string; outletId?: string; from?: string; to?: string }>;
 }) {
-  await requireAuthRole(['owner']);
   const resolvedParams = searchParams ? await searchParams : {};
-  const outletId = resolvedParams.outletId || 'all';
+  const { effectiveOutletId, accessibleOutlets, accessibleOutletIds } = await requireAuthRole(
+    ['owner'],
+    resolvedParams.outletId
+  );
+  const outletId = effectiveOutletId;
 
   const { startEpoch, endEpoch, label: periodLabel } = getDateRangeFromParams(resolvedParams);
 
-  let allOutlets: any[] = [];
+  let allOutlets: any[] = accessibleOutlets;
   let totalRevenue = 0;
   let totalCOGS = 0;
   let totalExpenses = 0;
@@ -27,15 +30,22 @@ export default async function ProfitLossPage({
     const orderConditions = [eq(orders.status, 'completed')];
     if (startEpoch > 0) orderConditions.push(gte(orders.createdAt, startEpoch));
     if (endEpoch > 0) orderConditions.push(lte(orders.createdAt, endEpoch));
-    if (outletId !== 'all') orderConditions.push(eq(orders.outletId, outletId));
+    if (outletId !== 'all') {
+      orderConditions.push(eq(orders.outletId, outletId));
+    } else {
+      orderConditions.push(inArray(orders.outletId, accessibleOutletIds));
+    }
 
     const expenseConditions = [];
     if (startEpoch > 0) expenseConditions.push(gte(expenses.expenseDate, startEpoch));
     if (endEpoch > 0) expenseConditions.push(lte(expenses.expenseDate, endEpoch));
-    if (outletId !== 'all') expenseConditions.push(eq(expenses.outletId, outletId));
+    if (outletId !== 'all') {
+      expenseConditions.push(eq(expenses.outletId, outletId));
+    } else {
+      expenseConditions.push(inArray(expenses.outletId, accessibleOutletIds));
+    }
 
-    const [outletsRes, revenueQuery, cogsQuery, expenseQuery] = await Promise.all([
-      getOutlets(),
+    const [revenueQuery, cogsQuery, expenseQuery] = await Promise.all([
       db
         .select({ total: sql<number>`COALESCE(SUM(total), 0)` })
         .from(orders)
@@ -53,7 +63,6 @@ export default async function ProfitLossPage({
         .where(expenseConditions.length > 0 ? and(...expenseConditions) : undefined),
     ]);
 
-    allOutlets = outletsRes;
     totalRevenue = Number(revenueQuery[0]?.total || 0);
     totalCOGS = Number(cogsQuery[0]?.totalCost || 0);
     totalExpenses = Number(expenseQuery[0]?.total || 0);

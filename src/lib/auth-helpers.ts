@@ -14,15 +14,16 @@ export async function getSession() {
 
 /**
  * Ambil daftar outlet yang boleh diakses user berdasarkan role per cabang.
- * - Owner: Akses semua outlet + opsi 'all' (Semua Cabang)
- * - Manager / Kasir: HANYA outlet yang secara eksplisit di-assign ke user tersebut
+ * - User (Owner, Manager, Kasir) HANYA memiliki akses ke outlet yang secara eksplisit di-assign.
  */
 export async function getUserAccessibleOutlets(userId: string): Promise<{
   outlets: Outlet[];
   isOwner: boolean;
+  isGlobalOwner: boolean;
   userRole: AppRole;
   primaryOutletId: string;
   userRoles: Array<{ outletId: string; role: AppRole }>;
+  accessibleOutletIds: string[];
 }> {
   const allOutlets = await getOutlets();
   const roles = await db
@@ -31,12 +32,15 @@ export async function getUserAccessibleOutlets(userId: string): Promise<{
     .where(eq(userOutletRoles.userId, userId));
 
   if (roles.length === 0) {
+    const fallback = allOutlets.slice(0, 1);
     return {
-      outlets: allOutlets.slice(0, 1),
+      outlets: fallback,
       isOwner: false,
+      isGlobalOwner: false,
       userRole: 'kasir',
-      primaryOutletId: allOutlets[0]?.id || 'out_default',
+      primaryOutletId: fallback[0]?.id || 'out_default',
       userRoles: [],
+      accessibleOutletIds: fallback.map((o) => o.id),
     };
   }
 
@@ -44,27 +48,20 @@ export async function getUserAccessibleOutlets(userId: string): Promise<{
   const isManager = roles.some((r) => r.role === 'manager');
   const userRole: AppRole = isOwner ? 'owner' : isManager ? 'manager' : 'kasir';
 
-  if (isOwner) {
-    return {
-      outlets: allOutlets,
-      isOwner: true,
-      userRole: 'owner',
-      primaryOutletId: allOutlets[0]?.id || 'out_default',
-      userRoles: roles as any[],
-    };
-  }
-
-  // Kasir & Manajer hanya melihat cabang yang di-assign
   const allowedOutletIds = new Set(roles.map((r) => r.outletId));
   const filteredOutlets = allOutlets.filter((o) => allowedOutletIds.has(o.id));
   const finalOutlets = filteredOutlets.length > 0 ? filteredOutlets : allOutlets.slice(0, 1);
+  const accessibleOutletIds = finalOutlets.map((o) => o.id);
+  const isGlobalOwner = isOwner && finalOutlets.length >= allOutlets.length;
 
   return {
     outlets: finalOutlets,
-    isOwner: false,
+    isOwner,
+    isGlobalOwner,
     userRole,
     primaryOutletId: finalOutlets[0]?.id || 'out_default',
     userRoles: roles as any[],
+    accessibleOutletIds,
   };
 }
 
@@ -88,7 +85,6 @@ export async function getCurrentUserRole(
     return { role: 'kasir', outletId: null, allRoles: [] };
   }
 
-  // Jika user punya role owner di cabang manapun, berikan previlege owner
   const isOwner = roles.some((r) => r.role === 'owner');
   const isManager = roles.some((r) => r.role === 'manager');
 
@@ -125,11 +121,17 @@ export async function requireAuthRole(allowedRoles: AppRole[], requestedOutletId
     redirect('/login');
   }
 
-  const { outlets: accessibleOutlets, isOwner, userRole, primaryOutletId, userRoles } =
-    await getUserAccessibleOutlets(session.user.id);
+  const {
+    outlets: accessibleOutlets,
+    isOwner,
+    isGlobalOwner,
+    userRole,
+    primaryOutletId,
+    userRoles,
+    accessibleOutletIds,
+  } = await getUserAccessibleOutlets(session.user.id);
 
   if (!allowedRoles.includes(userRole)) {
-    // Jika kasir mencoba akses menu admin/owner, lempar ke POS
     if (userRole === 'kasir') {
       redirect('/pos');
     }
@@ -137,21 +139,29 @@ export async function requireAuthRole(allowedRoles: AppRole[], requestedOutletId
   }
 
   // Tentukan outlet yang valid untuk user ini:
+  // User (baik Owner, Manager, atau Kasir) HANYA bisa mengakses outlet yang ada di accessibleOutlets miliknya.
   let effectiveOutletId = primaryOutletId;
-  if (isOwner) {
-    effectiveOutletId = requestedOutletId || primaryOutletId;
-  } else if (requestedOutletId && requestedOutletId !== 'all') {
-    const hasAccess = accessibleOutlets.some((o) => o.id === requestedOutletId);
+  if (requestedOutletId && requestedOutletId !== 'all') {
+    const hasAccess = accessibleOutletIds.includes(requestedOutletId);
     effectiveOutletId = hasAccess ? requestedOutletId : primaryOutletId;
+  } else if (requestedOutletId === 'all') {
+    // Jika meminta 'all' tapi hanya punya 1 outlet, clamp ke single outlet-nya
+    if (accessibleOutlets.length === 1) {
+      effectiveOutletId = primaryOutletId;
+    } else {
+      effectiveOutletId = 'all';
+    }
   }
 
   return {
     session,
     role: userRole,
     isOwner,
+    isGlobalOwner,
     userOutletId: primaryOutletId,
     allRoles: userRoles,
     accessibleOutlets,
+    accessibleOutletIds,
     effectiveOutletId,
   };
 }

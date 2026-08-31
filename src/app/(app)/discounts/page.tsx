@@ -3,7 +3,7 @@ import { discounts, outlets } from '@/lib/schema';
 import { getOutlets } from '@/lib/queries';
 import { requireAuthRole } from '@/lib/auth-helpers';
 import DiscountsClient from './discount-client';
-import { isNull, desc, eq, and } from 'drizzle-orm';
+import { isNull, desc, eq, and, inArray } from 'drizzle-orm';
 
 export default async function DiscountsPage({
   searchParams,
@@ -11,11 +11,9 @@ export default async function DiscountsPage({
   searchParams?: Promise<{ outletId?: string }>;
 }) {
   const resolvedParams = searchParams ? await searchParams : {};
-  const { isOwner, effectiveOutletId, accessibleOutlets } = await requireAuthRole(
-    ['owner', 'manager'],
-    resolvedParams.outletId
-  );
-  const outletId = isOwner ? (resolvedParams.outletId || 'all') : effectiveOutletId;
+  const { isOwner, effectiveOutletId, accessibleOutlets, accessibleOutletIds } =
+    await requireAuthRole(['owner', 'manager'], resolvedParams.outletId);
+  const outletId = effectiveOutletId;
 
   let allOutlets: any[] = accessibleOutlets;
   let discountsList: any[] = [];
@@ -24,6 +22,8 @@ export default async function DiscountsPage({
     const conditions = [isNull(discounts.deletedAt)];
     if (outletId !== 'all') {
       conditions.push(eq(discounts.outletId, outletId));
+    } else {
+      conditions.push(inArray(discounts.outletId, accessibleOutletIds));
     }
 
     const [rawDiscounts] = await Promise.all([

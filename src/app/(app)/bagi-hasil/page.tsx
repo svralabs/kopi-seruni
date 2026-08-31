@@ -10,17 +10,19 @@ export default async function BagiHasilPage({
 }: {
   searchParams?: Promise<{ outletId?: string }>;
 }) {
-  await requireAuthRole(['owner']);
   const resolvedParams = searchParams ? await searchParams : {};
-  const outletId = resolvedParams.outletId || 'out_default';
+  const { effectiveOutletId, accessibleOutlets } = await requireAuthRole(
+    ['owner'],
+    resolvedParams.outletId
+  );
+  const outletId = effectiveOutletId;
 
-  let allOutlets: any[] = [];
+  let allOutlets: any[] = accessibleOutlets;
   let rulesList: any[] = [];
   let ledgerList: any[] = [];
 
   try {
-    const [outletsRes, rulesRes, rawLedger] = await Promise.all([
-      getOutlets(),
+    const [rulesRes, rawLedger] = await Promise.all([
       getProfitSharingRules(outletId),
       db
         .select({
@@ -33,7 +35,6 @@ export default async function BagiHasilPage({
         .orderBy(desc(profitSharingLedger.createdAt)),
     ]);
 
-    allOutlets = outletsRes;
     rulesList = rulesRes;
     ledgerList = rawLedger.map((r) => ({
       ...r.ledger,

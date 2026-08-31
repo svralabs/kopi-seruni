@@ -3,7 +3,7 @@ import { orders, outlets, user } from '@/lib/schema';
 import { getOutlets } from '@/lib/queries';
 import { requireAuthRole } from '@/lib/auth-helpers';
 import OrdersClient, { type OrderWithDetails } from './orders-client';
-import { desc, asc, eq, sql, and, like, or, gte, lte } from 'drizzle-orm';
+import { desc, asc, eq, sql, and, like, or, gte, lte, inArray } from 'drizzle-orm';
 import { getDateRangeFromParams } from '@/lib/utils';
 
 export default async function OrdersPage({
@@ -23,11 +23,9 @@ export default async function OrdersPage({
   }>;
 }) {
   const params = await searchParams;
-  const { role, isOwner, effectiveOutletId, accessibleOutlets } = await requireAuthRole(
-    ['owner', 'manager', 'kasir'],
-    params?.outletId
-  );
-  const outletId = isOwner ? (params?.outletId || 'all') : effectiveOutletId;
+  const { role, isOwner, effectiveOutletId, accessibleOutlets, accessibleOutletIds } =
+    await requireAuthRole(['owner', 'manager', 'kasir'], params?.outletId);
+  const outletId = effectiveOutletId;
   const page = Math.max(1, Number(params?.page || 1));
   const pageSize = 15;
   const offset = (page - 1) * pageSize;
@@ -43,6 +41,8 @@ export default async function OrdersPage({
     const conditions = [];
     if (outletId !== 'all') {
       conditions.push(eq(orders.outletId, outletId));
+    } else {
+      conditions.push(inArray(orders.outletId, accessibleOutletIds));
     }
     
     if (startEpoch > 0) {

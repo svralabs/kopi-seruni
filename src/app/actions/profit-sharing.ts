@@ -2,7 +2,7 @@
 
 import { db } from '@/lib/db';
 import { profitSharingRules, profitSharingLedger, orders, orderItems, expenses } from '@/lib/schema';
-import { getSession } from '@/lib/auth-helpers';
+import { getSession, getUserAccessibleOutlets } from '@/lib/auth-helpers';
 import { calcShare } from '@/lib/utils';
 import { eq, and, sql, gte, lte } from 'drizzle-orm';
 import { revalidatePath, revalidateTag } from 'next/cache';
@@ -15,6 +15,11 @@ export async function createRule(formData: FormData) {
   const name = formData.get('name') as string;
   const percentage = Math.round(Number(formData.get('percentage')) || 0);
   const outletId = (formData.get('outletId') as string) || 'out_default';
+
+  const { accessibleOutletIds } = await getUserAccessibleOutlets(session.user.id);
+  if (!accessibleOutletIds.includes(outletId)) {
+    throw new Error('Akses Ditolak: Anda tidak memiliki izin untuk mengelola bagi hasil di cabang ini.');
+  }
 
   if (!name || percentage <= 0 || percentage > 100) {
     throw new Error('Nama penerima dan persentase (1-100%) wajib diisi');
@@ -161,6 +166,11 @@ export async function generateProfitSharing(
 ) {
   const session = await getSession();
   if (!session) redirect('/login');
+
+  const { accessibleOutletIds } = await getUserAccessibleOutlets(session.user.id);
+  if (!accessibleOutletIds.includes(outletId)) {
+    throw new Error('Akses Ditolak: Anda tidak memiliki izin untuk mengelola bagi hasil di cabang ini.');
+  }
 
   let calculatedNetProfit = manualNetProfit || 0;
 

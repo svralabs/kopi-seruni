@@ -3,7 +3,7 @@ import { products, outlets } from '@/lib/schema';
 import { getOutlets, getCategories } from '@/lib/queries';
 import { requireAuthRole } from '@/lib/auth-helpers';
 import ProductsClient from './products-client';
-import { isNull, desc, sql, eq, and } from 'drizzle-orm';
+import { isNull, desc, sql, eq, and, inArray } from 'drizzle-orm';
 
 export default async function ProductsPage({
   searchParams,
@@ -11,11 +11,9 @@ export default async function ProductsPage({
   searchParams?: Promise<{ page?: string; outletId?: string }>;
 }) {
   const params = searchParams ? await searchParams : {};
-  const { isOwner, effectiveOutletId, accessibleOutlets } = await requireAuthRole(
-    ['owner', 'manager'],
-    params.outletId
-  );
-  const outletId = isOwner ? (params.outletId || 'all') : effectiveOutletId;
+  const { isOwner, effectiveOutletId, accessibleOutlets, accessibleOutletIds } =
+    await requireAuthRole(['owner', 'manager'], params.outletId);
+  const outletId = effectiveOutletId;
   const page = Math.max(1, Number(params.page || 1));
   const pageSize = 15;
   const offset = (page - 1) * pageSize;
@@ -31,6 +29,8 @@ export default async function ProductsPage({
     const conditions = [isNull(products.deletedAt)];
     if (outletId !== 'all') {
       conditions.push(eq(products.outletId, outletId));
+    } else {
+      conditions.push(inArray(products.outletId, accessibleOutletIds));
     }
     const whereClause = and(...conditions);
 

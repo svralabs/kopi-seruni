@@ -145,13 +145,47 @@ describe('E2E Integration Test: Multi-Owner Profit Sharing & Outlet-Scoped RBAC'
     expect(updatedRole.role).toBe('manager');
     expect(updatedRole.outletId).toBe(OUTLET_2);
 
+    await db.delete(userOutletRoles).where(eq(userOutletRoles.userId, testUserId));
+    await db.delete(user).where(eq(user.id, testUserId));
+  });
+
+  it('Step 5: Specific-Outlet Owner Isolation (Owner Outlet 2 cannot access Outlet 1)', async () => {
+    const ownerUserId = `usr_owner_o2_${now}`;
+    await db.insert(user).values({
+      id: ownerUserId,
+      name: 'Owner Cabang 2 Only',
+      email: `owner2_${now}@seruni.test`,
+      emailVerified: true,
+    });
+
+    // Assign as Owner ONLY for OUTLET_2
+    await db.insert(userOutletRoles).values({
+      id: `uor_owner2_${now}`,
+      userId: ownerUserId,
+      outletId: OUTLET_2,
+      role: 'owner',
+      createdAt: now,
+    });
+
+    const roles = await db
+      .select({ outletId: userOutletRoles.outletId, role: userOutletRoles.role })
+      .from(userOutletRoles)
+      .where(eq(userOutletRoles.userId, ownerUserId));
+
+    const userRolesOutlets = roles.map((r) => r.outletId);
+    expect(roles.some((r) => r.role === 'owner')).toBe(true);
+    expect(userRolesOutlets.includes(OUTLET_2)).toBe(true);
+    expect(userRolesOutlets.includes(OUTLET_1)).toBe(false);
+
+    // Cleanup
+    await db.delete(userOutletRoles).where(eq(userOutletRoles.userId, ownerUserId));
+    await db.delete(user).where(eq(user.id, ownerUserId));
+
     // Cleanup test outlets
     await db.delete(profitSharingLedger).where(eq(profitSharingLedger.outletId, OUTLET_1));
     await db.delete(profitSharingLedger).where(eq(profitSharingLedger.outletId, OUTLET_2));
     await db.delete(profitSharingRules).where(eq(profitSharingRules.outletId, OUTLET_1));
     await db.delete(profitSharingRules).where(eq(profitSharingRules.outletId, OUTLET_2));
-    await db.delete(userOutletRoles).where(eq(userOutletRoles.userId, testUserId));
-    await db.delete(user).where(eq(user.id, testUserId));
     await db.delete(outlets).where(eq(outlets.id, OUTLET_1));
     await db.delete(outlets).where(eq(outlets.id, OUTLET_2));
   });
