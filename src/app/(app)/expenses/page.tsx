@@ -43,7 +43,7 @@ export default async function ExpensesPage({
 
     const [outletsRes, categoryRes, countAndSumRes, rawExpenses] = await Promise.all([
       getOutlets(),
-      getExpenseCategories(),
+      getExpenseCategories(outletId),
       db
         .select({
           count: sql<number>`COUNT(*)`,

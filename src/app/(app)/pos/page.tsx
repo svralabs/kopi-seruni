@@ -30,9 +30,15 @@ export default async function POSPage({
         db
           .select()
           .from(products)
-          .where(and(eq(products.isActive, 1), isNull(products.deletedAt))),
-        getCategories(),
-        getActiveDiscounts(),
+          .where(
+            and(
+              eq(products.outletId, targetOutletId),
+              eq(products.isActive, 1),
+              isNull(products.deletedAt)
+            )
+          ),
+        getCategories(targetOutletId),
+        getActiveDiscounts(targetOutletId),
         db
           .select()
           .from(shifts)

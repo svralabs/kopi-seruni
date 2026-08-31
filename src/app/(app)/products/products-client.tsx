@@ -45,12 +45,18 @@ export default function ProductsClient({
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
 
+  const outletMap = Object.fromEntries(outlets.map((o) => [o.id, o.name]));
+  const uniqueCategoryNames = Array.from(new Set(categoriesList.map((c) => c.name)));
+
   const activeCount = productList.filter((p) => p.isActive).length;
   const noHppCount = productList.filter((p) => !p.costPrice || p.costPrice === 0).length;
 
   const filteredList = productList.filter((p) => {
     const matchQuery = p.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchCategory = categoryFilter === 'all' ? true : p.categoryId === categoryFilter;
+    const matchCategory =
+      categoryFilter === 'all'
+        ? true
+        : p.categoryId === categoryFilter || categoryMap[p.categoryId] === categoryFilter;
     return matchQuery && matchCategory;
   });
 
@@ -137,18 +143,18 @@ export default function ProductsClient({
             >
               Semua Kategori
             </button>
-            {categoriesList.map((c) => (
+            {uniqueCategoryNames.map((name) => (
               <button
-                key={c.id}
+                key={name}
                 type="button"
-                onClick={() => setCategoryFilter(c.id)}
+                onClick={() => setCategoryFilter(name)}
                 className={`px-3 py-1.5 rounded-xl font-bold text-xs whitespace-nowrap transition-all ${
-                  categoryFilter === c.id
+                  categoryFilter === name
                     ? 'bg-[#2E2520] text-white shadow-xs'
                     : 'bg-[#F9F7F2] text-[#8E867C] hover:text-[#201C1A] border border-[#E5E0D6]'
                 }`}
               >
-                {c.name}
+                {name}
               </button>
             ))}
           </div>
@@ -423,7 +429,7 @@ export default function ProductsClient({
                     <option value="">-- Tanpa Kategori --</option>
                     {categoriesList.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.name}
+                        {c.name} {currentOutletId === 'all' && outletMap[c.outletId] ? `(${outletMap[c.outletId]})` : ''}
                       </option>
                     ))}
                   </select>

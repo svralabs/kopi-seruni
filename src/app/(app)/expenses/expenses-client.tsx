@@ -41,6 +41,7 @@ export default function ExpensesClient({
   const [searchQuery, setSearchQuery] = useState('');
   const [isPending, startTransition] = useTransition();
 
+  const outletMap = Object.fromEntries(outlets.map((o) => [o.id, o.name]));
   const averageAmount = totalItems > 0 ? Math.round(totalAmount / totalItems) : 0;
 
   const handleDelete = (id: string) => {
@@ -281,7 +282,7 @@ export default function ExpensesClient({
                     <option value="">Umum / Lainnya</option>
                     {categories.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.name}
+                        {c.name} {outletMap[c.outletId] ? `(${outletMap[c.outletId]})` : ''}
                       </option>
                     ))}
                   </select>
@@ -387,7 +388,7 @@ export default function ExpensesClient({
                     <option value="">Umum / Lainnya</option>
                     {categories.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.name}
+                        {c.name} {outletMap[c.outletId] ? `(${outletMap[c.outletId]})` : ''}
                       </option>
                     ))}
                   </select>

@@ -1,15 +1,20 @@
-import { getCategories } from '@/lib/queries';
+import { getCategories, getOutlets } from '@/lib/queries';
 import { createProduct } from '@/app/actions/products';
 import Link from 'next/link';
 import { ArrowLeft, Save } from 'lucide-react';
 
 export default async function NewProductPage() {
   let categoryList: any[] = [];
+  let outletList: any[] = [];
   try {
-    categoryList = await getCategories();
+    const [cats, outs] = await Promise.all([getCategories(), getOutlets()]);
+    categoryList = cats;
+    outletList = outs;
   } catch (e) {
-    console.warn('Categories query error:', e);
+    console.warn('Categories/outlets query error:', e);
   }
+
+  const outletMap = Object.fromEntries(outletList.map((o) => [o.id, o.name]));
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -28,17 +33,36 @@ export default async function NewProductPage() {
 
       <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-xs p-6">
         <form action={createProduct} className="space-y-4 text-xs">
-          <div>
-            <label className="block font-bold text-[#4A4238] mb-1.5">
-              Nama Produk / Menu <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              name="name"
-              required
-              placeholder="Contoh: Es Kopi Susu Seruni"
-              className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block font-bold text-[#4A4238] mb-1.5">
+                Nama Produk / Menu <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                name="name"
+                required
+                placeholder="Contoh: Es Kopi Susu Seruni"
+                className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-[#4A4238] mb-1.5">
+                Cabang Penempatan <span className="text-red-500">*</span>
+              </label>
+              <select
+                name="outletId"
+                required
+                className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-medium"
+              >
+                {outletList.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -51,7 +75,7 @@ export default async function NewProductPage() {
                 <option value="">-- Pilih Kategori --</option>
                 {categoryList.map((cat) => (
                   <option key={cat.id} value={cat.id}>
-                    {cat.name}
+                    {cat.name} {outletMap[cat.outletId] ? `(${outletMap[cat.outletId]})` : ''}
                   </option>
                 ))}
               </select>

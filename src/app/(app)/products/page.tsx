@@ -46,7 +46,7 @@ export default async function ProductsPage({
         .orderBy(desc(products.createdAt))
         .limit(pageSize)
         .offset(offset),
-      getCategories(),
+      getCategories(outletId),
     ]);
 
     allOutlets = outletsRes;
