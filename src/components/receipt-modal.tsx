@@ -144,12 +144,17 @@ export default function ReceiptModal({
               paperWidth === 48 ? 'max-w-[380px]' : 'max-w-[320px]'
             }`}
           >
-            {/* Header Struk */}
+            {/* Header Struk: Logo Kopi Seruni (Hitam Putih) */}
             <div className="text-center space-y-1 border-b border-dashed border-[#CBC4B8] pb-3">
-              <h2 className="font-serif font-black text-base uppercase tracking-tight text-[#201C1A]">
-                TOKO KOPI SERUNI
-              </h2>
-              <p className="text-[11px] font-sans font-semibold text-[#54382B]">
+              <div className="flex justify-center pb-1">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/logo-receipt.png"
+                  alt="Logo Kopi Seruni"
+                  className="w-16 h-16 object-contain filter grayscale contrast-200 mx-auto"
+                />
+              </div>
+              <p className="text-[11px] font-sans font-bold text-[#201C1A]">
                 {receipt.outletName}
               </p>
               {receipt.outletAddress && (
@@ -340,6 +345,14 @@ export default function ReceiptModal({
             background: #ffffff !important;
             color: #000000 !important;
             font-family: monospace, 'Courier New', Courier, sans-serif !important;
+          }
+          #thermal-receipt img {
+            max-width: 24mm !important;
+            height: auto !important;
+            margin: 0 auto 1.5mm auto !important;
+            display: block !important;
+            filter: grayscale(100%) contrast(200%) !important;
+            -webkit-filter: grayscale(100%) contrast(200%) !important;
           }
         }
       `}</style>
