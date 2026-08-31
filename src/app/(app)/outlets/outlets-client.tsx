@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { createOutlet, updateOutlet } from '@/app/actions/outlets';
 import { formatDate } from '@/lib/utils';
 import type { Outlet } from '@/lib/schema';
+import { toast } from '@/lib/toast';
 import { 
   Store, 
   Plus, 
@@ -195,8 +196,13 @@ export default function OutletsClient({
 
             <form
               action={async (formData) => {
-                await createOutlet(formData);
-                setIsModalOpen(false);
+                try {
+                  await createOutlet(formData);
+                  toast.success('Cabang outlet baru berhasil didaftarkan');
+                  setIsModalOpen(false);
+                } catch (err: any) {
+                  toast.error(err?.message || 'Gagal mendaftarkan cabang');
+                }
               }}
               className="space-y-3.5 text-xs"
             >
@@ -273,8 +279,13 @@ export default function OutletsClient({
 
             <form
               action={async (formData) => {
-                await updateOutlet(editingOutlet.id, formData);
-                setEditingOutlet(null);
+                try {
+                  await updateOutlet(editingOutlet.id, formData);
+                  toast.success(`Data cabang "${editingOutlet.name}" berhasil diperbarui`);
+                  setEditingOutlet(null);
+                } catch (err: any) {
+                  toast.error(err?.message || 'Gagal memperbarui cabang');
+                }
               }}
               className="space-y-3.5 text-xs"
             >

@@ -4,6 +4,8 @@ import { useState, useTransition } from 'react';
 import { formatRupiah, formatDateTime } from '@/lib/utils';
 import { createPurchaseOrder, receivePurchaseOrder, cancelPurchaseOrder } from '@/app/actions/purchases';
 import type { Outlet, Product } from '@/lib/schema';
+import ConfirmModal from '@/components/confirm-modal';
+import { toast } from '@/lib/toast';
 import { 
   Plus, 
   PackageCheck, 
@@ -12,14 +14,15 @@ import {
   Clock, 
   CheckCircle, 
   X, 
-  Search,
-  ArrowRight
+  Search, 
+  ArrowRight 
 } from 'lucide-react';
 
 export interface PurchaseOrderRecord {
   id: string;
   outletId: string;
   outletName: string;
+  productId?: string;
   productName: string;
   quantity: number;
   unitCost: number;
@@ -34,18 +37,24 @@ export default function PurchasesClient({
   ordersList,
   productsList,
   outlets,
+  currentOutletId = 'all',
 }: {
   ordersList: PurchaseOrderRecord[];
-  productsList: Product[];
+  productsList: any[];
   outlets: Outlet[];
+  currentOutletId?: string;
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedProductId, setSelectedProductId] = useState('');
-  const [quantity, setQuantity] = useState(1);
-  const [unitCost, setUnitCost] = useState(0);
+  const [receivingPo, setReceivingPo] = useState<PurchaseOrderRecord | null>(null);
+  const [cancellingPo, setCancellingPo] = useState<PurchaseOrderRecord | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'ordered' | 'received' | 'cancelled'>('all');
   const [isPending, startTransition] = useTransition();
+
+  // Form State
+  const [selectedProductId, setSelectedProductId] = useState('');
+  const [quantity, setQuantity] = useState(1);
+  const [unitCost, setUnitCost] = useState(0);
 
   const handleProductChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const prodId = e.target.value;
@@ -58,17 +67,29 @@ export default function PurchasesClient({
     }
   };
 
-  const handleReceive = (poId: string, outletId: string) => {
-    if (!confirm('Konfirmasi penerimaan barang? Stok produk akan otomatis bertambah.')) return;
+  const handleConfirmReceive = () => {
+    if (!receivingPo) return;
     startTransition(async () => {
-      await receivePurchaseOrder(poId, outletId);
+      try {
+        await receivePurchaseOrder(receivingPo.id, receivingPo.outletId);
+        toast.success(`Barang PO #${receivingPo.id} berhasil diterima & stok bertambah`);
+        setReceivingPo(null);
+      } catch (err: any) {
+        toast.error(err?.message || 'Gagal menerima barang PO');
+      }
     });
   };
 
-  const handleCancel = (poId: string) => {
-    if (!confirm('Yakin ingin membatalkan Purchase Order ini?')) return;
+  const handleConfirmCancel = () => {
+    if (!cancellingPo) return;
     startTransition(async () => {
-      await cancelPurchaseOrder(poId);
+      try {
+        await cancelPurchaseOrder(cancellingPo.id);
+        toast.success(`Purchase Order #${cancellingPo.id} berhasil dibatalkan`);
+        setCancellingPo(null);
+      } catch (err: any) {
+        toast.error(err?.message || 'Gagal membatalkan PO');
+      }
     });
   };
 
@@ -236,8 +257,8 @@ export default function PurchasesClient({
                         <button
                           type="button"
                           disabled={isPending}
-                          onClick={() => handleReceive(po.id, po.outletId)}
-                          className="px-3 py-1.5 bg-[#2D7A47] hover:bg-[#236338] text-white font-bold rounded-xl text-xs transition-colors inline-flex items-center gap-1 shadow-xs"
+                          onClick={() => setReceivingPo(po)}
+                          className="px-3 py-1.5 bg-[#2D7A47] hover:bg-[#236338] text-white font-bold rounded-xl text-xs transition-colors inline-flex items-center gap-1 shadow-xs cursor-pointer"
                         >
                           <PackageCheck className="w-3.5 h-3.5" />
                           <span>Terima Barang</span>
@@ -245,8 +266,8 @@ export default function PurchasesClient({
                         <button
                           type="button"
                           disabled={isPending}
-                          onClick={() => handleCancel(po.id)}
-                          className="px-2.5 py-1.5 bg-[#FAF8F5] hover:bg-[#FBEBE8] text-[#964B3B] font-bold rounded-xl text-xs border border-[#E5E0D6] transition-colors"
+                          onClick={() => setCancellingPo(po)}
+                          className="px-2.5 py-1.5 bg-[#FAF8F5] hover:bg-[#FBEBE8] text-[#964B3B] font-bold rounded-xl text-xs border border-[#E5E0D6] transition-colors cursor-pointer"
                         >
                           Batal
                         </button>
@@ -292,8 +313,13 @@ export default function PurchasesClient({
 
             <form
               action={async (formData) => {
-                await createPurchaseOrder(formData);
-                setIsModalOpen(false);
+                try {
+                  await createPurchaseOrder(formData);
+                  toast.success('Purchase Order berhasil dibuat');
+                  setIsModalOpen(false);
+                } catch (err: any) {
+                  toast.error(err?.message || 'Gagal membuat Purchase Order');
+                }
               }}
               className="space-y-3.5 text-xs"
             >
@@ -389,13 +415,13 @@ export default function PurchasesClient({
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-2.5 border border-[#E5E0D6] text-[#7A7268] font-bold rounded-2xl hover:bg-[#FAF8F5]"
+                  className="flex-1 py-2.5 border border-[#E5E0D6] text-[#7A7268] font-bold rounded-2xl hover:bg-[#FAF8F5] cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl shadow-xs"
+                  className="flex-1 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl shadow-xs cursor-pointer"
                 >
                   Kirim Purchase Order
                 </button>
@@ -404,6 +430,53 @@ export default function PurchasesClient({
           </div>
         </div>
       )}
+
+      {/* 4. MODAL: KONFIRMASI TERIMA BARANG */}
+      <ConfirmModal
+        isOpen={!!receivingPo}
+        title="Konfirmasi Penerimaan Barang?"
+        description="Barang pesanan telah sampai di cabang. Stok produk di cabang terkait akan otomatis bertambah."
+        confirmLabel="Terima & Tambah Stok"
+        cancelLabel="Batal"
+        variant="success"
+        isPending={isPending}
+        onClose={() => setReceivingPo(null)}
+        onConfirm={handleConfirmReceive}
+        itemDetails={
+          receivingPo
+            ? [
+                { label: 'No. PO', value: receivingPo.id },
+                { label: 'Produk', value: receivingPo.productName },
+                { label: 'Cabang Penerima', value: receivingPo.outletName },
+                { label: 'Jumlah Masuk', value: `${receivingPo.quantity} pcs` },
+                { label: 'Total Nilai', value: formatRupiah(receivingPo.total) },
+              ]
+            : undefined
+        }
+      />
+
+      {/* 5. MODAL: KONFIRMASI BATAL PO */}
+      <ConfirmModal
+        isOpen={!!cancellingPo}
+        title="Batalkan Purchase Order?"
+        description="Pesanan pembelian bahan ini akan dibatalkan."
+        confirmLabel="Batalkan PO"
+        cancelLabel="Kembali"
+        variant="danger"
+        isPending={isPending}
+        onClose={() => setCancellingPo(null)}
+        onConfirm={handleConfirmCancel}
+        itemDetails={
+          cancellingPo
+            ? [
+                { label: 'No. PO', value: cancellingPo.id },
+                { label: 'Produk', value: cancellingPo.productName },
+                { label: 'Cabang', value: cancellingPo.outletName },
+                { label: 'Total', value: formatRupiah(cancellingPo.total) },
+              ]
+            : undefined
+        }
+      />
     </div>
   );
 }

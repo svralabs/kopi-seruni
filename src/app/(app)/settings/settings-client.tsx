@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { saveSettings } from '@/app/actions/settings';
 import type { Outlet } from '@/lib/schema';
+import { toast } from '@/lib/toast';
 import { Settings, Printer, Percent, MapPin, Phone, CheckCircle2, ArrowRight, Store } from 'lucide-react';
 
 export default function SettingsClient({
@@ -24,10 +25,15 @@ export default function SettingsClient({
     const formData = new FormData(e.currentTarget);
 
     startTransition(async () => {
-      await saveSettings(formData);
-      setIsSaved(true);
-      setTimeout(() => setIsSaved(false), 3000);
-      router.refresh();
+      try {
+        await saveSettings(formData);
+        toast.success(`Pengaturan cabang "${currentOutlet.name}" berhasil disimpan!`);
+        setIsSaved(true);
+        setTimeout(() => setIsSaved(false), 3000);
+        router.refresh();
+      } catch (err: any) {
+        toast.error(err?.message || 'Gagal menyimpan pengaturan');
+      }
     });
   };
 

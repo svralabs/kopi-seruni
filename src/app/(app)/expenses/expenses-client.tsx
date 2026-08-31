@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { formatRupiah, formatDateTime } from '@/lib/utils';
+import { formatRupiah, formatDate, formatDateTime } from '@/lib/utils';
 import { createExpense, updateExpense, deleteExpense } from '@/app/actions/expenses';
 import type { Outlet } from '@/lib/schema';
+import ConfirmModal from '@/components/confirm-modal';
+import { toast } from '@/lib/toast';
 import { 
   Plus, 
   WalletCards, 
@@ -38,16 +40,23 @@ export default function ExpensesClient({
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<any | null>(null);
+  const [deletingExpense, setDeletingExpense] = useState<any | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isPending, startTransition] = useTransition();
 
   const outletMap = Object.fromEntries(outlets.map((o) => [o.id, o.name]));
   const averageAmount = totalItems > 0 ? Math.round(totalAmount / totalItems) : 0;
 
-  const handleDelete = (id: string) => {
-    if (!confirm('Yakin ingin menghapus catatan pengeluaran ini?')) return;
+  const handleConfirmDelete = () => {
+    if (!deletingExpense) return;
     startTransition(async () => {
-      await deleteExpense(id);
+      try {
+        await deleteExpense(deletingExpense.id);
+        toast.success(`Pengeluaran "${deletingExpense.description}" berhasil dihapus`);
+        setDeletingExpense(null);
+      } catch (err: any) {
+        toast.error(err?.message || 'Gagal menghapus pengeluaran');
+      }
     });
   };
 
@@ -172,7 +181,7 @@ export default function ExpensesClient({
                     <button
                       type="button"
                       disabled={isPending}
-                      onClick={() => handleDelete(e.id)}
+                      onClick={() => setDeletingExpense(e)}
                       className="p-1.5 text-[#964B3B] hover:bg-[#FBEBE8] rounded-xl transition-colors inline-flex cursor-pointer"
                       title="Hapus Pengeluaran"
                     >
@@ -225,8 +234,13 @@ export default function ExpensesClient({
 
             <form
               action={async (formData) => {
-                await createExpense(formData);
-                setIsModalOpen(false);
+                try {
+                  await createExpense(formData);
+                  toast.success('Pengeluaran baru berhasil dicatat');
+                  setIsModalOpen(false);
+                } catch (err: any) {
+                  toast.error(err?.message || 'Gagal mencatat pengeluaran');
+                }
               }}
               className="space-y-3.5 text-xs"
             >
@@ -238,7 +252,7 @@ export default function ExpensesClient({
                   type="text"
                   name="description"
                   required
-                  placeholder="Contoh: Beli Fresh Milk 10 Liter & Es Batu"
+                  placeholder="Contoh: Beli Es Batu & Cup Plastik"
                   className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-semibold"
                 />
               </div>
@@ -289,6 +303,30 @@ export default function ExpensesClient({
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-[#4A4238] mb-1.5">Metode Bayar</label>
+                  <select
+                    name="paymentMethod"
+                    className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] cursor-pointer font-bold"
+                  >
+                    <option value="cash">Kas Fisik Toko</option>
+                    <option value="transfer">Transfer Bank Toko</option>
+                    <option value="qris">QRIS / Saldo Digital</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#4A4238] mb-1.5">Tanggal Beban</label>
+                  <input
+                    type="date"
+                    name="expenseDate"
+                    defaultValue={new Date().toISOString().split('T')[0]}
+                    className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] cursor-pointer font-medium"
+                  />
+                </div>
+              </div>
+
               <div className="flex items-center gap-2 pt-3">
                 <button
                   type="button"
@@ -329,8 +367,13 @@ export default function ExpensesClient({
 
             <form
               action={async (formData) => {
-                await updateExpense(editingExpense.id, formData);
-                setEditingExpense(null);
+                try {
+                  await updateExpense(editingExpense.id, formData);
+                  toast.success('Catatan pengeluaran berhasil diperbarui');
+                  setEditingExpense(null);
+                } catch (err: any) {
+                  toast.error(err?.message || 'Gagal memperbarui pengeluaran');
+                }
               }}
               className="space-y-3.5 text-xs"
             >
@@ -414,6 +457,29 @@ export default function ExpensesClient({
           </div>
         </div>
       )}
+
+      {/* 5. MODAL: KONFIRMASI HAPUS PENGELUARAN */}
+      <ConfirmModal
+        isOpen={!!deletingExpense}
+        title="Hapus Catatan Pengeluaran?"
+        description="Data pengeluaran operasional ini akan dihapus permanen dari buku kas."
+        confirmLabel="Hapus Pengeluaran"
+        cancelLabel="Batal"
+        variant="danger"
+        isPending={isPending}
+        onClose={() => setDeletingExpense(null)}
+        onConfirm={handleConfirmDelete}
+        itemDetails={
+          deletingExpense
+            ? [
+                { label: 'Keterangan', value: deletingExpense.description },
+                { label: 'Nominal', value: formatRupiah(deletingExpense.amount) },
+                { label: 'Cabang', value: deletingExpense.outletName || '-' },
+                { label: 'Tanggal', value: formatDate(deletingExpense.expenseDate) },
+              ]
+            : undefined
+        }
+      />
     </div>
   );
 }

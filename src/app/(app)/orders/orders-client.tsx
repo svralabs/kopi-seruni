@@ -6,6 +6,7 @@ import { formatRupiah, formatDateTime } from '@/lib/utils';
 import { voidOrder, getOrderItems } from '@/app/actions/checkout';
 import ReceiptModal, { type ReceiptData } from '@/components/receipt-modal';
 import type { Order, OrderItem, Outlet } from '@/lib/schema';
+import { toast } from '@/lib/toast';
 import {
   Search,
   Printer,
@@ -133,10 +134,11 @@ export default function OrdersClient({
     startTransition(async () => {
       try {
         await voidOrder(voidingOrder.id, voidingOrder.outletId);
+        toast.success(`Transaksi #${voidingOrder.id} berhasil dibatalkan (void)`);
         setVoidingOrder(null);
         router.refresh();
       } catch (err: any) {
-        alert(err?.message || 'Gagal membatalkan order');
+        toast.error(err?.message || 'Gagal membatalkan order');
       }
     });
   };

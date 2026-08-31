@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { openShift, closeShift } from '@/app/actions/shift';
 import { formatRupiah, formatDateTime } from '@/lib/utils';
 import type { Shift, Outlet } from '@/lib/schema';
+import { toast } from '@/lib/toast';
 import { Clock, Lock, Play, Store, CheckCircle, AlertTriangle, X, Wallet, ArrowRight } from 'lucide-react';
 import PaginationControls from '@/components/pagination-controls';
 
@@ -37,9 +38,14 @@ export default function ShiftClient({
   const handleOpenShift = async (e: React.FormEvent) => {
     e.preventDefault();
     startTransition(async () => {
-      await openShift(outletId, openingCash);
-      setIsModalOpen(false);
-      router.refresh();
+      try {
+        await openShift(outletId, openingCash);
+        toast.success('Shift kasir berhasil dibuka!');
+        setIsModalOpen(false);
+        router.refresh();
+      } catch (err: any) {
+        toast.error(err?.message || 'Gagal membuka shift');
+      }
     });
   };
 
@@ -49,9 +55,14 @@ export default function ShiftClient({
     if (closingCash === '') return;
 
     startTransition(async () => {
-      await closeShift(activeShift.id, outletId, Number(closingCash), notes);
-      setIsModalOpen(false);
-      router.refresh();
+      try {
+        await closeShift(activeShift.id, outletId, Number(closingCash), notes);
+        toast.success('Shift kasir berhasil ditutup & direkonsiliasi!');
+        setIsModalOpen(false);
+        router.refresh();
+      } catch (err: any) {
+        toast.error(err?.message || 'Gagal menutup shift');
+      }
     });
   };
 

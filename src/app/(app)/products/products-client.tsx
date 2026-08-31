@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { createProduct, updateProduct } from '@/app/actions/products';
 import { formatRupiah } from '@/lib/utils';
 import type { Category, Product } from '@/lib/schema';
+import { toast } from '@/lib/toast';
 import { 
   Package, 
   Plus, 
@@ -233,7 +234,7 @@ export default function ProductsClient({
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
-                      <DeleteProductButton productId={prod.id} />
+                      <DeleteProductButton productId={prod.id} productName={prod.name} />
                     </div>
                   </td>
                 </tr>
@@ -385,8 +386,13 @@ export default function ProductsClient({
 
             <form
               action={async (formData) => {
-                await updateProduct(editingProduct.id, formData);
-                setEditingProduct(null);
+                try {
+                  await updateProduct(editingProduct.id, formData);
+                  toast.success(`Menu "${editingProduct.name}" berhasil diperbarui`);
+                  setEditingProduct(null);
+                } catch (err: any) {
+                  toast.error(err?.message || 'Gagal memperbarui menu');
+                }
               }}
               className="space-y-3.5 text-xs"
             >

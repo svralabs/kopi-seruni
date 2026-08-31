@@ -4,6 +4,8 @@ import { useState, useTransition } from 'react';
 import { formatRupiah } from '@/lib/utils';
 import { createDiscount, updateDiscount, toggleDiscount, deleteDiscount } from '@/app/actions/discounts';
 import type { Discount, Outlet } from '@/lib/schema';
+import ConfirmModal from '@/components/confirm-modal';
+import { toast } from '@/lib/toast';
 import { Plus, Tag, Trash2, Pencil, ArrowRight, X, CheckCircle, Percent, Coins, Search } from 'lucide-react';
 
 export default function DiscountsClient({
@@ -17,21 +19,33 @@ export default function DiscountsClient({
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDiscount, setEditingDiscount] = useState<(Discount & { outletName: string }) | null>(null);
+  const [deletingDiscount, setDeletingDiscount] = useState<(Discount & { outletName: string }) | null>(null);
   const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>('percentage');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [isPending, startTransition] = useTransition();
 
-  const handleToggle = (id: string, currentStatus: number) => {
+  const handleToggle = (id: string, currentStatus: number, name: string) => {
     startTransition(async () => {
-      await toggleDiscount(id, currentStatus);
+      try {
+        await toggleDiscount(id, currentStatus);
+        toast.success(`Status promo "${name}" berhasil diubah`);
+      } catch (err: any) {
+        toast.error(err?.message || 'Gagal mengubah status promo');
+      }
     });
   };
 
-  const handleDelete = (id: string) => {
-    if (!confirm('Yakin ingin menghapus promo/diskon ini?')) return;
+  const handleConfirmDelete = () => {
+    if (!deletingDiscount) return;
     startTransition(async () => {
-      await deleteDiscount(id);
+      try {
+        await deleteDiscount(deletingDiscount.id);
+        toast.success(`Diskon "${deletingDiscount.name}" berhasil dihapus`);
+        setDeletingDiscount(null);
+      } catch (err: any) {
+        toast.error(err?.message || 'Gagal menghapus diskon');
+      }
     });
   };
 
@@ -197,7 +211,7 @@ export default function DiscountsClient({
                     <button
                       type="button"
                       disabled={isPending}
-                      onClick={() => handleToggle(d.id, d.isActive)}
+                      onClick={() => handleToggle(d.id, d.isActive, d.name)}
                       className={`px-3 py-1 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
                         d.isActive
                           ? 'border-[#EBE7DF] text-[#7A7268] hover:bg-[#FAF8F5]'
@@ -209,7 +223,7 @@ export default function DiscountsClient({
                     <button
                       type="button"
                       disabled={isPending}
-                      onClick={() => handleDelete(d.id)}
+                      onClick={() => setDeletingDiscount(d)}
                       className="p-1.5 text-[#964B3B] hover:bg-[#FBEBE8] rounded-xl transition-colors inline-flex cursor-pointer"
                       title="Hapus Promo"
                     >
@@ -255,8 +269,13 @@ export default function DiscountsClient({
 
             <form
               action={async (formData) => {
-                await createDiscount(formData);
-                setIsModalOpen(false);
+                try {
+                  await createDiscount(formData);
+                  toast.success('Promo baru berhasil dibuat');
+                  setIsModalOpen(false);
+                } catch (err: any) {
+                  toast.error(err?.message || 'Gagal membuat promo');
+                }
               }}
               className="space-y-3.5 text-xs"
             >
@@ -371,8 +390,13 @@ export default function DiscountsClient({
 
             <form
               action={async (formData) => {
-                await updateDiscount(editingDiscount.id, formData);
-                setEditingDiscount(null);
+                try {
+                  await updateDiscount(editingDiscount.id, formData);
+                  toast.success(`Promo "${editingDiscount.name}" berhasil diperbarui`);
+                  setEditingDiscount(null);
+                } catch (err: any) {
+                  toast.error(err?.message || 'Gagal memperbarui promo');
+                }
               }}
               className="space-y-3.5 text-xs"
             >
@@ -464,6 +488,34 @@ export default function DiscountsClient({
           </div>
         </div>
       )}
+
+      {/* 5. MODAL: KONFIRMASI HAPUS DISKON */}
+      <ConfirmModal
+        isOpen={!!deletingDiscount}
+        title="Hapus Promo / Voucher?"
+        description="Voucher promo ini akan dihapus dan tidak bisa lagi digunakan pada kasir POS."
+        confirmLabel="Hapus Promo"
+        cancelLabel="Batal"
+        variant="danger"
+        isPending={isPending}
+        onClose={() => setDeletingDiscount(null)}
+        onConfirm={handleConfirmDelete}
+        itemDetails={
+          deletingDiscount
+            ? [
+                { label: 'Nama Promo', value: deletingDiscount.name },
+                {
+                  label: 'Potongan',
+                  value:
+                    deletingDiscount.type === 'percentage'
+                      ? `${deletingDiscount.value}%`
+                      : formatRupiah(deletingDiscount.value),
+                },
+                { label: 'Cabang', value: deletingDiscount.outletName || '-' },
+              ]
+            : undefined
+        }
+      />
     </div>
   );
 }

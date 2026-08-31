@@ -3,6 +3,8 @@
 import { useState, useTransition } from 'react';
 import { formatRupiah, formatDate } from '@/lib/utils';
 import { createRule, updateRule, generateProfitSharing, markSharePaid } from '@/app/actions/profit-sharing';
+import ConfirmModal from '@/components/confirm-modal';
+import { toast } from '@/lib/toast';
 import { 
   Users2, 
   Plus, 
@@ -34,6 +36,7 @@ export default function BagiHasilClient({
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<any | null>(null);
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
+  const [payingShare, setPayingShare] = useState<any | null>(null);
 
   const [period, setPeriod] = useState(() => {
     const d = new Date();
@@ -53,7 +56,7 @@ export default function BagiHasilClient({
   const handleGenerate = (e: React.FormEvent) => {
     e.preventDefault();
     if (!period || netProfitInput <= 0) {
-      alert('Mohon isi periode dan nominal laba bersih yang valid');
+      toast.error('Mohon isi periode dan nominal laba bersih yang valid');
       return;
     }
 
@@ -64,23 +67,51 @@ export default function BagiHasilClient({
     startTransition(async () => {
       try {
         await generateProfitSharing(currentOutletId, fromDate, toDate, netProfitInput);
+        toast.success('Bagi hasil berhasil dihitung & dicatat ke Ledger!');
         setIsGenerateModalOpen(false);
         setActiveTab('ledger');
       } catch (err: any) {
-        alert(err?.message || 'Gagal generate bagi hasil');
+        toast.error(err?.message || 'Gagal generate bagi hasil');
       }
     });
   };
 
-  const handleMarkPaid = (id: string) => {
-    if (!confirm('Tandai bagi hasil ini sudah ditransfer lunas ke penerima?')) return;
+  const handleConfirmMarkPaid = () => {
+    if (!payingShare) return;
     startTransition(async () => {
-      await markSharePaid(id, currentOutletId);
+      try {
+        await markSharePaid(payingShare.id, currentOutletId);
+        toast.success(`Dividen ${payingShare.ruleName ? `untuk "${payingShare.ruleName}" ` : ''}berhasil ditandai LUNAS`);
+        setPayingShare(null);
+      } catch (err: any) {
+        toast.error(err?.message || 'Gagal menandai lunas');
+      }
     });
   };
 
   return (
     <div className="space-y-6">
+      <ConfirmModal
+        isOpen={!!payingShare}
+        onClose={() => setPayingShare(null)}
+        onConfirm={handleConfirmMarkPaid}
+        title="Tandai Dividen Lunas?"
+        description="Pastikan nominal dividen laba bersih toko ini telah ditransfer kepada penerima/mitra investor."
+        confirmLabel="Tandai Lunas"
+        cancelLabel="Batal"
+        variant="success"
+        isPending={isPending}
+        itemDetails={
+          payingShare
+            ? [
+                { label: 'Periode', value: payingShare.period },
+                { label: 'Penerima', value: payingShare.ruleName || '-' },
+                { label: 'Nominal Dividen', value: formatRupiah(payingShare.shareAmount) },
+              ]
+            : undefined
+        }
+      />
+
       {/* Header & Setup Modal Trigger */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -284,7 +315,7 @@ export default function BagiHasilClient({
                         <button
                           type="button"
                           disabled={isPending}
-                          onClick={() => handleMarkPaid(l.id)}
+                          onClick={() => setPayingShare(l)}
                           className="px-3 py-1 bg-[#EBF6EE] hover:bg-[#DDF0E2] text-[#2D7A47] font-bold rounded-xl text-[11px] transition-colors disabled:opacity-50 inline-flex items-center gap-1 border border-[#D1EBD8] cursor-pointer"
                         >
                           <CheckCircle className="w-3 h-3" />
@@ -327,8 +358,13 @@ export default function BagiHasilClient({
 
             <form
               action={async (formData) => {
-                await createRule(formData);
-                setIsRuleModalOpen(false);
+                try {
+                  await createRule(formData);
+                  toast.success('Penerima bagi hasil berhasil ditambahkan');
+                  setIsRuleModalOpen(false);
+                } catch (err: any) {
+                  toast.error(err?.message || 'Gagal menambahkan penerima bagi hasil');
+                }
               }}
               className="space-y-3.5 text-xs"
             >
@@ -411,8 +447,13 @@ export default function BagiHasilClient({
 
             <form
               action={async (formData) => {
-                await updateRule(editingRule.id, formData);
-                setEditingRule(null);
+                try {
+                  await updateRule(editingRule.id, formData);
+                  toast.success('Aturan bagi hasil berhasil diperbarui');
+                  setEditingRule(null);
+                } catch (err: any) {
+                  toast.error(err?.message || 'Gagal memperbarui aturan');
+                }
               }}
               className="space-y-3.5 text-xs"
             >

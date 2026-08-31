@@ -3,27 +3,47 @@
 import { useState, useTransition } from 'react';
 import { createStaff, updateStaffRole, deleteStaff } from '@/app/actions/staff';
 import type { Outlet } from '@/lib/schema';
-import { Plus, UserCheck, Trash2, Shield, ArrowRight, UserPlus, UserCog, X, Users, Search } from 'lucide-react';
+import ConfirmModal from '@/components/confirm-modal';
+import { toast } from '@/lib/toast';
+import { 
+  Users, 
+  UserPlus, 
+  ShieldCheck, 
+  Store, 
+  Trash2, 
+  UserCog, 
+  Search, 
+  X, 
+  CheckCircle,
+  KeyRound,
+  Plus,
+  UserCheck,
+  Shield,
+  ArrowRight
+} from 'lucide-react';
 
 export interface StaffMember {
   id: string;
   name: string;
   email: string;
   role: string;
-  outletId: string;
+  outletId: string | null;
   outletName: string;
-  createdAt: string;
+  createdAt: number | string;
 }
 
 export default function StaffClient({
   staffList,
   outlets,
+  currentOutletId = 'all',
 }: {
   staffList: StaffMember[];
   outlets: Outlet[];
+  currentOutletId?: string;
 }) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
+  const [deletingStaff, setDeletingStaff] = useState<StaffMember | null>(null);
   const [editOutletId, setEditOutletId] = useState('');
   const [editRole, setEditRole] = useState('kasir');
   const [searchQuery, setSearchQuery] = useState('');
@@ -43,20 +63,23 @@ export default function StaffClient({
     startTransition(async () => {
       try {
         await updateStaffRole(editingStaff.id, editOutletId, editRole);
+        toast.success(`Peran staff "${editingStaff.name}" berhasil diperbarui`);
         setEditingStaff(null);
       } catch (err: any) {
-        alert(err?.message || 'Gagal mengubah role staff');
+        toast.error(err?.message || 'Gagal mengubah role staff');
       }
     });
   };
 
-  const handleDelete = (userId: string, name: string) => {
-    if (!confirm(`Yakin ingin menghapus akses kasir/staff "${name}"?`)) return;
+  const handleConfirmDelete = () => {
+    if (!deletingStaff) return;
     startTransition(async () => {
       try {
-        await deleteStaff(userId);
+        await deleteStaff(deletingStaff.id);
+        toast.success(`Akun staff "${deletingStaff.name}" berhasil dihapus`);
+        setDeletingStaff(null);
       } catch (err: any) {
-        alert(err?.message || 'Gagal menghapus staff');
+        toast.error(err?.message || 'Gagal menghapus staff');
       }
     });
   };
@@ -218,8 +241,8 @@ export default function StaffClient({
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleDelete(s.id, s.name)}
-                      className="p-1.5 text-[#9E968B] hover:text-[#964B3B] transition-colors rounded-xl hover:bg-[#FBEBE8]"
+                      onClick={() => setDeletingStaff(s)}
+                      className="p-1.5 text-[#9E968B] hover:text-[#964B3B] transition-colors rounded-xl hover:bg-[#FBEBE8] cursor-pointer"
                       title="Hapus akun staff"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -264,8 +287,13 @@ export default function StaffClient({
 
             <form
               action={async (formData) => {
-                await createStaff(formData);
-                setIsAddModalOpen(false);
+                try {
+                  await createStaff(formData);
+                  toast.success('Akun staff baru berhasil dibuat');
+                  setIsAddModalOpen(false);
+                } catch (err: any) {
+                  toast.error(err?.message || 'Gagal mendaftarkan staff');
+                }
               }}
               className="space-y-3.5 text-xs"
             >
@@ -420,6 +448,29 @@ export default function StaffClient({
           </div>
         </div>
       )}
+
+      {/* 4. MODAL: KONFIRMASI HAPUS STAFF */}
+      <ConfirmModal
+        isOpen={!!deletingStaff}
+        title="Hapus Akun Staff?"
+        description="Akun kasir/staff ini akan dihapus dan tidak bisa login kembali ke sistem POS."
+        confirmLabel="Hapus Akun"
+        cancelLabel="Batal"
+        variant="danger"
+        isPending={isPending}
+        onClose={() => setDeletingStaff(null)}
+        onConfirm={handleConfirmDelete}
+        itemDetails={
+          deletingStaff
+            ? [
+                { label: 'Nama Staff', value: deletingStaff.name },
+                { label: 'Email Login', value: deletingStaff.email },
+                { label: 'Penempatan', value: deletingStaff.outletName },
+                { label: 'Role Akses', value: deletingStaff.role.toUpperCase() },
+              ]
+            : undefined
+        }
+      />
     </div>
   );
 }

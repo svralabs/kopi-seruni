@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { adjustStock } from '@/app/actions/stock';
 import { formatDate } from '@/lib/utils';
+import { toast } from '@/lib/toast';
 import { 
   Warehouse, 
   Plus, 
@@ -424,8 +425,13 @@ export default function StockClient({
 
             <form
               action={async (formData) => {
-                await adjustStock(formData);
-                setIsModalOpen(false);
+                try {
+                  await adjustStock(formData);
+                  toast.success('Mutasi stok berhasil dicatat & disinkronisasi');
+                  setIsModalOpen(false);
+                } catch (err: any) {
+                  toast.error(err?.message || 'Gagal mencatat mutasi stok');
+                }
               }}
               className="space-y-3.5 text-xs"
             >
