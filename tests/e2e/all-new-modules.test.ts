@@ -6,12 +6,10 @@ import { db } from '../../src/lib/db';
 import {
   discounts,
   settings,
-  purchaseOrders,
-  purchaseOrderItems,
-  stock,
-  stockMovements,
+  rawMaterials,
+  rawMaterialStock,
+  rawMaterialMovements,
   outlets,
-  products,
 } from '../../src/lib/schema';
 
 import { eq, and } from 'drizzle-orm';
@@ -20,9 +18,8 @@ describe('E2E Integration Test: Phase 1-5 Extended POS Modules', () => {
   const TEST_OUTLET = `out_ext_test_${Date.now().toString().slice(-4)}`;
   const now = Math.floor(Date.now() / 1000);
   const dscId = `dsc_test_${Date.now().toString().slice(-4)}`;
-  const poId = `po_test_${Date.now().toString().slice(-4)}`;
-  const poiId = `poi_test_${Date.now().toString().slice(-4)}`;
-  const prodId = `prd_ext_test_${Date.now().toString().slice(-4)}`;
+  const rawId = `rm_test_${Date.now().toString().slice(-4)}`;
+  const rmsId = `rms_test_${Date.now().toString().slice(-4)}`;
 
   beforeAll(async () => {
     await db.insert(outlets).values({
@@ -31,27 +28,23 @@ describe('E2E Integration Test: Phase 1-5 Extended POS Modules', () => {
       createdAt: now,
     }).onConflictDoNothing();
 
-    await db.insert(products).values({
-      id: prodId,
+    await db.insert(rawMaterials).values({
+      id: rawId,
       outletId: TEST_OUTLET,
-      name: 'Produk Uji Coba PO',
-      price: 20000,
-      costPrice: 10000,
-      isActive: 1,
+      name: 'Biji Kopi Test Arabika',
+      unit: 'gr',
+      costPerUnit: 250,
       createdAt: now,
-      updatedAt: now,
     }).onConflictDoNothing();
   });
 
   afterAll(async () => {
     // Cleanup all test records
-    await db.delete(purchaseOrderItems).where(eq(purchaseOrderItems.poId, poId));
-    await db.delete(purchaseOrders).where(eq(purchaseOrders.id, poId));
-    await db.delete(stockMovements).where(eq(stockMovements.outletId, TEST_OUTLET));
-    await db.delete(stock).where(eq(stock.outletId, TEST_OUTLET));
+    await db.delete(rawMaterialMovements).where(eq(rawMaterialMovements.outletId, TEST_OUTLET));
+    await db.delete(rawMaterialStock).where(eq(rawMaterialStock.outletId, TEST_OUTLET));
+    await db.delete(rawMaterials).where(eq(rawMaterials.id, rawId));
     await db.delete(settings).where(eq(settings.outletId, TEST_OUTLET));
     await db.delete(discounts).where(eq(discounts.id, dscId));
-    await db.delete(products).where(eq(products.id, prodId));
     await db.delete(outlets).where(eq(outlets.id, TEST_OUTLET));
   });
 
@@ -98,77 +91,37 @@ describe('E2E Integration Test: Phase 1-5 Extended POS Modules', () => {
     expect(saved.value).toBe('11');
   });
 
-  it('Module 3: Create Purchase Order & Atomic Receive (Restock)', async () => {
-    const qty = 50;
-    const unitCost = 12000;
-    const total = qty * unitCost;
+  it('Module 3: Direct Raw Material Restock Mutation & Movement Log', async () => {
+    const restockQty = 5000; // 5000 gr (5 kg)
 
-    // 1. Insert PO
-    await db.insert(purchaseOrders).values({
-      id: poId,
-      outletId: TEST_OUTLET,
-      status: 'ordered',
-      total,
-      notes: 'Beli V60 beans 50 pcs',
-      orderedAt: now,
-      createdBy: 'thnUQLaR2qQnLPhbx5ZrpErIZgkvaZ2x',
-      createdAt: now,
-    });
-
-    await db.insert(purchaseOrderItems).values({
-      id: poiId,
-      poId,
-      productId: prodId,
-      quantity: qty,
-      unitCost,
-    });
-
-    // 2. Simulate receive PO atomic transaction
-    const initialStock = await db
-      .select()
-      .from(stock)
-      .where(and(eq(stock.outletId, TEST_OUTLET), eq(stock.productId, prodId)));
-
-    const prevQty = initialStock[0]?.quantity || 0;
-
+    // Simulate atomic restock mutation
     await db.transaction(async (tx) => {
-      await tx
-        .update(purchaseOrders)
-        .set({ status: 'received', receivedAt: now })
-        .where(eq(purchaseOrders.id, poId));
-
-      await tx.insert(stockMovements).values({
-        id: `smv_test_${Date.now().toString().slice(-4)}`,
+      await tx.insert(rawMaterialStock).values({
+        id: rmsId,
         outletId: TEST_OUTLET,
-        productId: prodId,
-        type: 'po_receive',
-        quantity: qty,
-        referenceId: poId,
+        rawMaterialId: rawId,
+        quantityOnHand: restockQty,
+        updatedAt: now,
+      });
+
+      await tx.insert(rawMaterialMovements).values({
+        id: `rmm_test_${Date.now().toString().slice(-4)}`,
+        outletId: TEST_OUTLET,
+        rawMaterialId: rawId,
+        type: 'purchase',
+        quantity: restockQty,
+        notes: 'Restock bahan baku biji kopi 5kg',
         createdBy: 'thnUQLaR2qQnLPhbx5ZrpErIZgkvaZ2x',
         createdAt: now,
       });
-
-      if (initialStock.length > 0) {
-        await tx
-          .update(stock)
-          .set({ quantity: prevQty + qty })
-          .where(and(eq(stock.outletId, TEST_OUTLET), eq(stock.productId, prodId)));
-      } else {
-        await tx.insert(stock).values({
-          id: `stk_test_${Date.now().toString().slice(-4)}`,
-          outletId: TEST_OUTLET,
-          productId: prodId,
-          quantity: qty,
-          unit: 'pcs',
-        });
-      }
     });
 
-    const [updatedStock] = await db
+    const [stockRes] = await db
       .select()
-      .from(stock)
-      .where(and(eq(stock.outletId, TEST_OUTLET), eq(stock.productId, prodId)));
+      .from(rawMaterialStock)
+      .where(and(eq(rawMaterialStock.outletId, TEST_OUTLET), eq(rawMaterialStock.rawMaterialId, rawId)));
 
-    expect(updatedStock.quantity).toBe(prevQty + qty);
+    expect(stockRes).toBeDefined();
+    expect(stockRes.quantityOnHand).toBe(5000);
   });
 });

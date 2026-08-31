@@ -79,16 +79,6 @@ export const products = sqliteTable('products', {
   deletedAt: integer('deleted_at'),
 }, (t) => [index('idx_products_outlet').on(t.outletId)]);
 
-export const suppliers = sqliteTable('suppliers', {
-  id: id('sup'),
-  outletId: text('outlet_id').notNull().references(() => outlets.id),
-  name: text('name').notNull(),
-  phone: text('phone'),
-  address: text('address'),
-  createdAt: integer('created_at').notNull().default(now),
-  deletedAt: integer('deleted_at'),
-});
-
 // ================================================================
 // DISKON
 // ================================================================
@@ -259,32 +249,6 @@ export const rawMaterialMovements = sqliteTable('raw_material_movements', {
   createdBy: text('created_by').notNull().references(() => user.id),
   createdAt: integer('created_at').notNull().default(now),
 }, (t) => [index('idx_rmm_outlet_material').on(t.outletId, t.rawMaterialId, t.createdAt)]);
-
-// ================================================================
-// PURCHASE ORDER
-// ================================================================
-export const purchaseOrders = sqliteTable('purchase_orders', {
-  id: id('po'),
-  outletId: text('outlet_id').notNull().references(() => outlets.id),
-  supplierId: text('supplier_id').references(() => suppliers.id),
-  status: text('status', {
-    enum: ['draft', 'ordered', 'received', 'cancelled'],
-  }).notNull().default('draft'),
-  total: integer('total').notNull().default(0),
-  notes: text('notes'),
-  orderedAt: integer('ordered_at'),
-  receivedAt: integer('received_at'),
-  createdBy: text('created_by').notNull().references(() => user.id),
-  createdAt: integer('created_at').notNull().default(now),
-});
-
-export const purchaseOrderItems = sqliteTable('purchase_order_items', {
-  id: id('poi'),
-  poId: text('po_id').notNull().references(() => purchaseOrders.id, { onDelete: 'cascade' }),
-  productId: text('product_id').notNull().references(() => products.id),
-  quantity: integer('quantity').notNull(),
-  unitCost: integer('unit_cost').notNull(), // rupiah integer
-});
 
 // ================================================================
 // BAGI HASIL
