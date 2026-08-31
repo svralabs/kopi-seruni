@@ -2,7 +2,7 @@ import { db } from '@/lib/db';
 import { user, userOutletRoles, outlets } from '@/lib/schema';
 import { getOutlets } from '@/lib/queries';
 import StaffClient, { type StaffMember } from './staff-client';
-import { eq, desc } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 export default async function StaffPage() {
   let allOutlets: any[] = [];
@@ -24,14 +24,53 @@ export default async function StaffPage() {
 
     allOutlets = outletsRes;
 
-    staffList = usersData.map((u) => ({
-      id: u.user.id,
-      name: u.user.name,
-      email: u.user.email,
-      role: u.role || 'owner',
-      outletId: u.outlet?.id || 'out_default',
-      outletName: u.outlet?.name || 'Semua Cabang (Pusat)',
-      createdAt: u.user.createdAt ? new Date(u.user.createdAt).toLocaleDateString('id-ID') : '-',
+    const userMap = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        email: string;
+        role: string;
+        outletId: string;
+        outletNames: string[];
+        createdAt: string;
+      }
+    >();
+
+    for (const row of usersData) {
+      if (!userMap.has(row.user.id)) {
+        userMap.set(row.user.id, {
+          id: row.user.id,
+          name: row.user.name,
+          email: row.user.email,
+          role: row.role || 'kasir',
+          outletId: row.outlet?.id || 'out_default',
+          outletNames: row.outlet?.name ? [row.outlet.name] : [],
+          createdAt: row.user.createdAt
+            ? new Date(row.user.createdAt).toLocaleDateString('id-ID')
+            : '-',
+        });
+      } else {
+        const existing = userMap.get(row.user.id)!;
+        if (row.outlet?.name && !existing.outletNames.includes(row.outlet.name)) {
+          existing.outletNames.push(row.outlet.name);
+        }
+        if (row.role === 'owner') existing.role = 'owner';
+        else if (row.role === 'manager' && existing.role !== 'owner') existing.role = 'manager';
+      }
+    }
+
+    staffList = Array.from(userMap.values()).map((s) => ({
+      id: s.id,
+      name: s.name,
+      email: s.email,
+      role: s.role,
+      outletId: s.outletId,
+      outletName:
+        s.outletNames.length >= allOutlets.length && allOutlets.length > 1
+          ? `Semua Cabang (${s.outletNames.length} Cabang)`
+          : s.outletNames.join(', ') || 'Semua Cabang (Pusat)',
+      createdAt: s.createdAt,
     }));
   } catch (e) {
     console.warn('Error fetching staff list:', e);
