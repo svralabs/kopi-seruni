@@ -215,7 +215,19 @@ export default function ReceiptModal({
 
       {/* Print CSS Styles */}
       <style jsx global>{`
+        @page {
+          size: auto;
+          margin: 0mm;
+        }
         @media print {
+          html,
+          body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
           body * {
             visibility: hidden !important;
           }
@@ -230,9 +242,12 @@ export default function ReceiptModal({
             width: 100% !important;
             max-width: 58mm !important;
             margin: 0 !important;
-            padding: 4mm !important;
+            padding: 2mm 3mm !important;
             border: none !important;
             box-shadow: none !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            font-family: monospace, 'Courier New', Courier, sans-serif !important;
           }
         }
       `}</style>
