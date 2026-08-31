@@ -1,18 +1,21 @@
 import { db } from '@/lib/db';
-import { products, categories } from '@/lib/schema';
+import { products, categories, outlets } from '@/lib/schema';
+import { getOutlets } from '@/lib/queries';
 import ProductsClient from './products-client';
-import { isNull, desc, sql } from 'drizzle-orm';
+import { isNull, desc, sql, eq, and } from 'drizzle-orm';
 
 export default async function ProductsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ page?: string }>;
+  searchParams?: Promise<{ page?: string; outletId?: string }>;
 }) {
   const params = searchParams ? await searchParams : {};
+  const outletId = params.outletId || 'all';
   const page = Math.max(1, Number(params.page || 1));
   const pageSize = 15;
   const offset = (page - 1) * pageSize;
 
+  let allOutlets: any[] = [];
   let productList: any[] = [];
   let categoriesList: any[] = [];
   let categoryMap: Record<string, string> = {};
@@ -20,24 +23,39 @@ export default async function ProductsPage({
   let totalPages = 1;
 
   try {
-    const [countRes, productsRes, categoriesRes] = await Promise.all([
+    const conditions = [isNull(products.deletedAt)];
+    if (outletId !== 'all') {
+      conditions.push(eq(products.outletId, outletId));
+    }
+    const whereClause = and(...conditions);
+
+    const [outletsRes, countRes, rawProducts, categoriesRes] = await Promise.all([
+      getOutlets(),
       db
         .select({ count: sql<number>`COUNT(*)` })
         .from(products)
-        .where(isNull(products.deletedAt)),
+        .where(whereClause),
       db
-        .select()
+        .select({
+          product: products,
+          outlet: outlets,
+        })
         .from(products)
-        .where(isNull(products.deletedAt))
+        .leftJoin(outlets, eq(products.outletId, outlets.id))
+        .where(whereClause)
         .orderBy(desc(products.createdAt))
         .limit(pageSize)
         .offset(offset),
       db.select().from(categories),
     ]);
 
+    allOutlets = outletsRes;
     totalItems = Number(countRes[0]?.count || 0);
     totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-    productList = productsRes;
+    productList = rawProducts.map((r) => ({
+      ...r.product,
+      outletName: r.outlet?.name || 'Pusat',
+    }));
     categoriesList = categoriesRes;
 
     categoriesList.forEach((c) => {
@@ -52,6 +70,8 @@ export default async function ProductsPage({
       productList={productList}
       categoriesList={categoriesList}
       categoryMap={categoryMap}
+      outlets={allOutlets}
+      currentOutletId={outletId}
       totalItems={totalItems}
       totalPages={totalPages}
       currentPage={page}

@@ -2,13 +2,25 @@ import { db } from '@/lib/db';
 import { discounts, outlets } from '@/lib/schema';
 import { getOutlets } from '@/lib/queries';
 import DiscountsClient from './discount-client';
-import { isNull, desc, eq } from 'drizzle-orm';
+import { isNull, desc, eq, and } from 'drizzle-orm';
 
-export default async function DiscountsPage() {
+export default async function DiscountsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ outletId?: string }>;
+}) {
+  const resolvedParams = searchParams ? await searchParams : {};
+  const outletId = resolvedParams.outletId || 'all';
+
   let allOutlets: any[] = [];
   let discountsList: any[] = [];
 
   try {
+    const conditions = [isNull(discounts.deletedAt)];
+    if (outletId !== 'all') {
+      conditions.push(eq(discounts.outletId, outletId));
+    }
+
     const [outletsRes, rawDiscounts] = await Promise.all([
       getOutlets(),
       db
@@ -18,7 +30,7 @@ export default async function DiscountsPage() {
         })
         .from(discounts)
         .leftJoin(outlets, eq(discounts.outletId, outlets.id))
-        .where(isNull(discounts.deletedAt))
+        .where(and(...conditions))
         .orderBy(desc(discounts.createdAt)),
     ]);
 

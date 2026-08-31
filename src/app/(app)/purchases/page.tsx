@@ -2,20 +2,37 @@ import { db } from '@/lib/db';
 import { purchaseOrders, purchaseOrderItems, products, outlets } from '@/lib/schema';
 import { getOutlets } from '@/lib/queries';
 import PurchasesClient, { type PurchaseOrderRecord } from './purchases-client';
-import { desc, eq, isNull } from 'drizzle-orm';
+import { desc, eq, isNull, and } from 'drizzle-orm';
 
-export default async function PurchasesPage() {
+export default async function PurchasesPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ outletId?: string }>;
+}) {
+  const resolvedParams = searchParams ? await searchParams : {};
+  const outletId = resolvedParams.outletId || 'all';
+
   let allOutlets: any[] = [];
   let allProducts: any[] = [];
   let ordersList: PurchaseOrderRecord[] = [];
 
   try {
+    const poConditions = [];
+    if (outletId !== 'all') {
+      poConditions.push(eq(purchaseOrders.outletId, outletId));
+    }
+
+    const prodConditions = [isNull(products.deletedAt)];
+    if (outletId !== 'all') {
+      prodConditions.push(eq(products.outletId, outletId));
+    }
+
     const [outletsRes, productsRes, rawOrders] = await Promise.all([
       getOutlets(),
       db
         .select()
         .from(products)
-        .where(isNull(products.deletedAt)),
+        .where(and(...prodConditions)),
       db
         .select({
           po: purchaseOrders,
@@ -27,6 +44,7 @@ export default async function PurchasesPage() {
         .leftJoin(purchaseOrderItems, eq(purchaseOrders.id, purchaseOrderItems.poId))
         .leftJoin(products, eq(purchaseOrderItems.productId, products.id))
         .leftJoin(outlets, eq(purchaseOrders.outletId, outlets.id))
+        .where(poConditions.length > 0 ? and(...poConditions) : undefined)
         .orderBy(desc(purchaseOrders.createdAt)),
     ]);
 

@@ -23,6 +23,8 @@ export default function ProductsClient({
   productList,
   categoriesList,
   categoryMap,
+  outlets = [],
+  currentOutletId = 'all',
   totalItems,
   totalPages,
   currentPage,
@@ -31,6 +33,8 @@ export default function ProductsClient({
   productList: any[];
   categoriesList: Category[];
   categoryMap: Record<string, string>;
+  outlets?: any[];
+  currentOutletId?: string;
   totalItems: number;
   totalPages: number;
   currentPage: number;
@@ -156,6 +160,7 @@ export default function ProductsClient({
             <thead>
               <tr className="border-b border-[#F0ECE4] bg-[#FAF8F5] text-[#8E867C] text-[10px] font-bold uppercase tracking-wider">
                 <th className="py-3.5 px-4">Menu</th>
+                <th className="py-3.5 px-4">Cabang</th>
                 <th className="py-3.5 px-4">Kategori</th>
                 <th className="py-3.5 px-4">Harga Jual</th>
                 <th className="py-3.5 px-4">HPP (Modal)</th>
@@ -180,6 +185,11 @@ export default function ProductsClient({
                         <p className="text-[10px] text-[#A69E93] font-mono">{prod.id}</p>
                       </div>
                     </div>
+                  </td>
+                  <td className="py-3 px-4 whitespace-nowrap">
+                    <span className="px-2.5 py-1 bg-[#FAF8F5] border border-[#EBE7DF] text-[#54382B] rounded-lg text-[10px] font-bold">
+                      {prod.outletName || 'Pusat'}
+                    </span>
                   </td>
                   <td className="py-3 px-4 text-[#6B635A] font-medium">
                     {prod.categoryId ? categoryMap[prod.categoryId] || 'Lainnya' : '-'}
@@ -271,6 +281,23 @@ export default function ProductsClient({
                   className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
                 />
               </div>
+
+              {outlets.length > 0 && (
+                <div>
+                  <label className="block font-bold text-[#4A4238] mb-1.5">Cabang Outlet</label>
+                  <select
+                    name="outletId"
+                    defaultValue={currentOutletId !== 'all' ? currentOutletId : (outlets[0]?.id || 'out_default')}
+                    className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] cursor-pointer font-bold"
+                  >
+                    {outlets.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label className="block font-bold text-[#4A4238] mb-1.5">Kategori</label>
@@ -367,6 +394,23 @@ export default function ProductsClient({
                   className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
                 />
               </div>
+
+              {outlets.length > 0 && (
+                <div>
+                  <label className="block font-bold text-[#4A4238] mb-1.5">Cabang Outlet</label>
+                  <select
+                    name="outletId"
+                    defaultValue={editingProduct.outletId || (outlets[0]?.id || 'out_default')}
+                    className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] cursor-pointer font-bold"
+                  >
+                    {outlets.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>

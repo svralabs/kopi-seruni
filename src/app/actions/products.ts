@@ -55,6 +55,7 @@ export async function updateProduct(productId: string, formData: FormData) {
   const costPrice = Math.round(Number(formData.get('costPrice')) || 0);
   const description = (formData.get('description') as string) || null;
   const imageUrl = (formData.get('imageUrl') as string) || null;
+  const outletId = (formData.get('outletId') as string) || undefined;
   const isActive = formData.get('isActive') === '0' ? 0 : 1;
 
   if (!name || price <= 0) {
@@ -63,18 +64,24 @@ export async function updateProduct(productId: string, formData: FormData) {
 
   const now = Math.floor(Date.now() / 1000);
 
+  const updateData: any = {
+    name: name.trim(),
+    categoryId,
+    price,
+    costPrice,
+    description: description ? description.trim() : null,
+    imageUrl,
+    isActive,
+    updatedAt: now,
+  };
+
+  if (outletId) {
+    updateData.outletId = outletId;
+  }
+
   await db
     .update(products)
-    .set({
-      name: name.trim(),
-      categoryId,
-      price,
-      costPrice,
-      description: description ? description.trim() : null,
-      imageUrl,
-      isActive,
-      updatedAt: now,
-    })
+    .set(updateData)
     .where(eq(products.id, productId));
 
   revalidatePath('/products');
