@@ -62,18 +62,20 @@ export default async function StaffPage() {
       }
     }
 
-    staffList = Array.from(userMap.values()).map((s) => ({
-      id: s.id,
-      name: s.name,
-      email: s.email,
-      role: s.role,
-      outletId: s.outletId,
-      outletName:
-        s.outletNames.length >= allOutlets.length && allOutlets.length > 1
+    staffList = Array.from(userMap.values()).map((s) => {
+      const isAllOutlets = s.outletNames.length >= allOutlets.length && allOutlets.length > 1;
+      return {
+        id: s.id,
+        name: s.name,
+        email: s.email,
+        role: s.role,
+        outletId: isAllOutlets ? 'all' : s.outletId,
+        outletName: isAllOutlets
           ? `Semua Cabang (${s.outletNames.length} Cabang)`
           : s.outletNames.join(', ') || 'Semua Cabang (Pusat)',
-      createdAt: s.createdAt,
-    }));
+        createdAt: s.createdAt,
+      };
+    });
   } catch (e) {
     console.warn('Error fetching staff list:', e);
   }

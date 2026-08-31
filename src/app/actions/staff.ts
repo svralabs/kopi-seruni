@@ -2,6 +2,7 @@
 
 import { db } from '@/lib/db';
 import { user, userOutletRoles, outlets } from '@/lib/schema';
+import { getOutlets } from '@/lib/queries';
 import { auth } from '@/lib/auth';
 import { getSession } from '@/lib/auth-helpers';
 import { eq, and } from 'drizzle-orm';
@@ -40,15 +41,29 @@ export async function createStaff(formData: FormData) {
       throw new Error('Gagal membuat user BetterAuth');
     }
 
-    // 2. Assign Outlet Role
-    const roleId = `uor_${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}`;
-    await db.insert(userOutletRoles).values({
-      id: roleId,
-      userId: newUser.user.id,
-      outletId,
-      role,
-      createdAt: Math.floor(Date.now() / 1000),
-    });
+    const allOutlets = await getOutlets();
+    const now = Math.floor(Date.now() / 1000);
+
+    // 2. Assign Outlet Role(s)
+    if (outletId === 'all') {
+      for (const out of allOutlets) {
+        await db.insert(userOutletRoles).values({
+          id: `uor_${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}`,
+          userId: newUser.user.id,
+          outletId: out.id,
+          role,
+          createdAt: now,
+        });
+      }
+    } else {
+      await db.insert(userOutletRoles).values({
+        id: `uor_${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}`,
+        userId: newUser.user.id,
+        outletId,
+        role,
+        createdAt: now,
+      });
+    }
 
     revalidatePath('/staff');
   } catch (err: any) {
@@ -60,22 +75,22 @@ export async function updateStaffRole(userId: string, outletId: string, role: st
   const session = await getSession();
   if (!session) redirect('/login');
 
-  const existingRole = await db
-    .select()
-    .from(userOutletRoles)
-    .where(eq(userOutletRoles.userId, userId))
-    .limit(1);
-
   const now = Math.floor(Date.now() / 1000);
+  const allOutlets = await getOutlets();
 
-  if (existingRole.length > 0) {
-    await db
-      .update(userOutletRoles)
-      .set({
-        outletId,
+  // Reset / replace assigned roles
+  await db.delete(userOutletRoles).where(eq(userOutletRoles.userId, userId));
+
+  if (outletId === 'all') {
+    for (const out of allOutlets) {
+      await db.insert(userOutletRoles).values({
+        id: `uor_${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}`,
+        userId,
+        outletId: out.id,
         role: role as any,
-      })
-      .where(eq(userOutletRoles.userId, userId));
+        createdAt: now,
+      });
+    }
   } else {
     await db.insert(userOutletRoles).values({
       id: `uor_${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}`,

@@ -344,6 +344,7 @@ export default function StaffClient({
                     name="outletId"
                     className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-semibold"
                   >
+                    <option value="all">Semua Cabang (Multi-Cabang / Owner)</option>
                     {outlets.map((o) => (
                       <option key={o.id} value={o.id}>
                         {o.name}
@@ -407,6 +408,7 @@ export default function StaffClient({
                   onChange={(e) => setEditOutletId(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-bold"
                 >
+                  <option value="all">Semua Cabang (Multi-Cabang / Owner)</option>
                   {outlets.map((o) => (
                     <option key={o.id} value={o.id}>
                       {o.name}
