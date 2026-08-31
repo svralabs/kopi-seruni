@@ -40,24 +40,30 @@ export function toUnix(date: Date): number {
   return Math.floor(date.getTime() / 1000);
 }
 
-/** Format unix epoch → tanggal lokal Indonesia */
+const ID_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+/** Format unix epoch → tanggal lokal Indonesia (WIB UTC+7 fixed timezone untuk konsistensi SSR & Client) */
 export function formatDate(epoch: number): string {
-  return new Intl.DateTimeFormat('id-ID', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(fromUnix(epoch));
+  const d = new Date(epoch * 1000);
+  const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+  const wibDate = new Date(utc + (3600000 * 7));
+  const day = wibDate.getDate();
+  const month = ID_MONTHS[wibDate.getMonth()];
+  const year = wibDate.getFullYear();
+  return `${day} ${month} ${year}`;
 }
 
-/** Format unix epoch → waktu lokal Indonesia */
+/** Format unix epoch → waktu lokal Indonesia (WIB UTC+7 fixed timezone untuk konsistensi SSR & Client) */
 export function formatDateTime(epoch: number): string {
-  return new Intl.DateTimeFormat('id-ID', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(fromUnix(epoch));
+  const d = new Date(epoch * 1000);
+  const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+  const wibDate = new Date(utc + (3600000 * 7));
+  const day = wibDate.getDate();
+  const month = ID_MONTHS[wibDate.getMonth()];
+  const year = wibDate.getFullYear();
+  const hours = String(wibDate.getHours()).padStart(2, '0');
+  const minutes = String(wibDate.getMinutes()).padStart(2, '0');
+  return `${day} ${month} ${year}, ${hours}:${minutes}`;
 }
 
 /** Parse searchParams (period, from, to) menjadi rentang UNIX epoch & label teks */

@@ -79,7 +79,7 @@ describe('Unit Test: Utility & Money Helpers', () => {
     });
   });
 
-  describe('Date conversion helpers', () => {
+  describe('Date conversion & formatting helpers', () => {
     it('should convert Date to Unix timestamp and back', () => {
       const now = new Date('2026-08-30T12:00:00Z');
       const unix = toUnix(now);
@@ -87,6 +87,13 @@ describe('Unit Test: Utility & Money Helpers', () => {
 
       const converted = fromUnix(unix);
       expect(converted.getTime()).toBe(Math.floor(now.getTime() / 1000) * 1000);
+    });
+
+    it('should format date and dateTime deterministically in WIB (UTC+7)', () => {
+      // 1756598400 = 2025-08-31 00:00:00 UTC -> 07:00 WIB
+      const epoch = 1756598400;
+      const formatted = formatDate(epoch);
+      expect(formatted).toBe('31 Agu 2025');
     });
   });
 });

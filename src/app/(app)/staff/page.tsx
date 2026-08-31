@@ -4,6 +4,7 @@ import { getOutlets } from '@/lib/queries';
 import { requireAuthRole } from '@/lib/auth-helpers';
 import StaffClient, { type StaffMember } from './staff-client';
 import { eq } from 'drizzle-orm';
+import { formatDate } from '@/lib/utils';
 
 export default async function StaffPage() {
   await requireAuthRole(['owner']);
@@ -49,7 +50,7 @@ export default async function StaffPage() {
           outletIds: row.outlet?.id ? [row.outlet.id] : ['out_default'],
           outletNames: row.outlet?.name ? [row.outlet.name] : [],
           createdAt: row.user.createdAt
-            ? new Date(row.user.createdAt).toLocaleDateString('id-ID')
+            ? formatDate(Math.floor(new Date(row.user.createdAt).getTime() / 1000))
             : '-',
         });
       } else {

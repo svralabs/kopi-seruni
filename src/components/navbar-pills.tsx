@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { Store, Calendar, Bell, X, Check, ArrowRight } from 'lucide-react';
 import type { Outlet } from '@/lib/schema';
+import { formatDate } from '@/lib/utils';
 
 export default function NavbarPills({
   outlets,
@@ -124,19 +125,12 @@ export default function NavbarPills({
 
   let customDateLabel = 'Kustom';
   if (selectedPeriod === 'custom' && rawFrom && rawTo) {
-    const dFrom = new Date(Number(rawFrom) * 1000);
-    const dTo = new Date(Number(rawTo) * 1000);
-    if (!isNaN(dFrom.getTime()) && !isNaN(dTo.getTime())) {
-      const fDay = dFrom.getDate();
-      const fMonth = dFrom.toLocaleDateString('id-ID', { month: 'short' });
-      const tDay = dTo.getDate();
-      const tMonth = dTo.toLocaleDateString('id-ID', { month: 'short' });
-      const tYear = dTo.getFullYear();
-      if (dFrom.toDateString() === dTo.toDateString()) {
-        customDateLabel = `${fDay} ${fMonth} ${tYear}`;
-      } else {
-        customDateLabel = `${fDay} ${fMonth} - ${tDay} ${tMonth} ${tYear}`;
-      }
+    const fromNum = Number(rawFrom);
+    const toNum = Number(rawTo);
+    if (!isNaN(fromNum) && !isNaN(toNum) && fromNum > 0 && toNum > 0) {
+      const fromStr = formatDate(fromNum);
+      const toStr = formatDate(toNum);
+      customDateLabel = fromStr === toStr ? fromStr : `${fromStr} - ${toStr}`;
     }
   }
 
