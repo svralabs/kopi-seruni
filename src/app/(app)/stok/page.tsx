@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { stock, products, outlets, stockMovements, rawMaterials, rawMaterialStock, rawMaterialMovements } from '@/lib/schema';
+import { products, rawMaterials, rawMaterialStock, rawMaterialMovements, productRecipes } from '@/lib/schema';
 import { getOutlets } from '@/lib/queries';
 import StockClient from './stock-client';
 import { eq, and, isNull, desc } from 'drizzle-orm';
@@ -11,35 +11,22 @@ export default async function StockPage({
 }) {
   const resolvedParams = searchParams ? await searchParams : {};
   const outletId = resolvedParams.outletId || 'out_default';
-  const tab = resolvedParams.tab || 'produk';
+  const tab = resolvedParams.tab || 'bahan-baku';
 
   let allOutlets: any[] = [];
-  let productStockList: any[] = [];
-  let movementList: any[] = [];
+  let productEstimations: any[] = [];
   let rawMaterialList: any[] = [];
   let rawMaterialMovementList: any[] = [];
 
   try {
     const [
       outletsRes,
-      productStockRes,
-      movementRes,
       rawMaterialRes,
       rawMaterialMovementRes,
+      productsRes,
+      recipesRes,
     ] = await Promise.all([
       getOutlets(),
-      db
-        .select({ product: products, stock: stock })
-        .from(products)
-        .leftJoin(stock, and(eq(stock.productId, products.id), eq(stock.outletId, outletId)))
-        .where(and(isNull(products.deletedAt), eq(products.outletId, outletId))),
-      db
-        .select({ movement: stockMovements, product: products })
-        .from(stockMovements)
-        .leftJoin(products, eq(stockMovements.productId, products.id))
-        .where(eq(stockMovements.outletId, outletId))
-        .orderBy(desc(stockMovements.createdAt))
-        .limit(50),
       db
         .select({ material: rawMaterials, stock: rawMaterialStock })
         .from(rawMaterials)
@@ -59,25 +46,86 @@ export default async function StockPage({
         .where(eq(rawMaterialMovements.outletId, outletId))
         .orderBy(desc(rawMaterialMovements.createdAt))
         .limit(50),
+      db
+        .select()
+        .from(products)
+        .where(and(isNull(products.deletedAt), eq(products.outletId, outletId)))
+        .orderBy(products.name),
+      db
+        .select({
+          recipe: productRecipes,
+          material: rawMaterials,
+          stock: rawMaterialStock,
+        })
+        .from(productRecipes)
+        .innerJoin(rawMaterials, eq(rawMaterials.id, productRecipes.rawMaterialId))
+        .leftJoin(
+          rawMaterialStock,
+          and(
+            eq(rawMaterialStock.rawMaterialId, rawMaterials.id),
+            eq(rawMaterialStock.outletId, outletId),
+          ),
+        )
+        .where(eq(rawMaterials.outletId, outletId)),
     ]);
 
     allOutlets = outletsRes;
-    productStockList = productStockRes;
-    movementList = movementRes;
     rawMaterialList = rawMaterialRes;
     rawMaterialMovementList = rawMaterialMovementRes;
+
+    // Group recipes by productId
+    const recipeMap = new Map<string, Array<{ recipe: any; material: any; stock: any }>>();
+    for (const r of recipesRes) {
+      if (!recipeMap.has(r.recipe.productId)) {
+        recipeMap.set(r.recipe.productId, []);
+      }
+      recipeMap.get(r.recipe.productId)!.push(r);
+    }
+
+    productEstimations = productsRes.map((p) => {
+      const ings = recipeMap.get(p.id) || [];
+      if (ings.length === 0) {
+        return {
+          product: p,
+          estimatedPortions: null,
+          bottleneck: 'Belum ada resep',
+          ingredients: [],
+        };
+      }
+
+      let minPortions = Infinity;
+      let bottleneck = '';
+      for (const ing of ings) {
+        const stockQty = ing.stock?.quantityOnHand ?? 0;
+        const portions = Math.floor(stockQty / ing.recipe.quantityUsed);
+        if (portions < minPortions) {
+          minPortions = portions;
+          bottleneck = `${ing.material.name} (sisa ${stockQty.toLocaleString('id-ID')} ${ing.material.unit})`;
+        }
+      }
+
+      return {
+        product: p,
+        estimatedPortions: minPortions === Infinity ? 0 : minPortions,
+        bottleneck,
+        ingredients: ings.map((i) => ({
+          name: i.material.name,
+          quantityUsed: i.recipe.quantityUsed,
+          unit: i.material.unit,
+        })),
+      };
+    });
   } catch (e) {
     console.warn('Error fetching stock data:', e);
   }
 
   return (
     <StockClient
-      productStockList={productStockList}
-      movementList={movementList}
-      outlets={allOutlets}
-      currentOutletId={outletId}
       rawMaterialList={rawMaterialList}
       rawMaterialMovementList={rawMaterialMovementList}
+      productEstimations={productEstimations}
+      outlets={allOutlets}
+      currentOutletId={outletId}
       initialTab={tab}
     />
   );

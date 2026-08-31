@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { products, shifts, outlets } from '@/lib/schema';
+import { products, shifts, outlets, productRecipes, rawMaterials, rawMaterialStock } from '@/lib/schema';
 import { getOutlets, getCategories, getActiveDiscounts } from '@/lib/queries';
 import { getSession } from '@/lib/auth-helpers';
 import POSClient from './pos-client';
@@ -20,11 +20,12 @@ export default async function POSPage({
   let categoryList: any[] = [];
   let discountList: any[] = [];
   let activeShift: any = null;
+  let estimatedStockMap: Record<string, number> = {};
 
   try {
     const targetOutletId = params?.outletId || 'out_default';
 
-    const [outletsRes, productsRes, categoriesRes, discountsRes, activeShiftsRes] =
+    const [outletsRes, productsRes, categoriesRes, discountsRes, activeShiftsRes, recipesRes] =
       await Promise.all([
         getOutlets(),
         db
@@ -44,6 +45,22 @@ export default async function POSPage({
           .from(shifts)
           .where(and(eq(shifts.outletId, targetOutletId), isNull(shifts.closedAt)))
           .limit(1),
+        db
+          .select({
+            recipe: productRecipes,
+            material: rawMaterials,
+            stock: rawMaterialStock,
+          })
+          .from(productRecipes)
+          .innerJoin(rawMaterials, eq(rawMaterials.id, productRecipes.rawMaterialId))
+          .leftJoin(
+            rawMaterialStock,
+            and(
+              eq(rawMaterialStock.rawMaterialId, rawMaterials.id),
+              eq(rawMaterialStock.outletId, targetOutletId)
+            )
+          )
+          .where(eq(rawMaterials.outletId, targetOutletId)),
       ]);
 
     allOutlets = outletsRes;
@@ -51,6 +68,32 @@ export default async function POSPage({
     categoryList = categoriesRes;
     discountList = discountsRes;
     activeShift = activeShiftsRes[0] || null;
+
+    // Group recipes by productId
+    const recipeMap = new Map<string, Array<{ recipe: any; material: any; stock: any }>>();
+    for (const r of recipesRes) {
+      if (!recipeMap.has(r.recipe.productId)) {
+        recipeMap.set(r.recipe.productId, []);
+      }
+      recipeMap.get(r.recipe.productId)!.push(r);
+    }
+
+    for (const p of productsRes) {
+      const ings = recipeMap.get(p.id) || [];
+      if (ings.length === 0) {
+        estimatedStockMap[p.id] = 999;
+      } else {
+        let minPortions = Infinity;
+        for (const ing of ings) {
+          const stockQty = ing.stock?.quantityOnHand ?? 0;
+          const portions = Math.floor(stockQty / ing.recipe.quantityUsed);
+          if (portions < minPortions) {
+            minPortions = portions;
+          }
+        }
+        estimatedStockMap[p.id] = minPortions === Infinity ? 0 : minPortions;
+      }
+    }
 
     currentOutlet =
       allOutlets.find((o) => o.id === targetOutletId) ||
@@ -74,6 +117,7 @@ export default async function POSPage({
         currentOutlet={currentOutlet}
         shiftId={activeShift?.id}
         kasirName={kasirName}
+        estimatedStockMap={estimatedStockMap}
       />
     </div>
   );

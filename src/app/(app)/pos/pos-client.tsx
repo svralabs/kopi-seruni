@@ -54,6 +54,7 @@ export default function POSClient({
   currentOutlet,
   shiftId,
   kasirName = 'Kasir Seruni',
+  estimatedStockMap = {},
 }: {
   initialProducts: Product[];
   categories: Category[];
@@ -62,6 +63,7 @@ export default function POSClient({
   currentOutlet: Outlet;
   shiftId?: string;
   kasirName?: string;
+  estimatedStockMap?: Record<string, number>;
 }) {
   const router = useRouter();
   const cartSectionRef = useRef<HTMLDivElement>(null);
@@ -431,9 +433,24 @@ export default function POSClient({
                   {/* Top: Category & Price */}
                   <div>
                     <div className="flex items-center justify-between mb-0.5">
-                      <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-white text-[#54382B] border border-[#ECE7DE] truncate max-w-[85px]">
-                        {categories.find((c) => c.id === p.categoryId)?.name || 'Menu'}
-                      </span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-white text-[#54382B] border border-[#ECE7DE] truncate max-w-[70px]">
+                          {categories.find((c) => c.id === p.categoryId)?.name || 'Menu'}
+                        </span>
+                        {estimatedStockMap[p.id] !== undefined && estimatedStockMap[p.id] < 999 && (
+                          <span
+                            className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded-md ${
+                              estimatedStockMap[p.id] <= 0
+                                ? 'bg-[#FBEBE8] text-[#964B3B] border border-[#F3DAD5]'
+                                : estimatedStockMap[p.id] <= 10
+                                ? 'bg-[#FDF4E5] text-[#96631E] border border-[#F2E0C4]'
+                                : 'bg-[#EBF6EE] text-[#2D7A47] border border-[#D1EBD8]'
+                            }`}
+                          >
+                            {estimatedStockMap[p.id] <= 0 ? 'Habis' : `~${estimatedStockMap[p.id]} Porsi`}
+                          </span>
+                        )}
+                      </div>
                       <span className="font-serif font-black text-xs text-[#201C1A]">
                         {formatRupiah(p.price)}
                       </span>
