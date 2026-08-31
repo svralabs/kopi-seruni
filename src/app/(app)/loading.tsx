@@ -1,10 +1,40 @@
-export default function Loading() {
+import { Skeleton } from '@/components/ui/skeleton';
+
+export default function GenericAppLoading() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-3">
-      <div className="w-8 h-8 border-3 border-[#E5E0D6] border-t-[#54382B] rounded-full animate-spin" />
-      <p className="text-xs font-medium text-[#8E867C] tracking-wide">
-        Memuat data...
-      </p>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-1.5">
+          <Skeleton className="h-7 w-52 rounded-xl" />
+          <Skeleton className="h-3.5 w-80 rounded-md" />
+        </div>
+        <Skeleton className="h-10 w-36 rounded-2xl" />
+      </div>
+
+      {/* Main Card */}
+      <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-xs p-6 space-y-4">
+        <div className="h-10 bg-[#FAF8F5] rounded-xl flex items-center px-4 justify-between">
+          <Skeleton className="h-3 w-32" />
+          <Skeleton className="h-3 w-28" />
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="h-3 w-16" />
+        </div>
+
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <div
+            key={i}
+            className="h-12 border-b border-[#F4F0E8] flex items-center px-4 justify-between"
+          >
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-3.5 w-24" />
+            <Skeleton className="h-3.5 w-24" />
+            <Skeleton className="h-5 w-16 rounded-full" />
+            <Skeleton className="h-8 w-20 rounded-xl" />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
