@@ -35,11 +35,14 @@ export default function NavbarPills({
 
   const rawOutletId = searchParams?.get('outletId');
   const defaultSingleOutletId = outlets[0]?.id || 'out_default';
-  const currentEffectiveOutletId = isSingleOutletOnly
-    ? rawOutletId && rawOutletId !== 'all'
-      ? rawOutletId
-      : defaultSingleOutletId
-    : rawOutletId || 'all';
+  const currentEffectiveOutletId =
+    outlets.length <= 1
+      ? defaultSingleOutletId
+      : isSingleOutletOnly
+      ? rawOutletId && rawOutletId !== 'all'
+        ? rawOutletId
+        : defaultSingleOutletId
+      : rawOutletId || 'all';
 
   const selectedPeriod = searchParams?.get('period') || 'today';
 
@@ -137,6 +140,16 @@ export default function NavbarPills({
     }
   }
 
+  // Dynamic label for the profile pill next to notification bell
+  const displayProfileOutletName =
+    outlets.length === 1
+      ? outlets[0]?.name || activeOutletName
+      : currentEffectiveOutletId && currentEffectiveOutletId !== 'all'
+      ? outlets.find((o) => o.id === currentEffectiveOutletId)?.name || activeOutletName
+      : outlets.length > 1
+      ? 'Semua Cabang'
+      : outlets[0]?.name || activeOutletName;
+
   return (
     <header className="flex flex-wrap items-center justify-between gap-2.5 pb-3 mb-3 lg:pb-4 lg:mb-4 border-b border-[#EBE7DF]/80">
       {/* LEFT PILLS: Global Outlet Switcher */}
@@ -146,7 +159,7 @@ export default function NavbarPills({
             <Store className="w-4 h-4 text-[#54382B]" />
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
           </div>
-          {outlets.length > 1 || userRole === 'owner' ? (
+          {outlets.length > 1 ? (
             <select
               value={currentEffectiveOutletId}
               onChange={handleOutletChange}
@@ -225,7 +238,7 @@ export default function NavbarPills({
               {userRole}
             </span>
           </div>
-          <p className="text-[10px] text-[#8E867C] mt-0.5">{activeOutletName}</p>
+          <p className="text-[10px] text-[#8E867C] mt-0.5">{displayProfileOutletName}</p>
         </div>
 
         <div className="h-5 w-px bg-[#EBE7DF]" />

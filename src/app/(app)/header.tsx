@@ -14,12 +14,15 @@ export default async function Header({
 
   try {
     if (userId) {
-      const { outlets, userRole: role, isOwner } = await getUserAccessibleOutlets(userId);
+      const { outlets, userRole: role, isGlobalOwner } = await getUserAccessibleOutlets(userId);
       allOutlets = outlets;
       userRole = role;
-      activeOutletName = isOwner
-        ? 'Semua Cabang'
-        : outlets[0]?.name || 'Outlet Seruni';
+      activeOutletName =
+        outlets.length === 1
+          ? outlets[0]?.name || 'Outlet Seruni'
+          : isGlobalOwner
+          ? 'Semua Cabang'
+          : outlets[0]?.name || 'Outlet Seruni';
     }
   } catch (e) {
     console.warn('Error fetching header context:', e);
