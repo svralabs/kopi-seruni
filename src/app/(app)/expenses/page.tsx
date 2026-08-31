@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { expenses, expenseCategories, outlets } from '@/lib/schema';
+import { getOutlets } from '@/lib/queries';
 import ExpensesClient from './expenses-client';
 import { getDateRangeFromParams } from '@/lib/utils';
 import { desc, eq, sql, and, gte, lte } from 'drizzle-orm';
@@ -31,9 +32,6 @@ export default async function ExpensesPage({
   let totalAmount = 0;
 
   try {
-    allOutlets = await db.select().from(outlets);
-    categoryList = await db.select().from(expenseCategories);
-
     const conditions: any[] = [];
     if (outletId !== 'all') {
       conditions.push(eq(expenses.outletId, outletId));
@@ -43,31 +41,36 @@ export default async function ExpensesPage({
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    const countAndSum = await db
-      .select({
-        count: sql<number>`COUNT(*)`,
-        sum: sql<number>`COALESCE(SUM(${expenses.amount}), 0)`,
-      })
-      .from(expenses)
-      .where(whereClause);
+    const [outletsRes, categoryRes, countAndSumRes, rawExpenses] = await Promise.all([
+      getOutlets(),
+      db.select().from(expenseCategories),
+      db
+        .select({
+          count: sql<number>`COUNT(*)`,
+          sum: sql<number>`COALESCE(SUM(${expenses.amount}), 0)`,
+        })
+        .from(expenses)
+        .where(whereClause),
+      db
+        .select({
+          expense: expenses,
+          category: expenseCategories,
+          outlet: outlets,
+        })
+        .from(expenses)
+        .leftJoin(expenseCategories, eq(expenses.categoryId, expenseCategories.id))
+        .leftJoin(outlets, eq(expenses.outletId, outlets.id))
+        .where(whereClause)
+        .orderBy(desc(expenses.expenseDate))
+        .limit(pageSize)
+        .offset(offset),
+    ]);
 
-    totalItems = Number(countAndSum[0]?.count || 0);
-    totalAmount = Number(countAndSum[0]?.sum || 0);
+    allOutlets = outletsRes;
+    categoryList = categoryRes;
+    totalItems = Number(countAndSumRes[0]?.count || 0);
+    totalAmount = Number(countAndSumRes[0]?.sum || 0);
     totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-
-    const rawExpenses = await db
-      .select({
-        expense: expenses,
-        category: expenseCategories,
-        outlet: outlets,
-      })
-      .from(expenses)
-      .leftJoin(expenseCategories, eq(expenses.categoryId, expenseCategories.id))
-      .leftJoin(outlets, eq(expenses.outletId, outlets.id))
-      .where(whereClause)
-      .orderBy(desc(expenses.expenseDate))
-      .limit(pageSize)
-      .offset(offset);
 
     expensesList = rawExpenses.map((r) => ({
       ...r.expense,

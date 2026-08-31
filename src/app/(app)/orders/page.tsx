@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { orders, orderItems, outlets, user } from '@/lib/schema';
+import { getOutlets } from '@/lib/queries';
 import OrdersClient, { type OrderWithDetails } from './orders-client';
 import { desc, asc, eq, inArray, sql, and, like, or, gte, lte } from 'drizzle-orm';
 import { getDateRangeFromParams } from '@/lib/utils';
@@ -34,8 +35,6 @@ export default async function OrdersPage({
   let totalPages = 1;
 
   try {
-    allOutlets = await db.select().from(outlets);
-
     const conditions = [];
     if (outletId !== 'all') {
       conditions.push(eq(orders.outletId, outletId));
@@ -66,33 +65,38 @@ export default async function OrdersPage({
       );
     }
 
-    const countQuery = await db
-      .select({ count: sql<number>`COUNT(*)` })
-      .from(orders)
-      .where(conditions.length > 0 ? and(...conditions) : undefined);
-
-    totalItems = Number(countQuery[0]?.count || 0);
-    totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-    
     let orderBy = desc(orders.createdAt);
     if (params?.sort === 'createdAt') orderBy = params.dir === 'asc' ? asc(orders.createdAt) : desc(orders.createdAt);
     else if (params?.sort === 'total') orderBy = params.dir === 'asc' ? asc(orders.total) : desc(orders.total);
     else if (params?.sort === 'status') orderBy = params.dir === 'asc' ? asc(orders.status) : desc(orders.status);
     else if (params?.sort === 'paymentMethod') orderBy = params.dir === 'asc' ? asc(orders.paymentMethod) : desc(orders.paymentMethod);
 
-    const baseOrders = await db
-      .select({
-        order: orders,
-        outlet: outlets,
-        user: user,
-      })
-      .from(orders)
-      .leftJoin(outlets, eq(orders.outletId, outlets.id))
-      .leftJoin(user, eq(orders.kasirId, user.id))
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(orderBy)
-      .limit(pageSize)
-      .offset(offset);
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [outletsRes, countRes, baseOrders] = await Promise.all([
+      getOutlets(),
+      db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(orders)
+        .where(whereClause),
+      db
+        .select({
+          order: orders,
+          outlet: outlets,
+          user: user,
+        })
+        .from(orders)
+        .leftJoin(outlets, eq(orders.outletId, outlets.id))
+        .leftJoin(user, eq(orders.kasirId, user.id))
+        .where(whereClause)
+        .orderBy(orderBy)
+        .limit(pageSize)
+        .offset(offset),
+    ]);
+
+    allOutlets = outletsRes;
+    totalItems = Number(countRes[0]?.count || 0);
+    totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
 
     const orderIds = baseOrders.map((b) => b.order.id);
 

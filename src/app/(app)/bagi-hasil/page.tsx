@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { profitSharingRules, profitSharingLedger, outlets } from '@/lib/schema';
+import { getOutlets } from '@/lib/queries';
 import BagiHasilClient from './bagi-hasil-client';
 import { desc, eq } from 'drizzle-orm';
 
@@ -16,23 +17,25 @@ export default async function BagiHasilPage({
   let ledgerList: any[] = [];
 
   try {
-    allOutlets = await db.select().from(outlets);
+    const [outletsRes, rulesRes, rawLedger] = await Promise.all([
+      getOutlets(),
+      db
+        .select()
+        .from(profitSharingRules)
+        .where(eq(profitSharingRules.outletId, outletId)),
+      db
+        .select({
+          ledger: profitSharingLedger,
+          rule: profitSharingRules,
+        })
+        .from(profitSharingLedger)
+        .leftJoin(profitSharingRules, eq(profitSharingLedger.ruleId, profitSharingRules.id))
+        .where(eq(profitSharingLedger.outletId, outletId))
+        .orderBy(desc(profitSharingLedger.createdAt)),
+    ]);
 
-    rulesList = await db
-      .select()
-      .from(profitSharingRules)
-      .where(eq(profitSharingRules.outletId, outletId));
-
-    const rawLedger = await db
-      .select({
-        ledger: profitSharingLedger,
-        rule: profitSharingRules,
-      })
-      .from(profitSharingLedger)
-      .leftJoin(profitSharingRules, eq(profitSharingLedger.ruleId, profitSharingRules.id))
-      .where(eq(profitSharingLedger.outletId, outletId))
-      .orderBy(desc(profitSharingLedger.createdAt));
-
+    allOutlets = outletsRes;
+    rulesList = rulesRes;
     ledgerList = rawLedger.map((r) => ({
       ...r.ledger,
       ruleName: r.rule?.name || r.ledger.ruleId,

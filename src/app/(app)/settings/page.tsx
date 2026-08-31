@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { outlets, settings } from '@/lib/schema';
+import { getOutlets } from '@/lib/queries';
 import SettingsClient from './settings-client';
 import { eq } from 'drizzle-orm';
 
@@ -16,7 +17,7 @@ export default async function SettingsPage({
   const settingsMap: Record<string, string> = {};
 
   try {
-    allOutlets = await db.select().from(outlets);
+    allOutlets = await getOutlets();
     currentOutlet = allOutlets.find((o) => o.id === outletId) || allOutlets[0] || {
       id: 'out_default',
       name: 'Kopi Seruni - Pusat',

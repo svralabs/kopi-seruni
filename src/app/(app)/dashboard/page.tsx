@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { orders, expenses, orderItems, outlets, user } from '@/lib/schema';
+import { getOutlets } from '@/lib/queries';
 import { formatRupiah, formatDateTime, getDateRangeFromParams } from '@/lib/utils';
 import { sql, desc, eq, and, gte, lte } from 'drizzle-orm';
 import Link from 'next/link';
@@ -33,24 +34,11 @@ export default async function DashboardPage({
   let recentOrders: any[] = [];
 
   try {
-    allOutlets = await db.select().from(outlets);
-
     // Filter conditions for orders
     const orderConditions = [eq(orders.status, 'completed')];
     if (startEpoch > 0) orderConditions.push(gte(orders.createdAt, startEpoch));
     if (endEpoch > 0) orderConditions.push(lte(orders.createdAt, endEpoch));
     if (outletId !== 'all') orderConditions.push(eq(orders.outletId, outletId));
-
-    const revenueQuery = await db
-      .select({
-        total: sql<number>`COALESCE(SUM(total), 0)`,
-        count: sql<number>`COUNT(*)`,
-      })
-      .from(orders)
-      .where(and(...orderConditions));
-
-    totalRevenue = Number(revenueQuery[0]?.total || 0);
-    totalTrx = Number(revenueQuery[0]?.count || 0);
 
     // Filter conditions for expenses
     const expenseConditions = [];
@@ -58,17 +46,24 @@ export default async function DashboardPage({
     if (endEpoch > 0) expenseConditions.push(lte(expenses.expenseDate, endEpoch));
     if (outletId !== 'all') expenseConditions.push(eq(expenses.outletId, outletId));
 
-    const expenseQuery = await db
+    const outletsPromise = getOutlets();
+
+    const revenuePromise = db
+      .select({
+        total: sql<number>`COALESCE(SUM(total), 0)`,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(orders)
+      .where(and(...orderConditions));
+
+    const expensePromise = db
       .select({
         total: sql<number>`COALESCE(SUM(amount), 0)`,
       })
       .from(expenses)
       .where(expenseConditions.length > 0 ? and(...expenseConditions) : undefined);
 
-    totalExpenses = Number(expenseQuery[0]?.total || 0);
-
-    // COGS estimation
-    const cogsQuery = await db
+    const cogsPromise = db
       .select({
         cogs: sql<number>`COALESCE(SUM(order_items.cost_price * order_items.quantity), 0)`,
       })
@@ -76,10 +71,7 @@ export default async function DashboardPage({
       .innerJoin(orders, eq(orderItems.orderId, orders.id))
       .where(and(...orderConditions));
 
-    estimatedCOGS = Number(cogsQuery[0]?.cogs || 0);
-
-    // Recent 5 transactions
-    recentOrders = await db
+    const recentOrdersPromise = db
       .select({
         order: orders,
         outlet: outlets,
@@ -91,6 +83,21 @@ export default async function DashboardPage({
       .where(outletId !== 'all' ? eq(orders.outletId, outletId) : undefined)
       .orderBy(desc(orders.createdAt))
       .limit(5);
+
+    const [outletsRes, revenueRes, expenseRes, cogsRes, recentOrdersRes] = await Promise.all([
+      outletsPromise,
+      revenuePromise,
+      expensePromise,
+      cogsPromise,
+      recentOrdersPromise,
+    ]);
+
+    allOutlets = outletsRes;
+    totalRevenue = Number(revenueRes[0]?.total || 0);
+    totalTrx = Number(revenueRes[0]?.count || 0);
+    totalExpenses = Number(expenseRes[0]?.total || 0);
+    estimatedCOGS = Number(cogsRes[0]?.cogs || 0);
+    recentOrders = recentOrdersRes;
   } catch (e) {
     console.warn('Dashboard DB query error:', e);
   }

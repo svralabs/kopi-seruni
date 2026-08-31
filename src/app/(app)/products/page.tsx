@@ -20,23 +20,26 @@ export default async function ProductsPage({
   let totalPages = 1;
 
   try {
-    const countQuery = await db
-      .select({ count: sql<number>`COUNT(*)` })
-      .from(products)
-      .where(isNull(products.deletedAt));
+    const [countRes, productsRes, categoriesRes] = await Promise.all([
+      db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(products)
+        .where(isNull(products.deletedAt)),
+      db
+        .select()
+        .from(products)
+        .where(isNull(products.deletedAt))
+        .orderBy(desc(products.createdAt))
+        .limit(pageSize)
+        .offset(offset),
+      db.select().from(categories),
+    ]);
 
-    totalItems = Number(countQuery[0]?.count || 0);
+    totalItems = Number(countRes[0]?.count || 0);
     totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+    productList = productsRes;
+    categoriesList = categoriesRes;
 
-    productList = await db
-      .select()
-      .from(products)
-      .where(isNull(products.deletedAt))
-      .orderBy(desc(products.createdAt))
-      .limit(pageSize)
-      .offset(offset);
-
-    categoriesList = await db.select().from(categories);
     categoriesList.forEach((c) => {
       categoryMap[c.id] = c.name;
     });

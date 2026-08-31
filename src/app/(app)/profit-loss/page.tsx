@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { orders, expenses, orderItems, outlets } from '@/lib/schema';
+import { getOutlets } from '@/lib/queries';
 import { formatRupiah, getDateRangeFromParams } from '@/lib/utils';
 import { sql, eq, and, gte, lte } from 'drizzle-orm';
 import Link from 'next/link';
@@ -21,40 +22,38 @@ export default async function ProfitLossPage({
   let totalExpenses = 0;
 
   try {
-    allOutlets = await db.select().from(outlets);
-
     const orderConditions = [eq(orders.status, 'completed')];
     if (startEpoch > 0) orderConditions.push(gte(orders.createdAt, startEpoch));
     if (endEpoch > 0) orderConditions.push(lte(orders.createdAt, endEpoch));
     if (outletId !== 'all') orderConditions.push(eq(orders.outletId, outletId));
-
-    const revenueQuery = await db
-      .select({ total: sql<number>`COALESCE(SUM(total), 0)` })
-      .from(orders)
-      .where(and(...orderConditions));
-
-    totalRevenue = Number(revenueQuery[0]?.total || 0);
-
-    const cogsQuery = await db
-      .select({
-        totalCost: sql<number>`COALESCE(SUM(order_items.cost_price * order_items.quantity), 0)`,
-      })
-      .from(orderItems)
-      .innerJoin(orders, eq(orderItems.orderId, orders.id))
-      .where(and(...orderConditions));
-
-    totalCOGS = Number(cogsQuery[0]?.totalCost || 0);
 
     const expenseConditions = [];
     if (startEpoch > 0) expenseConditions.push(gte(expenses.expenseDate, startEpoch));
     if (endEpoch > 0) expenseConditions.push(lte(expenses.expenseDate, endEpoch));
     if (outletId !== 'all') expenseConditions.push(eq(expenses.outletId, outletId));
 
-    const expenseQuery = await db
-      .select({ total: sql<number>`COALESCE(SUM(amount), 0)` })
-      .from(expenses)
-      .where(expenseConditions.length > 0 ? and(...expenseConditions) : undefined);
+    const [outletsRes, revenueQuery, cogsQuery, expenseQuery] = await Promise.all([
+      getOutlets(),
+      db
+        .select({ total: sql<number>`COALESCE(SUM(total), 0)` })
+        .from(orders)
+        .where(and(...orderConditions)),
+      db
+        .select({
+          totalCost: sql<number>`COALESCE(SUM(order_items.cost_price * order_items.quantity), 0)`,
+        })
+        .from(orderItems)
+        .innerJoin(orders, eq(orderItems.orderId, orders.id))
+        .where(and(...orderConditions)),
+      db
+        .select({ total: sql<number>`COALESCE(SUM(amount), 0)` })
+        .from(expenses)
+        .where(expenseConditions.length > 0 ? and(...expenseConditions) : undefined),
+    ]);
 
+    allOutlets = outletsRes;
+    totalRevenue = Number(revenueQuery[0]?.total || 0);
+    totalCOGS = Number(cogsQuery[0]?.totalCost || 0);
     totalExpenses = Number(expenseQuery[0]?.total || 0);
   } catch (e) {
     console.warn('Profit Loss DB query error:', e);

@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { user, userOutletRoles, outlets } from '@/lib/schema';
+import { getOutlets } from '@/lib/queries';
 import StaffClient, { type StaffMember } from './staff-client';
 import { eq, desc } from 'drizzle-orm';
 
@@ -8,17 +9,20 @@ export default async function StaffPage() {
   let staffList: StaffMember[] = [];
 
   try {
-    allOutlets = await db.select().from(outlets);
+    const [outletsRes, usersData] = await Promise.all([
+      getOutlets(),
+      db
+        .select({
+          user: user,
+          role: userOutletRoles.role,
+          outlet: outlets,
+        })
+        .from(user)
+        .leftJoin(userOutletRoles, eq(user.id, userOutletRoles.userId))
+        .leftJoin(outlets, eq(userOutletRoles.outletId, outlets.id)),
+    ]);
 
-    const usersData = await db
-      .select({
-        user: user,
-        role: userOutletRoles.role,
-        outlet: outlets,
-      })
-      .from(user)
-      .leftJoin(userOutletRoles, eq(user.id, userOutletRoles.userId))
-      .leftJoin(outlets, eq(userOutletRoles.outletId, outlets.id));
+    allOutlets = outletsRes;
 
     staffList = usersData.map((u) => ({
       id: u.user.id,
