@@ -423,8 +423,8 @@ export default function StaffClient({
                 ))}
                 <p className="text-[10px] text-[#8E867C]">
                   {addOutletIds.length === outlets.length
-                    ? '⭐️ Akun memiliki izin akses di SEMUA cabang.'
-                    : `📍 Akun ditugaskan di ${addOutletIds.length} cabang terpilih.`}
+                    ? 'Akun memiliki izin akses di SEMUA cabang.'
+                    : `Akun ditugaskan di ${addOutletIds.length} cabang terpilih.`}
                 </p>
               </div>
 
@@ -531,8 +531,8 @@ export default function StaffClient({
                 </div>
                 <p className="text-[10px] text-[#8E867C]">
                   {editOutletIds.length === outlets.length
-                    ? '⭐️ Akun memiliki izin akses di SEMUA cabang.'
-                    : `📍 Akun ditugaskan di ${editOutletIds.length} cabang terpilih.`}
+                    ? 'Akun memiliki izin akses di SEMUA cabang.'
+                    : `Akun ditugaskan di ${editOutletIds.length} cabang terpilih.`}
                 </p>
               </div>
 

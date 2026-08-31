@@ -177,9 +177,15 @@ export default function ShiftClient({
                 return (
                   <tr key={s.id} className="hover:bg-[#FBF9F6] transition-colors">
                     <td className="py-3.5 px-4 text-xs">
-                      <p className="font-bold text-[#201C1A]">{formatDateTime(s.openedAt)}</p>
-                      <p className="text-[10px] text-[#9E968B] mt-0.5">
-                        {s.closedAt ? `s/d ${formatDateTime(s.closedAt)}` : '🟢 Sedang Berjalan'}
+                      <p className="text-[10px] text-[#9E968B] mt-0.5 flex items-center gap-1.5">
+                        {s.closedAt ? (
+                          `s/d ${formatDateTime(s.closedAt)}`
+                        ) : (
+                          <>
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse" />
+                            <span className="text-emerald-700 font-bold">Sedang Berjalan</span>
+                          </>
+                        )}
                       </p>
                     </td>
                     <td className="py-3.5 px-4 text-[#6B635A] font-semibold">{formatRupiah(s.openingCash)}</td>
