@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { authClient } from '@/lib/auth-client';
+import ConfirmModal from '@/components/confirm-modal';
 import {
   LayoutDashboard,
   UtensilsCrossed,
@@ -55,13 +56,21 @@ export default function AppShell({
   const router = useRouter();
   const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const navItems = ALL_NAV_ITEMS.filter((item) => item.roles.includes(userRole));
 
   const handleLogout = async () => {
-    await authClient.signOut();
-    router.push('/login');
-    router.refresh();
+    setIsLoggingOut(true);
+    try {
+      await authClient.signOut();
+      router.push('/login');
+      router.refresh();
+    } catch (err) {
+      console.error('Logout error:', err);
+      setIsLoggingOut(false);
+    }
   };
 
   const isPOSPage = pathname === '/pos' || pathname.startsWith('/pos/');
@@ -188,7 +197,8 @@ export default function AppShell({
           )}
 
           <button
-            onClick={handleLogout}
+            type="button"
+            onClick={() => setIsLogoutModalOpen(true)}
             className={`flex items-center px-2.5 py-1.5 text-xs font-bold text-[#964B3B] hover:text-red-700 hover:bg-[#FBEBE8] rounded-xl border border-[#F3DAD5] transition-all cursor-pointer ${
               isDesktopCollapsed ? 'w-full justify-center' : 'w-full justify-start gap-2'
             }`}
@@ -291,7 +301,8 @@ export default function AppShell({
               </div>
 
               <button
-                onClick={handleLogout}
+                type="button"
+                onClick={() => setIsLogoutModalOpen(true)}
                 className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-bold text-[#964B3B] hover:bg-[#FBEBE8] rounded-xl border border-[#F3DAD5] transition-colors cursor-pointer"
               >
                 <LogOut className="w-4 h-4" />
@@ -352,6 +363,23 @@ export default function AppShell({
           {children}
         </main>
       </div>
+
+      {/* Logout Confirmation Modal */}
+      <ConfirmModal
+        isOpen={isLogoutModalOpen}
+        title="Konfirmasi Keluar Akun"
+        description="Apakah Anda yakin ingin keluar dari sistem Kopi Seruni POS? Anda harus memasukkan email dan password untuk masuk kembali."
+        confirmLabel="Ya, Keluar Akun"
+        cancelLabel="Batal"
+        variant="danger"
+        isPending={isLoggingOut}
+        onClose={() => setIsLogoutModalOpen(false)}
+        onConfirm={handleLogout}
+        itemDetails={[
+          { label: 'Pengguna', value: userName },
+          { label: 'Peran Akun', value: userRole.toUpperCase() },
+        ]}
+      />
     </div>
   );
 }
