@@ -27,7 +27,7 @@ export interface StaffMember {
   name: string;
   email: string;
   role: string;
-  outletId: string | null;
+  outletIds: string[];
   outletName: string;
   createdAt: number | string;
 }
@@ -44,15 +44,25 @@ export default function StaffClient({
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
   const [deletingStaff, setDeletingStaff] = useState<StaffMember | null>(null);
-  const [editOutletId, setEditOutletId] = useState('');
+  const [addOutletIds, setAddOutletIds] = useState<string[]>([]);
+  const [editOutletIds, setEditOutletIds] = useState<string[]>([]);
   const [editRole, setEditRole] = useState('kasir');
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'kasir' | 'manager' | 'owner'>('all');
   const [isPending, startTransition] = useTransition();
 
+  const handleOpenAdd = () => {
+    setAddOutletIds(outlets.length > 0 ? [outlets[0].id] : ['out_default']);
+    setIsAddModalOpen(true);
+  };
+
   const handleOpenEdit = (staff: StaffMember) => {
     setEditingStaff(staff);
-    setEditOutletId(staff.outletId || outlets[0]?.id || 'out_default');
+    setEditOutletIds(
+      staff.outletIds && staff.outletIds.length > 0
+        ? staff.outletIds
+        : [outlets[0]?.id || 'out_default']
+    );
     setEditRole(staff.role || 'kasir');
   };
 
@@ -60,9 +70,14 @@ export default function StaffClient({
     e.preventDefault();
     if (!editingStaff) return;
 
+    if (editOutletIds.length === 0) {
+      toast.error('Pilih minimal 1 cabang untuk staff');
+      return;
+    }
+
     startTransition(async () => {
       try {
-        await updateStaffRole(editingStaff.id, editOutletId, editRole);
+        await updateStaffRole(editingStaff.id, editOutletIds, editRole);
         toast.success(`Peran staff "${editingStaff.name}" berhasil diperbarui`);
         setEditingStaff(null);
       } catch (err: any) {
@@ -115,8 +130,8 @@ export default function StaffClient({
 
         <button
           type="button"
-          onClick={() => setIsAddModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white text-xs font-bold rounded-2xl shadow-xs transition-colors self-start sm:self-auto"
+          onClick={handleOpenAdd}
+          className="flex items-center gap-2 px-4 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white text-xs font-bold rounded-2xl shadow-xs transition-colors self-start sm:self-auto cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           <span>Tambah Staff Baru</span>
@@ -337,33 +352,80 @@ export default function StaffClient({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-[#4A4238] mb-1.5">Penempatan Outlet</label>
-                  <select
-                    name="outletId"
-                    className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-semibold"
+              <div>
+                <label className="block font-bold text-[#4A4238] mb-1.5">Role / Hak Akses</label>
+                <select
+                  name="role"
+                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-semibold"
+                >
+                  <option value="kasir">Kasir (POS Saja)</option>
+                  <option value="manager">Manager Outlet (POS, Stok, Pengeluaran)</option>
+                  <option value="owner">Owner (Akses Penuh Seluruh Laporan & L/R)</option>
+                </select>
+              </div>
+
+              {/* Multi-Select Outlet Checklist */}
+              <div className="space-y-1.5 pt-1">
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-[#4A4238]">
+                    Penempatan Cabang <span className="text-red-500">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (addOutletIds.length === outlets.length) {
+                        setAddOutletIds([outlets[0]?.id || 'out_default']);
+                      } else {
+                        setAddOutletIds(outlets.map((o) => o.id));
+                      }
+                    }}
+                    className="text-[11px] font-bold text-[#96631E] hover:underline cursor-pointer"
                   >
-                    <option value="all">Semua Cabang (Multi-Cabang / Owner)</option>
-                    {outlets.map((o) => (
-                      <option key={o.id} value={o.id}>
-                        {o.name}
-                      </option>
-                    ))}
-                  </select>
+                    {addOutletIds.length === outlets.length ? 'Reset Pilihan' : 'Pilih Semua Cabang'}
+                  </button>
                 </div>
 
-                <div>
-                  <label className="block font-bold text-[#4A4238] mb-1.5">Role / Hak Akses</label>
-                  <select
-                    name="role"
-                    className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-semibold"
-                  >
-                    <option value="kasir">Kasir (POS Saja)</option>
-                    <option value="manager">Manager Outlet</option>
-                    <option value="owner">Owner (Full)</option>
-                  </select>
+                <div className="space-y-1.5 p-2 bg-[#F9F7F2] rounded-2xl border border-[#E5E0D6] max-h-40 overflow-y-auto">
+                  {outlets.map((o) => {
+                    const isChecked = addOutletIds.includes(o.id);
+                    return (
+                      <label
+                        key={o.id}
+                        className={`flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all cursor-pointer text-xs font-semibold ${
+                          isChecked
+                            ? 'bg-white text-[#201C1A] border border-[#2E2520]/20 shadow-xs'
+                            : 'text-[#7A7268] hover:bg-white/60'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            if (isChecked) {
+                              if (addOutletIds.length > 1) {
+                                setAddOutletIds(addOutletIds.filter((id) => id !== o.id));
+                              }
+                            } else {
+                              setAddOutletIds([...addOutletIds, o.id]);
+                            }
+                          }}
+                          className="w-4 h-4 rounded text-[#2E2520] accent-[#2E2520] cursor-pointer"
+                        />
+                        <Store className="w-3.5 h-3.5 text-[#54382B]" />
+                        <span className="truncate flex-1">{o.name}</span>
+                      </label>
+                    );
+                  })}
                 </div>
+                {/* Hidden input to pass selected outletIds array */}
+                {addOutletIds.map((id) => (
+                  <input key={id} type="hidden" name="outletIds" value={id} />
+                ))}
+                <p className="text-[10px] text-[#8E867C]">
+                  {addOutletIds.length === outlets.length
+                    ? '⭐️ Akun memiliki izin akses di SEMUA cabang.'
+                    : `📍 Akun ditugaskan di ${addOutletIds.length} cabang terpilih.`}
+                </p>
               </div>
 
               <div className="flex items-center gap-2 pt-3">
@@ -402,22 +464,6 @@ export default function StaffClient({
 
             <form onSubmit={handleSaveEdit} className="space-y-3">
               <div>
-                <label className="block font-bold text-[#4A4238] mb-1">Penempatan Outlet</label>
-                <select
-                  value={editOutletId}
-                  onChange={(e) => setEditOutletId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-bold"
-                >
-                  <option value="all">Semua Cabang (Multi-Cabang / Owner)</option>
-                  {outlets.map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
                 <label className="block font-bold text-[#4A4238] mb-1">Role / Hak Akses Baru</label>
                 <select
                   value={editRole}
@@ -428,6 +474,66 @@ export default function StaffClient({
                   <option value="manager">Manager Outlet (POS, Stok, Pengeluaran)</option>
                   <option value="owner">Owner (Akses Penuh Seluruh Cabang & L/R)</option>
                 </select>
+              </div>
+
+              {/* Multi-Select Outlet Checklist for Edit */}
+              <div className="space-y-1.5 pt-1">
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-[#4A4238]">
+                    Penempatan Cabang <span className="text-red-500">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (editOutletIds.length === outlets.length) {
+                        setEditOutletIds([outlets[0]?.id || 'out_default']);
+                      } else {
+                        setEditOutletIds(outlets.map((o) => o.id));
+                      }
+                    }}
+                    className="text-[11px] font-bold text-[#96631E] hover:underline cursor-pointer"
+                  >
+                    {editOutletIds.length === outlets.length ? 'Reset Pilihan' : 'Pilih Semua Cabang'}
+                  </button>
+                </div>
+
+                <div className="space-y-1.5 p-2 bg-[#F9F7F2] rounded-2xl border border-[#E5E0D6] max-h-40 overflow-y-auto">
+                  {outlets.map((o) => {
+                    const isChecked = editOutletIds.includes(o.id);
+                    return (
+                      <label
+                        key={o.id}
+                        className={`flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all cursor-pointer text-xs font-semibold ${
+                          isChecked
+                            ? 'bg-white text-[#201C1A] border border-[#2E2520]/20 shadow-xs'
+                            : 'text-[#7A7268] hover:bg-white/60'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            if (isChecked) {
+                              if (editOutletIds.length > 1) {
+                                setEditOutletIds(editOutletIds.filter((id) => id !== o.id));
+                              }
+                            } else {
+                              setEditOutletIds([...editOutletIds, o.id]);
+                            }
+                          }}
+                          className="w-4 h-4 rounded text-[#2E2520] accent-[#2E2520] cursor-pointer"
+                        />
+                        <Store className="w-3.5 h-3.5 text-[#54382B]" />
+                        <span className="truncate flex-1">{o.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-[#8E867C]">
+                  {editOutletIds.length === outlets.length
+                    ? '⭐️ Akun memiliki izin akses di SEMUA cabang.'
+                    : `📍 Akun ditugaskan di ${editOutletIds.length} cabang terpilih.`}
+                </p>
               </div>
 
               <div className="pt-2 flex gap-2">

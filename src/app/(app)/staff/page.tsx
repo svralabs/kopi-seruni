@@ -33,7 +33,7 @@ export default async function StaffPage() {
         name: string;
         email: string;
         role: string;
-        outletId: string;
+        outletIds: string[];
         outletNames: string[];
         createdAt: string;
       }
@@ -46,7 +46,7 @@ export default async function StaffPage() {
           name: row.user.name,
           email: row.user.email,
           role: row.role || 'kasir',
-          outletId: row.outlet?.id || 'out_default',
+          outletIds: row.outlet?.id ? [row.outlet.id] : ['out_default'],
           outletNames: row.outlet?.name ? [row.outlet.name] : [],
           createdAt: row.user.createdAt
             ? new Date(row.user.createdAt).toLocaleDateString('id-ID')
@@ -54,6 +54,9 @@ export default async function StaffPage() {
         });
       } else {
         const existing = userMap.get(row.user.id)!;
+        if (row.outlet?.id && !existing.outletIds.includes(row.outlet.id)) {
+          existing.outletIds.push(row.outlet.id);
+        }
         if (row.outlet?.name && !existing.outletNames.includes(row.outlet.name)) {
           existing.outletNames.push(row.outlet.name);
         }
@@ -69,7 +72,7 @@ export default async function StaffPage() {
         name: s.name,
         email: s.email,
         role: s.role,
-        outletId: isAllOutlets ? 'all' : s.outletId,
+        outletIds: s.outletIds,
         outletName: isAllOutlets
           ? `Semua Cabang (${s.outletNames.length} Cabang)`
           : s.outletNames.join(', ') || 'Semua Cabang (Pusat)',
