@@ -32,8 +32,12 @@ jobs:
       - name: Typecheck (TypeScript)
         run: bunx tsc --noEmit
 
-      - name: Run Unit & E2E Tests
-        run: bun test
+      - name: Run Unit Tests
+        run: bun test tests/unit/
 
-      - name: Build Next.js App
+      - name: Run E2E Integration Tests (with Turso DB)
+        if: ${{ env.TURSO_DATABASE_URL != '' }}
+        run: bun test tests/e2e/
+
+      - name: Build Next.js Production App
         run: bun run build
