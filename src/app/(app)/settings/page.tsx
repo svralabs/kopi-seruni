@@ -10,16 +10,18 @@ export default async function SettingsPage({
 }: {
   searchParams?: Promise<{ outletId?: string }>;
 }) {
-  await requireAuthRole(['owner', 'manager']);
   const resolvedParams = searchParams ? await searchParams : {};
-  const outletId = resolvedParams.outletId || 'out_default';
+  const { effectiveOutletId, accessibleOutlets } = await requireAuthRole(
+    ['owner', 'manager'],
+    resolvedParams.outletId
+  );
+  const outletId = effectiveOutletId;
 
-  let allOutlets: any[] = [];
+  let allOutlets: any[] = accessibleOutlets;
   let currentOutlet: any = null;
   const settingsMap: Record<string, string> = {};
 
   try {
-    allOutlets = await getOutlets();
     currentOutlet = allOutlets.find((o) => o.id === outletId) || allOutlets[0] || {
       id: 'out_default',
       name: 'Kopi Seruni - Pusat',

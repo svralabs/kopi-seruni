@@ -17,16 +17,19 @@ export default async function ExpensesPage({
     to?: string;
   }>;
 }) {
-  await requireAuthRole(['owner', 'manager']);
   const params = await searchParams;
-  const outletId = params?.outletId || 'all';
+  const { isOwner, effectiveOutletId, accessibleOutlets } = await requireAuthRole(
+    ['owner', 'manager'],
+    params?.outletId
+  );
+  const outletId = isOwner ? (params?.outletId || 'all') : effectiveOutletId;
   const page = Math.max(1, Number(params?.page || 1));
   const pageSize = 15;
   const offset = (page - 1) * pageSize;
 
   const { startEpoch, endEpoch } = getDateRangeFromParams(params);
 
-  let allOutlets: any[] = [];
+  let allOutlets: any[] = accessibleOutlets;
   let categoryList: any[] = [];
   let expensesList: any[] = [];
   let totalItems = 0;
@@ -43,8 +46,7 @@ export default async function ExpensesPage({
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    const [outletsRes, categoryRes, countAndSumRes, rawExpenses] = await Promise.all([
-      getOutlets(),
+    const [categoryRes, countAndSumRes, rawExpenses] = await Promise.all([
       getExpenseCategories(outletId),
       db
         .select({
@@ -68,7 +70,6 @@ export default async function ExpensesPage({
         .offset(offset),
     ]);
 
-    allOutlets = outletsRes;
     categoryList = categoryRes;
     totalItems = Number(countAndSumRes[0]?.count || 0);
     totalAmount = Number(countAndSumRes[0]?.sum || 0);

@@ -1,8 +1,5 @@
-import { db } from '@/lib/db';
-import { outlets, userOutletRoles } from '@/lib/schema';
-import { getOutlets } from '@/lib/queries';
+import { getUserAccessibleOutlets } from '@/lib/auth-helpers';
 import NavbarPills from '@/components/navbar-pills';
-import { eq } from 'drizzle-orm';
 
 export default async function Header({
   userId,
@@ -12,30 +9,17 @@ export default async function Header({
   userName?: string;
 }) {
   let allOutlets: any[] = [];
-  let userRole = 'owner';
+  let userRole = 'kasir';
   let activeOutletName = 'Outlet Pusat';
 
   try {
-    const outletsPromise = getOutlets();
-    const rolePromise = userId
-      ? db
-          .select({
-            role: userOutletRoles.role,
-            outletName: outlets.name,
-          })
-          .from(userOutletRoles)
-          .leftJoin(outlets, eq(userOutletRoles.outletId, outlets.id))
-          .where(eq(userOutletRoles.userId, userId))
-          .limit(1)
-      : Promise.resolve([]);
-
-    const [outletsRes, roleRows] = await Promise.all([outletsPromise, rolePromise]);
-    allOutlets = outletsRes;
-
-    const roleRow = roleRows[0];
-    if (roleRow) {
-      userRole = roleRow.role;
-      activeOutletName = roleRow.outletName || activeOutletName;
+    if (userId) {
+      const { outlets, userRole: role, isOwner } = await getUserAccessibleOutlets(userId);
+      allOutlets = outlets;
+      userRole = role;
+      activeOutletName = isOwner
+        ? 'Semua Cabang'
+        : outlets[0]?.name || 'Outlet Seruni';
     }
   } catch (e) {
     console.warn('Error fetching header context:', e);

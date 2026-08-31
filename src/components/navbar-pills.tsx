@@ -125,18 +125,26 @@ export default function NavbarPills({
             <Store className="w-4 h-4 text-[#54382B]" />
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
           </div>
-          <select
-            value={currentEffectiveOutletId}
-            onChange={handleOutletChange}
-            className="text-xs font-bold text-[#201C1A] bg-transparent border-none focus:outline-none cursor-pointer pr-1"
-          >
-            {!isSingleOutletOnly && <option value="all">Semua Cabang (Global)</option>}
-            {outlets.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </select>
+          {outlets.length > 1 || userRole === 'owner' ? (
+            <select
+              value={currentEffectiveOutletId}
+              onChange={handleOutletChange}
+              className="text-xs font-bold text-[#201C1A] bg-transparent border-none focus:outline-none cursor-pointer pr-1"
+            >
+              {!isSingleOutletOnly && userRole === 'owner' && (
+                <option value="all">Semua Cabang (Global)</option>
+              )}
+              {outlets.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className="text-xs font-bold text-[#201C1A]">
+              {outlets[0]?.name || activeOutletName}
+            </span>
+          )}
         </div>
       ) : (
         <div className="hidden sm:block" />

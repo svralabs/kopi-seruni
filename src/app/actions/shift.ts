@@ -1,13 +1,19 @@
 'use server';
 import { db } from '@/lib/db';
 import { shifts, orders } from '@/lib/schema';
-import { getSession } from '@/lib/auth-helpers';
+import { getSession, getCurrentUserRole } from '@/lib/auth-helpers';
 import { eq, and, sql } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 
 export async function openShift(outletId: string, openingCash: number) {
   const session = await getSession();
   if (!session) redirect('/login');
+
+  const { role, allRoles } = await getCurrentUserRole(session.user.id);
+  const hasAccess = role === 'owner' || allRoles.some((r) => r.outletId === outletId);
+  if (!hasAccess) {
+    throw new Error('Akses Ditolak: Anda tidak memiliki izin untuk membuka shift di cabang ini.');
+  }
 
   const now = Math.floor(Date.now() / 1000);
   const shiftId = `shf_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;

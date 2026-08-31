@@ -35,6 +35,13 @@ export async function checkout(payload: CheckoutPayload) {
   const session = await getSession();
   if (!session) redirect('/login');
 
+  // Validasi hak akses user di outlet terkait
+  const { role, allRoles } = await getCurrentUserRole(session.user.id);
+  const hasAccess = role === 'owner' || allRoles.some((r) => r.outletId === payload.outletId);
+  if (!hasAccess) {
+    throw new Error('Akses Ditolak: Anda tidak memiliki izin untuk memproses transaksi di cabang ini.');
+  }
+
   const subtotal = payload.items.reduce(
     (sum, i) => sum + i.productPrice * i.quantity,
     0,

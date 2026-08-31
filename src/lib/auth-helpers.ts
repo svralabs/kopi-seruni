@@ -5,10 +5,67 @@ import { userOutletRoles } from './schema';
 import { eq, and } from 'drizzle-orm';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import type { AppRole } from './schema';
+import { getOutlets } from './queries';
+import type { AppRole, Outlet } from './schema';
 
 export async function getSession() {
   return auth.api.getSession({ headers: await headers() });
+}
+
+/**
+ * Ambil daftar outlet yang boleh diakses user berdasarkan role per cabang.
+ * - Owner: Akses semua outlet + opsi 'all' (Semua Cabang)
+ * - Manager / Kasir: HANYA outlet yang secara eksplisit di-assign ke user tersebut
+ */
+export async function getUserAccessibleOutlets(userId: string): Promise<{
+  outlets: Outlet[];
+  isOwner: boolean;
+  userRole: AppRole;
+  primaryOutletId: string;
+  userRoles: Array<{ outletId: string; role: AppRole }>;
+}> {
+  const allOutlets = await getOutlets();
+  const roles = await db
+    .select({ outletId: userOutletRoles.outletId, role: userOutletRoles.role })
+    .from(userOutletRoles)
+    .where(eq(userOutletRoles.userId, userId));
+
+  if (roles.length === 0) {
+    return {
+      outlets: allOutlets.slice(0, 1),
+      isOwner: false,
+      userRole: 'kasir',
+      primaryOutletId: allOutlets[0]?.id || 'out_default',
+      userRoles: [],
+    };
+  }
+
+  const isOwner = roles.some((r) => r.role === 'owner');
+  const isManager = roles.some((r) => r.role === 'manager');
+  const userRole: AppRole = isOwner ? 'owner' : isManager ? 'manager' : 'kasir';
+
+  if (isOwner) {
+    return {
+      outlets: allOutlets,
+      isOwner: true,
+      userRole: 'owner',
+      primaryOutletId: allOutlets[0]?.id || 'out_default',
+      userRoles: roles as any[],
+    };
+  }
+
+  // Kasir & Manajer hanya melihat cabang yang di-assign
+  const allowedOutletIds = new Set(roles.map((r) => r.outletId));
+  const filteredOutlets = allOutlets.filter((o) => allowedOutletIds.has(o.id));
+  const finalOutlets = filteredOutlets.length > 0 ? filteredOutlets : allOutlets.slice(0, 1);
+
+  return {
+    outlets: finalOutlets,
+    isOwner: false,
+    userRole,
+    primaryOutletId: finalOutlets[0]?.id || 'out_default',
+    userRoles: roles as any[],
+  };
 }
 
 /**
@@ -60,28 +117,43 @@ export async function getCurrentUserRole(
 
 /**
  * Route RBAC guard untuk Server Component:
- * Jika role tidak diizinkan, redirect ke /pos (untuk kasir) atau /unauthorized.
+ * Memvalidasi hak akses role & batasan outlet yang boleh diakses.
  */
-export async function requireAuthRole(allowedRoles: AppRole[], outletId?: string) {
+export async function requireAuthRole(allowedRoles: AppRole[], requestedOutletId?: string) {
   const session = await getSession();
   if (!session) {
     redirect('/login');
   }
 
-  const { role, outletId: userOutletId, allRoles } = await getCurrentUserRole(
-    session.user.id,
-    outletId
-  );
+  const { outlets: accessibleOutlets, isOwner, userRole, primaryOutletId, userRoles } =
+    await getUserAccessibleOutlets(session.user.id);
 
-  if (!allowedRoles.includes(role)) {
+  if (!allowedRoles.includes(userRole)) {
     // Jika kasir mencoba akses menu admin/owner, lempar ke POS
-    if (role === 'kasir') {
+    if (userRole === 'kasir') {
       redirect('/pos');
     }
     redirect('/unauthorized');
   }
 
-  return { session, role, userOutletId, allRoles };
+  // Tentukan outlet yang valid untuk user ini:
+  let effectiveOutletId = primaryOutletId;
+  if (isOwner) {
+    effectiveOutletId = requestedOutletId || primaryOutletId;
+  } else if (requestedOutletId && requestedOutletId !== 'all') {
+    const hasAccess = accessibleOutlets.some((o) => o.id === requestedOutletId);
+    effectiveOutletId = hasAccess ? requestedOutletId : primaryOutletId;
+  }
+
+  return {
+    session,
+    role: userRole,
+    isOwner,
+    userOutletId: primaryOutletId,
+    allRoles: userRoles,
+    accessibleOutlets,
+    effectiveOutletId,
+  };
 }
 
 /**

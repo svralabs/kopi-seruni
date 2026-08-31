@@ -10,11 +10,14 @@ export default async function POSPage({
 }: {
   searchParams: Promise<{ outletId?: string }>;
 }) {
-  const { session } = await requireAuthRole(['owner', 'manager', 'kasir']);
+  const params = await searchParams;
+  const { session, effectiveOutletId, accessibleOutlets } = await requireAuthRole(
+    ['owner', 'manager', 'kasir'],
+    params?.outletId
+  );
   const kasirName = session?.user?.name || 'Kasir Seruni';
 
-  const params = await searchParams;
-  let allOutlets: any[] = [];
+  let allOutlets: any[] = accessibleOutlets;
   let currentOutlet: any = null;
   let productList: any[] = [];
   let categoryList: any[] = [];
@@ -23,11 +26,10 @@ export default async function POSPage({
   let estimatedStockMap: Record<string, number> = {};
 
   try {
-    const targetOutletId = params?.outletId || 'out_default';
+    const targetOutletId = effectiveOutletId;
 
-    const [outletsRes, productsRes, categoriesRes, discountsRes, activeShiftsRes, recipesRes] =
+    const [productsRes, categoriesRes, discountsRes, activeShiftsRes, recipesRes] =
       await Promise.all([
-        getOutlets(),
         db
           .select()
           .from(products)
@@ -63,7 +65,6 @@ export default async function POSPage({
           .where(eq(rawMaterials.outletId, targetOutletId)),
       ]);
 
-    allOutlets = outletsRes;
     productList = productsRes;
     categoryList = categoriesRes;
     discountList = discountsRes;

@@ -22,16 +22,19 @@ export default async function OrdersPage({
     to?: string;
   }>;
 }) {
-  const { role } = await requireAuthRole(['owner', 'manager', 'kasir']);
   const params = await searchParams;
-  const outletId = params?.outletId || 'all';
+  const { role, isOwner, effectiveOutletId, accessibleOutlets } = await requireAuthRole(
+    ['owner', 'manager', 'kasir'],
+    params?.outletId
+  );
+  const outletId = isOwner ? (params?.outletId || 'all') : effectiveOutletId;
   const page = Math.max(1, Number(params?.page || 1));
   const pageSize = 15;
   const offset = (page - 1) * pageSize;
 
   const { startEpoch, endEpoch } = getDateRangeFromParams(params);
 
-  let allOutlets: any[] = [];
+  let allOutlets: any[] = accessibleOutlets;
   let ordersList: OrderWithDetails[] = [];
   let totalItems = 0;
   let totalPages = 1;
@@ -75,8 +78,7 @@ export default async function OrdersPage({
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    const [outletsRes, countRes, baseOrders] = await Promise.all([
-      getOutlets(),
+    const [countRes, baseOrders] = await Promise.all([
       db
         .select({ count: sql<number>`COUNT(*)` })
         .from(orders)
@@ -96,7 +98,6 @@ export default async function OrdersPage({
         .offset(offset),
     ]);
 
-    allOutlets = outletsRes;
     totalItems = Number(countRes[0]?.count || 0);
     totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
 

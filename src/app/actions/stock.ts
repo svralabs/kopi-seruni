@@ -2,7 +2,7 @@
 
 import { db } from '@/lib/db';
 import { stock, stockMovements, rawMaterials, rawMaterialStock, rawMaterialMovements } from '@/lib/schema';
-import { getSession } from '@/lib/auth-helpers';
+import { getSession, getCurrentUserRole } from '@/lib/auth-helpers';
 import { eq, and, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -16,6 +16,16 @@ export async function adjustRawMaterialStock(formData: FormData) {
   const type = (formData.get('type') as 'purchase' | 'usage' | 'adjustment' | 'waste') || 'adjustment';
   const notes = (formData.get('notes') as string) || null;
   const outletId = (formData.get('outletId') as string) || 'out_default';
+
+  const { role, allRoles } = await getCurrentUserRole(session.user.id);
+  if (role === 'kasir') {
+    throw new Error('Akses Ditolak: Kasir tidak memiliki izin untuk mengubah stok.');
+  }
+
+  const hasAccess = role === 'owner' || allRoles.some((r) => r.outletId === outletId);
+  if (!hasAccess) {
+    throw new Error('Akses Ditolak: Anda tidak memiliki izin untuk mengelola stok di cabang ini.');
+  }
 
   if (!rawMaterialId || quantity === 0) {
     throw new Error('Bahan baku dan jumlah penyesuaian wajib diisi');

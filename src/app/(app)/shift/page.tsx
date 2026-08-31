@@ -10,22 +10,24 @@ export default async function ShiftPage({
 }: {
   searchParams?: Promise<{ outletId?: string; page?: string }>;
 }) {
-  await requireAuthRole(['owner', 'manager', 'kasir']);
-  const params = await searchParams;
-  const outletId = params?.outletId || 'out_default';
+  const params = searchParams ? await searchParams : {};
+  const { effectiveOutletId, accessibleOutlets } = await requireAuthRole(
+    ['owner', 'manager', 'kasir'],
+    params?.outletId
+  );
+  const outletId = effectiveOutletId;
   const page = Math.max(1, Number(params?.page || 1));
   const pageSize = 15;
   const offset = (page - 1) * pageSize;
 
   let activeShift: any = null;
   let recentShifts: any[] = [];
-  let allOutlets: any[] = [];
+  let allOutlets: any[] = accessibleOutlets;
   let totalItems = 0;
   let totalPages = 1;
 
   try {
-    const [outletsRes, activeList, countRes, rawShifts] = await Promise.all([
-      getOutlets(),
+    const [activeList, countRes, rawShifts] = await Promise.all([
       db
         .select()
         .from(shifts)
@@ -48,7 +50,6 @@ export default async function ShiftPage({
         .offset(offset),
     ]);
 
-    allOutlets = outletsRes;
     activeShift = activeList[0] || null;
     totalItems = Number(countRes[0]?.count || 0);
     totalPages = Math.max(1, Math.ceil(totalItems / pageSize));

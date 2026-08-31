@@ -2,7 +2,7 @@
 
 import { db } from '@/lib/db';
 import { expenses } from '@/lib/schema';
-import { getSession } from '@/lib/auth-helpers';
+import { getSession, getCurrentUserRole } from '@/lib/auth-helpers';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
@@ -16,6 +16,16 @@ export async function createExpense(formData: FormData) {
   const categoryId = (formData.get('categoryId') as string) || null;
   const expenseDateInput = formData.get('expenseDate') as string;
   const outletId = (formData.get('outletId') as string) || 'out_default';
+
+  const { role, allRoles } = await getCurrentUserRole(session.user.id);
+  if (role === 'kasir') {
+    throw new Error('Akses Ditolak: Kasir tidak memiliki izin untuk mencatat pengeluaran.');
+  }
+
+  const hasAccess = role === 'owner' || allRoles.some((r) => r.outletId === outletId);
+  if (!hasAccess) {
+    throw new Error('Akses Ditolak: Anda tidak memiliki izin untuk mencatat pengeluaran di cabang ini.');
+  }
 
   if (!description || amount <= 0) {
     throw new Error('Deskripsi dan nominal pengeluaran wajib diisi');

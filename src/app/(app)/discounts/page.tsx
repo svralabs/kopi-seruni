@@ -10,11 +10,14 @@ export default async function DiscountsPage({
 }: {
   searchParams?: Promise<{ outletId?: string }>;
 }) {
-  await requireAuthRole(['owner', 'manager']);
   const resolvedParams = searchParams ? await searchParams : {};
-  const outletId = resolvedParams.outletId || 'all';
+  const { isOwner, effectiveOutletId, accessibleOutlets } = await requireAuthRole(
+    ['owner', 'manager'],
+    resolvedParams.outletId
+  );
+  const outletId = isOwner ? (resolvedParams.outletId || 'all') : effectiveOutletId;
 
-  let allOutlets: any[] = [];
+  let allOutlets: any[] = accessibleOutlets;
   let discountsList: any[] = [];
 
   try {
@@ -23,8 +26,7 @@ export default async function DiscountsPage({
       conditions.push(eq(discounts.outletId, outletId));
     }
 
-    const [outletsRes, rawDiscounts] = await Promise.all([
-      getOutlets(),
+    const [rawDiscounts] = await Promise.all([
       db
         .select({
           discount: discounts,
@@ -36,7 +38,6 @@ export default async function DiscountsPage({
         .orderBy(desc(discounts.createdAt)),
     ]);
 
-    allOutlets = outletsRes;
     discountsList = rawDiscounts.map((r) => ({
       ...r.discount,
       outletName: r.outlet?.name || 'Pusat',

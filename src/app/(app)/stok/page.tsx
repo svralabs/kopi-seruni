@@ -10,25 +10,26 @@ export default async function StockPage({
 }: {
   searchParams?: Promise<{ outletId?: string; tab?: string }>;
 }) {
-  await requireAuthRole(['owner', 'manager']);
   const resolvedParams = searchParams ? await searchParams : {};
-  const outletId = resolvedParams.outletId || 'out_default';
+  const { effectiveOutletId, accessibleOutlets } = await requireAuthRole(
+    ['owner', 'manager'],
+    resolvedParams.outletId
+  );
+  const outletId = effectiveOutletId;
   const tab = resolvedParams.tab || 'bahan-baku';
 
-  let allOutlets: any[] = [];
+  let allOutlets: any[] = accessibleOutlets;
   let productEstimations: any[] = [];
   let rawMaterialList: any[] = [];
   let rawMaterialMovementList: any[] = [];
 
   try {
     const [
-      outletsRes,
       rawMaterialRes,
       rawMaterialMovementRes,
       productsRes,
       recipesRes,
     ] = await Promise.all([
-      getOutlets(),
       db
         .select({ material: rawMaterials, stock: rawMaterialStock })
         .from(rawMaterials)
@@ -71,7 +72,6 @@ export default async function StockPage({
         .where(eq(rawMaterials.outletId, outletId)),
     ]);
 
-    allOutlets = outletsRes;
     rawMaterialList = rawMaterialRes;
     rawMaterialMovementList = rawMaterialMovementRes;
 

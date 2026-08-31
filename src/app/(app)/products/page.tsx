@@ -10,14 +10,17 @@ export default async function ProductsPage({
 }: {
   searchParams?: Promise<{ page?: string; outletId?: string }>;
 }) {
-  await requireAuthRole(['owner', 'manager']);
   const params = searchParams ? await searchParams : {};
-  const outletId = params.outletId || 'all';
+  const { isOwner, effectiveOutletId, accessibleOutlets } = await requireAuthRole(
+    ['owner', 'manager'],
+    params.outletId
+  );
+  const outletId = isOwner ? (params.outletId || 'all') : effectiveOutletId;
   const page = Math.max(1, Number(params.page || 1));
   const pageSize = 15;
   const offset = (page - 1) * pageSize;
 
-  let allOutlets: any[] = [];
+  let allOutlets: any[] = accessibleOutlets;
   let productList: any[] = [];
   let categoriesList: any[] = [];
   let categoryMap: Record<string, string> = {};
@@ -31,8 +34,7 @@ export default async function ProductsPage({
     }
     const whereClause = and(...conditions);
 
-    const [outletsRes, countRes, rawProducts, categoriesRes] = await Promise.all([
-      getOutlets(),
+    const [countRes, rawProducts, categoriesRes] = await Promise.all([
       db
         .select({ count: sql<number>`COUNT(*)` })
         .from(products)
@@ -51,7 +53,6 @@ export default async function ProductsPage({
       getCategories(outletId),
     ]);
 
-    allOutlets = outletsRes;
     totalItems = Number(countRes[0]?.count || 0);
     totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
     productList = rawProducts.map((r) => ({
