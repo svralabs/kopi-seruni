@@ -46,8 +46,10 @@ export default function ReceiptModal({
   const [isBluetoothPrinting, setIsBluetoothPrinting] = useState(false);
   const [bluetoothStatus, setBluetoothStatus] = useState<string | null>(null);
   const [bluetoothSupported, setBluetoothSupported] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     setBluetoothSupported(isBluetoothSupported());
   }, []);
 
@@ -267,7 +269,7 @@ export default function ReceiptModal({
         <div className="p-4 bg-white border-t border-[#ECE7DE] space-y-2.5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             {/* Direct Bluetooth Print Button (Chrome/Edge Web Bluetooth) */}
-            {bluetoothSupported && (
+            {mounted && bluetoothSupported ? (
               <button
                 type="button"
                 disabled={isBluetoothPrinting}
@@ -282,14 +284,14 @@ export default function ReceiptModal({
                 )}
                 <span>Print Bluetooth Direct</span>
               </button>
-            )}
+            ) : null}
 
             {/* Fallback Standard Browser Print */}
             <button
               type="button"
               onClick={handlePrintBrowser}
               className={`py-3 px-4 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer ${
-                !bluetoothSupported ? 'sm:col-span-2' : ''
+                !mounted || !bluetoothSupported ? 'sm:col-span-2' : ''
               }`}
             >
               <Printer className="w-4 h-4" />
@@ -309,53 +311,6 @@ export default function ReceiptModal({
           </button>
         </div>
       </div>
-
-      {/* Print CSS Styles */}
-      <style jsx global>{`
-        @page {
-          size: auto;
-          margin: 0mm;
-        }
-        @media print {
-          html,
-          body {
-            margin: 0 !important;
-            padding: 0 !important;
-            background: #ffffff !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-          body * {
-            visibility: hidden !important;
-          }
-          #thermal-receipt,
-          #thermal-receipt * {
-            visibility: visible !important;
-          }
-          #thermal-receipt {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-            max-width: 58mm !important;
-            margin: 0 !important;
-            padding: 2mm 3mm !important;
-            border: none !important;
-            box-shadow: none !important;
-            background: #ffffff !important;
-            color: #000000 !important;
-            font-family: monospace, 'Courier New', Courier, sans-serif !important;
-          }
-          #thermal-receipt img {
-            max-width: 24mm !important;
-            height: auto !important;
-            margin: 0 auto 1.5mm auto !important;
-            display: block !important;
-            filter: grayscale(100%) contrast(200%) !important;
-            -webkit-filter: grayscale(100%) contrast(200%) !important;
-          }
-        }
-      `}</style>
     </div>
   );
 }

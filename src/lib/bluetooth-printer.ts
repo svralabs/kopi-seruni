@@ -81,9 +81,22 @@ export async function printDirectBluetooth(data: Uint8Array): Promise<{ success:
 
     return { success: true, message: 'Struk berhasil dicetak langsung ke printer Bluetooth!' };
   } catch (error: any) {
-    if (error.name === 'NotFoundError') {
+    if (error?.name === 'NotFoundError') {
       return { success: false, message: 'Pencarian perangkat dibatalkan.' };
     }
-    return { success: false, message: `Gagal cetak Bluetooth: ${error.message || error}` };
+    const msg = error?.message || String(error);
+    if (
+      error?.name === 'NotAllowedError' ||
+      error?.name === 'SecurityError' ||
+      msg.toLowerCase().includes('permission') ||
+      msg.toLowerCase().includes('blocked')
+    ) {
+      return {
+        success: false,
+        message:
+          'Izin Bluetooth diblokir browser. Buka Pengaturan Situs browser (ikon gembok/setelan di URL bar) untuk Mengizinkan Bluetooth, atau gunakan tombol Cetak via Dialog OS.',
+      };
+    }
+    return { success: false, message: `Gagal cetak Bluetooth: ${msg}` };
   }
 }
