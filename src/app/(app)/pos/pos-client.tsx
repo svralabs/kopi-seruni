@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { formatRupiah, calcDiscount, calcTax, calcTotal } from '@/lib/utils';
 import { checkout } from '@/app/actions/checkout';
 import type { Product, Category, Discount, Outlet } from '@/lib/schema';
@@ -255,6 +256,10 @@ export default function POSClient({
 
   // Open Checkout Modal
   const handleOpenCheckoutModal = () => {
+    if (!shiftId) {
+      setErrorMessage('Shift kasir belum dibuka! Harap buka shift kasir terlebih dahulu pada menu Shift.');
+      return;
+    }
     if (cart.length === 0) return;
     setCashReceived(total);
     setErrorMessage(null);
@@ -332,13 +337,38 @@ export default function POSClient({
   };
 
   return (
-    <div className="flex flex-col lg:flex-row gap-3.5 lg:h-[calc(100vh-5.5rem)] lg:min-h-[520px] lg:overflow-hidden pb-16 lg:pb-0 relative min-w-0">
-      {/* ============================================================ */}
-      {/* LEFT COLUMN: COMPACT CATALOG WITH PAGINATION (65%) */}
-      {/* ============================================================ */}
-      <div className="flex-1 flex flex-col justify-between bg-white rounded-3xl border border-[#EBE7DF] p-3 sm:p-3.5 lg:p-3.5 shadow-xs min-w-0 lg:overflow-hidden">
-        {/* Top Control Bar: Categories & Search */}
-        <div className="space-y-2 shrink-0 pb-2 border-b border-[#F0ECE4]">
+    <div className="flex flex-col gap-3 lg:h-[calc(100vh-5.5rem)] lg:min-h-[520px] lg:overflow-hidden pb-16 lg:pb-0 relative min-w-0">
+      {/* SHIFT STATUS WARNING BANNER */}
+      {!shiftId && (
+        <div className="w-full bg-[#FFF9EB] border border-[#F2DEAA] rounded-2xl p-3 sm:px-4 sm:py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 shadow-2xs shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-xl bg-[#FDECC0] text-[#96631E] flex items-center justify-center shrink-0">
+              <Clock className="w-3.5 h-3.5" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-[#664311]">Shift Kasir Belum Dibuka!</h4>
+              <p className="text-[11px] text-[#8A5C1B]">
+                Harap buka shift kasir terlebih dahulu untuk merekap kas awal & memproses pembayaran transaksi.
+              </p>
+            </div>
+          </div>
+          <Link
+            href={`/shift${currentOutlet?.id ? `?outletId=${currentOutlet.id}` : ''}`}
+            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-[#96631E] hover:bg-[#7D4E12] text-white text-xs font-bold rounded-xl shadow-2xs transition-colors"
+          >
+            <span>Buka Shift Sekarang</span>
+            <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
+      )}
+
+      <div className="flex-1 flex flex-col lg:flex-row gap-3.5 min-h-0 min-w-0 lg:overflow-hidden">
+        {/* ============================================================ */}
+        {/* LEFT COLUMN: COMPACT CATALOG WITH PAGINATION (65%) */}
+        {/* ============================================================ */}
+        <div className="flex-1 flex flex-col justify-between bg-white rounded-3xl border border-[#EBE7DF] p-3 sm:p-3.5 lg:p-3.5 shadow-xs min-w-0 lg:overflow-hidden">
+          {/* Top Control Bar: Categories & Search */}
+          <div className="space-y-2 shrink-0 pb-2 border-b border-[#F0ECE4]">
           {/* Header Row */}
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2">
@@ -819,6 +849,7 @@ export default function POSClient({
           </button>
         </div>
       </div>
+    </div>
 
       {/* ============================================================ */}
       {/* MOBILE FLOATING CART BAR (< lg: screens) */}

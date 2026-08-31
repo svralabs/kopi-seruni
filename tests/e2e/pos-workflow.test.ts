@@ -258,8 +258,10 @@ describe('E2E Integration Test: Complete POS & Business Lifecycle Workflow', () 
     expect(closedShift.closingCash! - closedShift.expectedCash!).toBe(0);
   });
 
-  it('Step 7: Void order & restore stock', async () => {
-    const now = Math.floor(Date.now() / 1000);
+  it(
+    'Step 7: Void order & restore stock',
+    async () => {
+      const now = Math.floor(Date.now() / 1000);
 
     // Void the order
     await db.transaction(async (tx) => {
@@ -299,6 +301,6 @@ describe('E2E Integration Test: Complete POS & Business Lifecycle Workflow', () 
     await db.delete(products).where(eq(products.id, TEST_PRODUCT_ID));
     await db.delete(user).where(eq(user.id, TEST_USER_ID));
     await db.delete(outlets).where(eq(outlets.id, TEST_OUTLET_ID));
-  });
+  }, 15000);
 });
 

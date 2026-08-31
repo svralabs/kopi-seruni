@@ -259,6 +259,7 @@ export const profitSharingRules = sqliteTable('profit_sharing_rules', {
   outletId: text('outlet_id').notNull().references(() => outlets.id),
   name: text('name').notNull(),        // nama penerima: "Owner A", "Investor B"
   percentage: integer('percentage').notNull(), // 30 = 30% dari net profit
+  frequency: text('frequency').notNull().default('monthly'), // 'monthly' | 'weekly' | 'quarterly' | 'yearly'
   isActive: integer('is_active').notNull().default(1),
   createdAt: integer('created_at').notNull().default(now),
 });

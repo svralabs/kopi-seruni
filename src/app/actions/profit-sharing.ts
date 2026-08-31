@@ -15,6 +15,7 @@ export async function createRule(formData: FormData) {
   const name = formData.get('name') as string;
   const percentage = Math.round(Number(formData.get('percentage')) || 0);
   const outletId = (formData.get('outletId') as string) || 'out_default';
+  const frequency = (formData.get('frequency') as string) || 'monthly';
 
   const { accessibleOutletIds } = await getUserAccessibleOutlets(session.user.id);
   if (!accessibleOutletIds.includes(outletId)) {
@@ -46,6 +47,7 @@ export async function createRule(formData: FormData) {
     outletId,
     name: name.trim(),
     percentage,
+    frequency,
     isActive: 1,
     createdAt: now,
   });
@@ -60,6 +62,7 @@ export async function updateRule(id: string, formData: FormData) {
 
   const name = formData.get('name') as string;
   const percentage = Math.round(Number(formData.get('percentage')) || 0);
+  const frequency = (formData.get('frequency') as string) || 'monthly';
 
   if (!name || percentage <= 0 || percentage > 100) {
     throw new Error('Nama penerima dan persentase (1-100%) wajib diisi');
@@ -88,7 +91,7 @@ export async function updateRule(id: string, formData: FormData) {
 
   if (targetRule.isActive === 1 && currentOtherTotal + percentage > 100) {
     throw new Error(
-      `Total alokasi melebihi 100% (saat ini ${currentOtherTotal}% + ${percentage}% = ${currentOtherTotal + percentage}%).`
+      `Total alokasi bagi hasil outlet (${currentOtherTotal}%) + ${percentage}% melebihi batas 100%. Sisa maksimal: ${100 - currentOtherTotal}%.`
     );
   }
 
@@ -97,6 +100,7 @@ export async function updateRule(id: string, formData: FormData) {
     .set({
       name: name.trim(),
       percentage,
+      frequency,
     })
     .where(eq(profitSharingRules.id, id));
 

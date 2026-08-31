@@ -116,6 +116,27 @@ export default function NavbarPills({
     router.push(query ? `${pathname}?${query}` : pathname);
   };
 
+  const rawFrom = searchParams?.get('from');
+  const rawTo = searchParams?.get('to');
+
+  let customDateLabel = 'Kustom';
+  if (selectedPeriod === 'custom' && rawFrom && rawTo) {
+    const dFrom = new Date(Number(rawFrom) * 1000);
+    const dTo = new Date(Number(rawTo) * 1000);
+    if (!isNaN(dFrom.getTime()) && !isNaN(dTo.getTime())) {
+      const fDay = dFrom.getDate();
+      const fMonth = dFrom.toLocaleDateString('id-ID', { month: 'short' });
+      const tDay = dTo.getDate();
+      const tMonth = dTo.toLocaleDateString('id-ID', { month: 'short' });
+      const tYear = dTo.getFullYear();
+      if (dFrom.toDateString() === dTo.toDateString()) {
+        customDateLabel = `${fDay} ${fMonth} ${tYear}`;
+      } else {
+        customDateLabel = `${fDay} ${fMonth} - ${tDay} ${tMonth} ${tYear}`;
+      }
+    }
+  }
+
   return (
     <header className="flex flex-wrap items-center justify-between gap-2.5 pb-3 mb-3 lg:pb-4 lg:mb-4 border-b border-[#EBE7DF]/80">
       {/* LEFT PILLS: Global Outlet Switcher */}
@@ -157,7 +178,7 @@ export default function NavbarPills({
             { key: 'today', label: 'Hari Ini' },
             { key: '7d', label: 'Minggu Ini' },
             { key: 'this_month', label: 'Bulan Ini' },
-            { key: 'custom', label: 'Kustom' },
+            { key: 'custom', label: selectedPeriod === 'custom' ? customDateLabel : 'Kustom' },
           ].map((t) => {
             const isActive = selectedPeriod === t.key;
             return (
@@ -165,13 +186,14 @@ export default function NavbarPills({
                 key={t.key}
                 type="button"
                 onClick={() => handlePeriodChange(t.key)}
-                className={`px-3 py-1.5 rounded-xl font-bold transition-all text-xs ${
+                className={`px-3 py-1.5 rounded-xl font-bold transition-all text-xs flex items-center gap-1.5 ${
                   isActive
                     ? 'bg-[#2E2520] text-white shadow-xs'
                     : 'text-[#8E867C] hover:text-[#201C1A]'
                 }`}
               >
-                {t.label}
+                {t.key === 'custom' && <Calendar className="w-3.5 h-3.5 shrink-0" />}
+                <span>{t.label}</span>
               </button>
             );
           })}
