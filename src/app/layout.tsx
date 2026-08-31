@@ -13,8 +13,17 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Kopi Seruni POS",
-  description: "Point of Sale & Manajemen Outlet",
+  title: "Kopi Seruni POS — Point of Sale & Manajemen Outlet",
+  description: "Sistem Point of Sale, Kasir, dan Manajemen Multi-Owner Kopi Seruni",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: [
+      { url: "/apple-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
