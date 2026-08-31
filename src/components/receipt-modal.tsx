@@ -1,8 +1,10 @@
 'use client';
 
-import { useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { formatRupiah, formatDateTime } from '@/lib/utils';
-import { Printer, CheckCircle2, X } from 'lucide-react';
+import { Printer, CheckCircle2, X, Bluetooth, Loader2, FileText } from 'lucide-react';
+import { generateEscPosReceipt } from '@/lib/escpos';
+import { printDirectBluetooth, isBluetoothSupported } from '@/lib/bluetooth-printer';
 
 export interface ReceiptData {
   orderId: string;
@@ -40,9 +42,40 @@ export default function ReceiptModal({
   onNewTransaction?: () => void;
 }) {
   const receiptRef = useRef<HTMLDivElement>(null);
+  const [paperWidth, setPaperWidth] = useState<32 | 48>(32);
+  const [isBluetoothPrinting, setIsBluetoothPrinting] = useState(false);
+  const [bluetoothStatus, setBluetoothStatus] = useState<string | null>(null);
+  const [bluetoothSupported, setBluetoothSupported] = useState(false);
 
-  const handlePrint = () => {
+  useEffect(() => {
+    setBluetoothSupported(isBluetoothSupported());
+  }, []);
+
+  const handlePrintBrowser = () => {
     window.print();
+  };
+
+  const handlePrintBluetooth = async () => {
+    setIsBluetoothPrinting(true);
+    setBluetoothStatus('Mencari printer bluetooth...');
+    try {
+      const payload = generateEscPosReceipt(
+        {
+          ...receipt,
+          footerText: 'Terima kasih atas kunjungan Anda!',
+        },
+        paperWidth
+      );
+      const res = await printDirectBluetooth(payload);
+      setBluetoothStatus(res.message);
+      setTimeout(() => {
+        setBluetoothStatus(null);
+      }, 4000);
+    } catch (e: any) {
+      setBluetoothStatus(`Error: ${e.message || e}`);
+    } finally {
+      setIsBluetoothPrinting(false);
+    }
   };
 
   return (
@@ -60,13 +93,46 @@ export default function ReceiptModal({
               <p className="text-[11px] text-[#8E867C] font-mono">{receipt.orderId}</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white border border-[#E5E0D6] flex items-center justify-center text-[#7A7268] hover:text-[#201C1A]"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Paper Width Selector */}
+            <div className="flex bg-[#EFECE6] p-0.5 rounded-lg text-[10px] font-bold">
+              <button
+                type="button"
+                onClick={() => setPaperWidth(32)}
+                className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                  paperWidth === 32 ? 'bg-white text-[#201C1A] shadow-2xs' : 'text-[#7A7268]'
+                }`}
+                title="Kertas 58mm (32 Kolom)"
+              >
+                58mm
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaperWidth(48)}
+                className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                  paperWidth === 48 ? 'bg-white text-[#201C1A] shadow-2xs' : 'text-[#7A7268]'
+                }`}
+                title="Kertas 80mm (48 Kolom)"
+              >
+                80mm
+              </button>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-full bg-white border border-[#E5E0D6] flex items-center justify-center text-[#7A7268] hover:text-[#201C1A] cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
+
+        {/* Status Notification Toast */}
+        {bluetoothStatus && (
+          <div className="px-5 py-2.5 bg-[#FAF3E8] border-b border-[#F2E0C4] text-xs font-semibold text-[#96631E] flex items-center gap-2 animate-in fade-in">
+            {isBluetoothPrinting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            <span>{bluetoothStatus}</span>
+          </div>
+        )}
 
         {/* Scrollable Receipt Preview */}
         <div className="p-6 overflow-y-auto bg-[#F4F1EA]">
@@ -74,7 +140,9 @@ export default function ReceiptModal({
           <div
             ref={receiptRef}
             id="thermal-receipt"
-            className="bg-white p-6 rounded-2xl shadow-sm border border-[#E5DFD5] text-[#201C1A] font-mono text-xs max-w-[340px] mx-auto space-y-3"
+            className={`bg-white p-6 rounded-2xl shadow-sm border border-[#E5DFD5] text-[#201C1A] font-mono text-xs mx-auto space-y-3 ${
+              paperWidth === 48 ? 'max-w-[380px]' : 'max-w-[320px]'
+            }`}
           >
             {/* Header Struk */}
             <div className="text-center space-y-1 border-b border-dashed border-[#CBC4B8] pb-3">
@@ -191,24 +259,48 @@ export default function ReceiptModal({
         </div>
 
         {/* Modal Bottom Actions */}
-        <div className="p-4 bg-white border-t border-[#ECE7DE] grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="py-3 px-4 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 transition-all shadow-sm"
-          >
-            <Printer className="w-4 h-4" />
-            <span>Cetak Struk (Print)</span>
-          </button>
+        <div className="p-4 bg-white border-t border-[#ECE7DE] space-y-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {/* Direct Bluetooth Print Button (Chrome/Edge Web Bluetooth) */}
+            {bluetoothSupported && (
+              <button
+                type="button"
+                disabled={isBluetoothPrinting}
+                onClick={handlePrintBluetooth}
+                className="py-3 px-4 bg-[#2D7A47] hover:bg-[#236338] disabled:opacity-50 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer"
+                title="Cetak langsung ke printer bluetooth tanpa dialog browser"
+              >
+                {isBluetoothPrinting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Bluetooth className="w-4 h-4" />
+                )}
+                <span>Print Bluetooth Direct</span>
+              </button>
+            )}
+
+            {/* Fallback Standard Browser Print */}
+            <button
+              type="button"
+              onClick={handlePrintBrowser}
+              className={`py-3 px-4 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer ${
+                !bluetoothSupported ? 'sm:col-span-2' : ''
+              }`}
+            >
+              <Printer className="w-4 h-4" />
+              <span>Cetak via Dialog OS</span>
+            </button>
+          </div>
+
           <button
             type="button"
             onClick={() => {
               if (onNewTransaction) onNewTransaction();
               else onClose();
             }}
-            className="py-3 px-4 bg-[#FAF8F5] hover:bg-[#F2EDE5] text-[#201C1A] font-bold rounded-2xl text-xs border border-[#E2DDD3] transition-all"
+            className="w-full py-2.5 px-4 bg-[#FAF8F5] hover:bg-[#F2EDE5] text-[#54382B] font-bold rounded-xl text-xs border border-[#E2DDD3] transition-all cursor-pointer text-center"
           >
-            Transaksi Baru
+            Selesai / Transaksi Baru
           </button>
         </div>
       </div>
