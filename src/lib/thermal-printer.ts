@@ -97,7 +97,7 @@ export async function connectSerialPrinter(): Promise<{
     activeSerialPort = port;
     activePrinterType = 'serial';
     const info = port.getInfo ? port.getInfo() : {};
-    activePrinterName = info.usbProductId ? 'Thermal Printer (USB)' : 'RPP02N / Bluetooth Serial';
+    activePrinterName = info.usbProductId ? 'Thermal Printer (USB)' : 'Thermal / Bluetooth Serial';
 
     return {
       success: true,
@@ -257,7 +257,7 @@ export async function printDirectThermal(
         if (port.writable) {
           activeSerialPort = port;
           activePrinterType = 'serial';
-          activePrinterName = 'RPP02N / Serial Printer';
+          activePrinterName = 'Thermal / Bluetooth Printer';
           await sendToSerialPort(port, data);
           return {
             success: true,
