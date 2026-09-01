@@ -7,6 +7,24 @@ import { usePathname, useRouter } from 'next/navigation';
 import { authClient } from '@/lib/auth-client';
 import ConfirmModal from '@/components/confirm-modal';
 import { useFilterLoading } from '@/context/filter-loading-context';
+import DashboardLoading from './dashboard/loading';
+import OrdersLoading from './orders/loading';
+import ProfitLossLoading from './profit-loss/loading';
+import ExpensesLoading from './expenses/loading';
+import BagiHasilLoading from './bagi-hasil/loading';
+import StokLoading from './stok/loading';
+import ShiftLoading from './shift/loading';
+
+function PageSkeleton({ pathname }: { pathname: string }) {
+  if (pathname === '/dashboard' || pathname === '/') return <DashboardLoading />;
+  if (pathname.startsWith('/orders')) return <OrdersLoading />;
+  if (pathname.startsWith('/profit-loss')) return <ProfitLossLoading />;
+  if (pathname.startsWith('/expenses')) return <ExpensesLoading />;
+  if (pathname.startsWith('/bagi-hasil')) return <BagiHasilLoading />;
+  if (pathname.startsWith('/stok')) return <StokLoading />;
+  if (pathname.startsWith('/shift')) return <ShiftLoading />;
+  return <DashboardLoading />;
+}
 import {
   LayoutDashboard,
   UtensilsCrossed,
@@ -362,21 +380,13 @@ export default function AppShell({
 
         {/* Scrollable / Fill Main View */}
         <main
-          className={`flex-1 min-w-0 overflow-y-auto transition-all duration-200 relative ${
-            isPending ? 'opacity-50 cursor-wait pointer-events-none' : 'opacity-100'
-          } ${
+          className={`flex-1 min-w-0 overflow-y-auto ${
             isPOSPage
               ? 'p-2.5 sm:p-3.5 lg:p-4 flex flex-col h-[calc(100vh-3.5rem)] lg:h-screen min-h-0'
               : 'p-3.5 sm:p-5 lg:p-6 xl:p-8 max-w-[1600px] w-full mx-auto pb-20'
           }`}
         >
-          {isPending && (
-            <div className="fixed bottom-6 right-6 z-40 bg-[#201C1A] text-white px-4 py-2.5 rounded-2xl shadow-2xl border border-[#3E3835] flex items-center gap-2.5 text-xs font-bold animate-in fade-in slide-in-from-bottom-2">
-              <Loader2 className="w-4 h-4 animate-spin text-[#64B87C]" />
-              <span>Memperbarui data periode...</span>
-            </div>
-          )}
-          {children}
+          {isPending ? <PageSkeleton pathname={pathname} /> : children}
         </main>
       </div>
 
