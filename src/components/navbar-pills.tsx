@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import { Store, Calendar, Bell, X, Check, ArrowRight } from 'lucide-react';
+import { Store, Calendar, Bell, X, Check, ArrowRight, Loader2 } from 'lucide-react';
 import type { Outlet } from '@/lib/schema';
 import { formatDate } from '@/lib/utils';
+import { useFilterLoading } from '@/context/filter-loading-context';
 
 export default function NavbarPills({
   outlets,
@@ -20,6 +21,7 @@ export default function NavbarPills({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { isPending, targetPeriod, setTargetPeriod, startFilterTransition } = useFilterLoading();
 
   // Page-specific rules:
   // 1. Single outlet only pages: POS, Shift, Settings, Stok, Bagi Hasil
@@ -88,7 +90,9 @@ export default function NavbarPills({
       params.set('outletId', value);
     }
     const query = params.toString();
-    router.push(query ? `${pathname}?${query}` : pathname);
+    startFilterTransition(() => {
+      router.push(query ? `${pathname}?${query}` : pathname);
+    });
   };
 
   const handlePeriodChange = (periodKey: string) => {
@@ -101,7 +105,10 @@ export default function NavbarPills({
     params.delete('from');
     params.delete('to');
     const query = params.toString();
-    router.push(query ? `${pathname}?${query}` : pathname);
+    setTargetPeriod(periodKey);
+    startFilterTransition(() => {
+      router.push(query ? `${pathname}?${query}` : pathname);
+    });
   };
 
   const handleApplyCustomDate = (e: React.FormEvent) => {
@@ -117,7 +124,10 @@ export default function NavbarPills({
     params.set('to', toEpoch.toString());
     const query = params.toString();
     setIsCustomDateOpen(false);
-    router.push(query ? `${pathname}?${query}` : pathname);
+    setTargetPeriod('custom');
+    startFilterTransition(() => {
+      router.push(query ? `${pathname}?${query}` : pathname);
+    });
   };
 
   const rawFrom = searchParams?.get('from');
@@ -188,18 +198,24 @@ export default function NavbarPills({
             { key: 'custom', label: selectedPeriod === 'custom' ? customDateLabel : 'Kustom' },
           ].map((t) => {
             const isActive = selectedPeriod === t.key;
+            const isButtonLoading = isPending && targetPeriod === t.key;
             return (
               <button
                 key={t.key}
                 type="button"
+                disabled={isPending}
                 onClick={() => handlePeriodChange(t.key)}
-                className={`px-3 py-1.5 rounded-xl font-bold transition-all text-xs flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-xl font-bold transition-all text-xs flex items-center gap-1.5 cursor-pointer ${
                   isActive
                     ? 'bg-[#2E2520] text-white shadow-xs'
-                    : 'text-[#8E867C] hover:text-[#201C1A]'
-                }`}
+                    : 'text-[#8E867C] hover:text-[#201C1A] hover:bg-[#F7F5F0]'
+                } ${isButtonLoading ? 'opacity-80' : ''}`}
               >
-                {t.key === 'custom' && <Calendar className="w-3.5 h-3.5 shrink-0" />}
+                {isButtonLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                ) : t.key === 'custom' ? (
+                  <Calendar className="w-3.5 h-3.5 shrink-0" />
+                ) : null}
                 <span>{t.label}</span>
               </button>
             );

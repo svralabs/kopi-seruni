@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { authClient } from '@/lib/auth-client';
 import ConfirmModal from '@/components/confirm-modal';
+import { useFilterLoading } from '@/context/filter-loading-context';
 import {
   LayoutDashboard,
   UtensilsCrossed,
@@ -25,6 +26,7 @@ import {
   PanelLeftOpen,
   Menu,
   X,
+  Loader2,
 } from 'lucide-react';
 
 const ALL_NAV_ITEMS = [
@@ -54,6 +56,7 @@ export default function AppShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { isPending } = useFilterLoading();
   const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
@@ -316,7 +319,12 @@ export default function AppShell({
       {/* ============================================================ */}
       {/* 3. MAIN CONTENT CONTAINER */}
       {/* ============================================================ */}
-      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden relative">
+        {/* Top Progress Loading Bar for Global Filters & Navigation */}
+        {isPending && (
+          <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gradient-to-r from-[#2D7A47] via-[#D49E35] to-[#2D7A47] animate-pulse shadow-sm" />
+        )}
+
         {/* Mobile / Tablet Portrait Top Bar (< 1024px) */}
         <header className="lg:hidden h-14 bg-white border-b border-[#EBE7DF] px-3 sm:px-4 flex items-center justify-between shrink-0 z-20">
           <div className="flex items-center gap-2.5">
@@ -354,12 +362,20 @@ export default function AppShell({
 
         {/* Scrollable / Fill Main View */}
         <main
-          className={`flex-1 min-w-0 overflow-y-auto ${
+          className={`flex-1 min-w-0 overflow-y-auto transition-all duration-200 relative ${
+            isPending ? 'opacity-50 cursor-wait pointer-events-none' : 'opacity-100'
+          } ${
             isPOSPage
               ? 'p-2.5 sm:p-3.5 lg:p-4 flex flex-col h-[calc(100vh-3.5rem)] lg:h-screen min-h-0'
               : 'p-3.5 sm:p-5 lg:p-6 xl:p-8 max-w-[1600px] w-full mx-auto pb-20'
           }`}
         >
+          {isPending && (
+            <div className="fixed bottom-6 right-6 z-40 bg-[#201C1A] text-white px-4 py-2.5 rounded-2xl shadow-2xl border border-[#3E3835] flex items-center gap-2.5 text-xs font-bold animate-in fade-in slide-in-from-bottom-2">
+              <Loader2 className="w-4 h-4 animate-spin text-[#64B87C]" />
+              <span>Memperbarui data periode...</span>
+            </div>
+          )}
           {children}
         </main>
       </div>

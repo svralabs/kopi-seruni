@@ -2,6 +2,7 @@ import AppShell from './app-shell';
 import Header from './header';
 import { getSession, getCurrentUserRole } from '@/lib/auth-helpers';
 import ToastContainer from '@/components/toast-container';
+import { FilterLoadingProvider } from '@/context/filter-loading-context';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,10 +21,12 @@ export default async function AppLayout({
   }
 
   return (
-    <AppShell userName={userName} userRole={userRole}>
-      <Header userId={session?.user?.id} userName={userName} />
-      {children}
-      <ToastContainer />
-    </AppShell>
+    <FilterLoadingProvider>
+      <AppShell userName={userName} userRole={userRole}>
+        <Header userId={session?.user?.id} userName={userName} />
+        {children}
+        <ToastContainer />
+      </AppShell>
+    </FilterLoadingProvider>
   );
 }
