@@ -147,8 +147,8 @@ export default function ReceiptModal({
             } ${paperWidth === 48 ? 'max-w-[380px]' : 'max-w-[320px]'}`}
           >
             {/* Header Struk: Logo Kopi Seruni (Hitam Putih) */}
-            <div className="text-center space-y-1 border-b border-dashed border-[#CBC4B8] pb-3">
-              <div className="flex justify-center pb-1">
+            <div className="text-center space-y-1.5 border-b border-dashed border-[#CBC4B8] pb-3.5">
+              <div className="flex justify-center pb-2.5 pt-1">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src="/logo-receipt.png"

@@ -160,7 +160,7 @@ export function generateEscPosReceipt(data: ReceiptPrintData, paperWidth: 32 | 4
   // 1. Header: 1-Bit Thermal Bitmap Logo
   enc.alignCenter();
   enc.raw(SERUNI_LOGO_ESC_POS);
-  enc.feed(1);
+  enc.feed(2);
 
   // Store Outlet Info
   enc.bold(true).line(data.outletName, paperWidth);
