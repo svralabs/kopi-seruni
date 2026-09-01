@@ -1,4 +1,4 @@
-import { formatRupiah, formatDateTime } from './utils';
+import { formatDateTime } from './utils';
 import { SERUNI_LOGO_ESC_POS } from './logo-bitmap';
 
 export interface ReceiptPrintData {
@@ -27,6 +27,13 @@ export interface ReceiptPrintData {
   footerText?: string;
 }
 
+/**
+ * Format currency with pure ASCII standard space (Rp 25.000)
+ */
+export function formatRp(amount: number): string {
+  return 'Rp ' + Math.round(amount).toLocaleString('id-ID').replace(/[\u00A0\u202F]/g, ' ');
+}
+
 export class EscPosEncoder {
   private buffer: number[] = [];
 
@@ -35,7 +42,8 @@ export class EscPosEncoder {
   }
 
   init() {
-    this.buffer.push(0x1b, 0x40); // ESC @ Initialize printer
+    this.buffer.push(0x1b, 0x40); // ESC @ (Initialize printer)
+    this.buffer.push(0x1b, 0x74, 0x00); // ESC t 0 (Select Code Page 437 Standard ASCII)
     return this;
   }
 
@@ -55,7 +63,7 @@ export class EscPosEncoder {
   }
 
   bold(enable: boolean) {
-    this.buffer.push(0x1b, 0x45, enable ? 0x01 : 0x00); // ESC E n
+    this.buffer.push(0x1b, 0x45, enable ? 0x01 : 0x00); // ESC E n (Bold on/off)
     return this;
   }
 
@@ -66,20 +74,23 @@ export class EscPosEncoder {
     return this;
   }
 
-  size(size: 'normal' | 'double-height' | 'double-width' | 'double') {
-    let val = 0x00;
-    if (size === 'double-height') val = 0x01;
-    if (size === 'double-width') val = 0x10;
-    if (size === 'double') val = 0x11;
-    this.buffer.push(0x1d, 0x21, val); // GS ! n
-    return this;
-  }
-
   text(str: string) {
-    const encoder = new TextEncoder();
-    const bytes = encoder.encode(str);
-    for (const b of bytes) {
-      this.buffer.push(b);
+    // Sanitize all unicode whitespace, quotes, dashes to pure ASCII bytes
+    const clean = str
+      .replace(/[\u00A0\u202F\u2000-\u200B]/g, ' ')
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/[\u2013\u2014]/g, '-')
+      .replace(/[\u2022\u25CF]/g, '*');
+
+    for (let i = 0; i < clean.length; i++) {
+      const code = clean.charCodeAt(i);
+      // Valid printable ASCII (32..126) + newline (10) + carriage return (13)
+      if (code === 10 || code === 13 || (code >= 32 && code <= 126)) {
+        this.buffer.push(code);
+      } else if (code > 126) {
+        this.buffer.push(0x20); // space fallback for unprintable unicode
+      }
     }
     return this;
   }
@@ -111,7 +122,8 @@ export class EscPosEncoder {
   }
 
   cut() {
-    this.buffer.push(0x1d, 0x56, 0x41, 0x00); // GS V 65 0 (Full Cut)
+    // GS V 65 0 (Only send for large 80mm cutters)
+    this.buffer.push(0x1d, 0x56, 0x41, 0x00);
     return this;
   }
 
@@ -137,7 +149,7 @@ export function generateEscPosReceipt(data: ReceiptPrintData, paperWidth: 32 | 4
   enc.feed(1);
 
   // Store Outlet Info
-  enc.size('normal').bold(true).line(data.outletName);
+  enc.bold(true).line(data.outletName);
   enc.bold(false);
   if (data.outletAddress) enc.line(data.outletAddress);
   if (data.outletPhone) enc.line(`Telp: ${data.outletPhone}`);
@@ -153,9 +165,9 @@ export function generateEscPosReceipt(data: ReceiptPrintData, paperWidth: 32 | 4
 
   // 3. Items
   for (const item of data.items) {
-    enc.bold(true).twoColumn(item.productName, formatRupiah(item.subtotal), paperWidth);
+    enc.bold(true).twoColumn(item.productName, formatRp(item.subtotal), paperWidth);
     enc.bold(false);
-    const qtyPrice = `${item.quantity} x ${formatRupiah(item.productPrice)}`;
+    const qtyPrice = `${item.quantity} x ${formatRp(item.productPrice)}`;
     enc.line(`  ${qtyPrice}`);
     if (item.notes) {
       enc.line(`  * ${item.notes}`);
@@ -164,22 +176,22 @@ export function generateEscPosReceipt(data: ReceiptPrintData, paperWidth: 32 | 4
   enc.divider('-', paperWidth);
 
   // 4. Financial Calculation
-  enc.twoColumn('Subtotal', formatRupiah(data.subtotal), paperWidth);
+  enc.twoColumn('Subtotal', formatRp(data.subtotal), paperWidth);
   if (data.discountAmount > 0) {
-    enc.twoColumn('Diskon Promo', `-${formatRupiah(data.discountAmount)}`, paperWidth);
+    enc.twoColumn('Diskon Promo', `-${formatRp(data.discountAmount)}`, paperWidth);
   }
   if (data.taxAmount > 0) {
-    enc.twoColumn(`PPN (${data.taxRate}%)`, `+${formatRupiah(data.taxAmount)}`, paperWidth);
+    enc.twoColumn(`PPN (${data.taxRate}%)`, `+${formatRp(data.taxAmount)}`, paperWidth);
   }
   enc.divider('-', paperWidth);
 
   // 5. Total & Payment
-  enc.bold(true).twoColumn('TOTAL', formatRupiah(data.total), paperWidth).bold(false);
+  enc.bold(true).twoColumn('TOTAL', formatRp(data.total), paperWidth).bold(false);
   enc.divider('-', paperWidth);
 
-  enc.twoColumn(`Metode: ${data.paymentMethod.toUpperCase()}`, formatRupiah(data.cashReceived || data.total), paperWidth);
+  enc.twoColumn(`Metode: ${data.paymentMethod.toUpperCase()}`, formatRp(data.cashReceived || data.total), paperWidth);
   if (data.paymentMethod === 'cash' && data.change != null) {
-    enc.bold(true).twoColumn('Kembalian', formatRupiah(data.change), paperWidth).bold(false);
+    enc.bold(true).twoColumn('Kembalian', formatRp(data.change), paperWidth).bold(false);
   }
   enc.divider('=', paperWidth);
 
@@ -187,8 +199,12 @@ export function generateEscPosReceipt(data: ReceiptPrintData, paperWidth: 32 | 4
   enc.alignCenter();
   enc.line(data.footerText || 'Terima kasih atas kunjungan Anda!');
   enc.line('Follow IG: @kopiseruni');
-  enc.feed(3);
-  enc.cut();
+  enc.feed(paperWidth === 48 ? 2 : 4);
+
+  // Only send automatic cutter command on 80mm printers
+  if (paperWidth === 48) {
+    enc.cut();
+  }
 
   return enc.getUint8Array();
 }
