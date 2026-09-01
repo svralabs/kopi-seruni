@@ -57,9 +57,9 @@ export default function ReceiptModal({
     window.print();
   };
 
-  const handlePrintBluetooth = async () => {
+  const handlePrintBluetooth = async (forcePicker: boolean = false) => {
     setIsBluetoothPrinting(true);
-    setBluetoothStatus('Mencari printer bluetooth...');
+    setBluetoothStatus(forcePicker ? 'Mencari printer bluetooth...' : 'Menghubungkan printer...');
     try {
       const payload = generateEscPosReceipt(
         {
@@ -68,7 +68,7 @@ export default function ReceiptModal({
         },
         paperWidth
       );
-      const res = await printDirectBluetooth(payload);
+      const res = await printDirectBluetooth(payload, forcePicker);
       setBluetoothStatus(res.message);
       setTimeout(() => {
         setBluetoothStatus(null);
@@ -142,9 +142,9 @@ export default function ReceiptModal({
           <div
             ref={receiptRef}
             id="thermal-receipt"
-            className={`bg-white p-6 rounded-2xl shadow-sm border border-[#E5DFD5] text-[#201C1A] font-mono text-xs mx-auto space-y-3 ${
-              paperWidth === 48 ? 'max-w-[380px]' : 'max-w-[320px]'
-            }`}
+            className={`bg-white p-6 rounded-2xl shadow-sm border border-[#E5DFD5] text-[#201C1A] font-mono text-xs mx-auto space-y-3 receipt-${
+              paperWidth === 48 ? '80mm' : '58mm'
+            } ${paperWidth === 48 ? 'max-w-[380px]' : 'max-w-[320px]'}`}
           >
             {/* Header Struk: Logo Kopi Seruni (Hitam Putih) */}
             <div className="text-center space-y-1 border-b border-dashed border-[#CBC4B8] pb-3">
@@ -270,20 +270,31 @@ export default function ReceiptModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             {/* Direct Bluetooth Print Button (Chrome/Edge Web Bluetooth) */}
             {mounted && bluetoothSupported ? (
-              <button
-                type="button"
-                disabled={isBluetoothPrinting}
-                onClick={handlePrintBluetooth}
-                className="py-3 px-4 bg-[#2D7A47] hover:bg-[#236338] disabled:opacity-50 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer"
-                title="Cetak langsung ke printer bluetooth tanpa dialog browser"
-              >
-                {isBluetoothPrinting ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Bluetooth className="w-4 h-4" />
-                )}
-                <span>Print Bluetooth Direct</span>
-              </button>
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  disabled={isBluetoothPrinting}
+                  onClick={() => handlePrintBluetooth(false)}
+                  className="flex-1 py-3 px-3 bg-[#2D7A47] hover:bg-[#236338] disabled:opacity-50 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                  title="Cetak langsung ke printer bluetooth tanpa popup dialog"
+                >
+                  {isBluetoothPrinting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Bluetooth className="w-4 h-4" />
+                  )}
+                  <span>Print Bluetooth Direct</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={isBluetoothPrinting}
+                  onClick={() => handlePrintBluetooth(true)}
+                  className="py-3 px-2.5 bg-[#EBF6EE] hover:bg-[#DDF0E2] text-[#2D7A47] font-semibold rounded-2xl text-[10px] flex items-center justify-center transition-all cursor-pointer"
+                  title="Pilih atau cari perangkat printer bluetooth lain"
+                >
+                  Pilih
+                </button>
+              </div>
             ) : null}
 
             {/* Fallback Standard Browser Print */}

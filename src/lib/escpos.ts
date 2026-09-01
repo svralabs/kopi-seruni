@@ -1,7 +1,4 @@
-/**
- * Lightweight ESC/POS Thermal Receipt Encoder
- * Compatible with 58mm (32 chars) and 80mm (48 chars) thermal printers
- */
+import { formatRupiah, formatDateTime } from './utils';
 
 export interface ReceiptPrintData {
   orderId: string;
@@ -90,8 +87,13 @@ export class EscPosEncoder {
   }
 
   twoColumn(left: string, right: string, width: number = 32) {
-    const spaceCount = Math.max(1, width - left.length - right.length);
-    this.line(left + ' '.repeat(spaceCount) + right);
+    const maxLeftLen = width - right.length - 1;
+    let safeLeft = left;
+    if (safeLeft.length > maxLeftLen && maxLeftLen > 0) {
+      safeLeft = safeLeft.substring(0, maxLeftLen);
+    }
+    const spaceCount = Math.max(1, width - safeLeft.length - right.length);
+    this.line(safeLeft + ' '.repeat(spaceCount) + right);
     return this;
   }
 
@@ -116,35 +118,16 @@ export class EscPosEncoder {
 }
 
 /**
- * Format currency without decimal for receipt
- */
-function formatRp(amount: number): string {
-  return 'Rp ' + Math.round(amount).toLocaleString('id-ID');
-}
-
-/**
- * Format date for receipt
- */
-function formatDt(epoch: number): string {
-  const d = new Date(epoch * 1000);
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const year = d.getFullYear();
-  const hours = String(d.getHours()).padStart(2, '0');
-  const mins = String(d.getMinutes()).padStart(2, '0');
-  return `${day}/${month}/${year} ${hours}:${mins}`;
-}
-
-/**
- * Generate binary ESC/POS payload for receipt
+ * Generate binary ESC/POS payload for receipt identical to screen preview
  */
 export function generateEscPosReceipt(data: ReceiptPrintData, paperWidth: 32 | 48 = 32): Uint8Array {
   const enc = new EscPosEncoder();
 
   // 1. Header (Store Name & Outlet Info)
   enc.alignCenter();
-  enc.bold(true).size('double-height').line('TOKO KOPI SERUNI');
-  enc.size('normal').line(data.outletName);
+  enc.bold(true).size('double-height').line('KOPI SERUNI');
+  enc.size('normal').bold(true).line(data.outletName);
+  enc.bold(false);
   if (data.outletAddress) enc.line(data.outletAddress);
   if (data.outletPhone) enc.line(`Telp: ${data.outletPhone}`);
   enc.divider('=', paperWidth);
@@ -152,18 +135,17 @@ export function generateEscPosReceipt(data: ReceiptPrintData, paperWidth: 32 | 4
   // 2. Transaction Metadata
   enc.alignLeft().bold(false);
   enc.twoColumn('No. Nota', data.orderId, paperWidth);
-  enc.twoColumn('Waktu', formatDt(data.createdAt), paperWidth);
+  enc.twoColumn('Waktu', formatDateTime(data.createdAt), paperWidth);
   enc.twoColumn('Kasir', data.kasirName, paperWidth);
   enc.twoColumn('Pelanggan', data.customerName || 'Walk-in', paperWidth);
   enc.divider('-', paperWidth);
 
   // 3. Items
   for (const item of data.items) {
-    enc.bold(true).line(item.productName);
+    enc.bold(true).twoColumn(item.productName, formatRupiah(item.subtotal), paperWidth);
     enc.bold(false);
-    const qtyPrice = `${item.quantity} x ${formatRp(item.productPrice)}`;
-    const subtotalStr = formatRp(item.subtotal);
-    enc.twoColumn(`  ${qtyPrice}`, subtotalStr, paperWidth);
+    const qtyPrice = `${item.quantity} x ${formatRupiah(item.productPrice)}`;
+    enc.line(`  ${qtyPrice}`);
     if (item.notes) {
       enc.line(`  * ${item.notes}`);
     }
@@ -171,23 +153,22 @@ export function generateEscPosReceipt(data: ReceiptPrintData, paperWidth: 32 | 4
   enc.divider('-', paperWidth);
 
   // 4. Financial Calculation
-  enc.twoColumn('Subtotal', formatRp(data.subtotal), paperWidth);
+  enc.twoColumn('Subtotal', formatRupiah(data.subtotal), paperWidth);
   if (data.discountAmount > 0) {
-    enc.twoColumn('Diskon Promo', `-${formatRp(data.discountAmount)}`, paperWidth);
+    enc.twoColumn('Diskon Promo', `-${formatRupiah(data.discountAmount)}`, paperWidth);
   }
   if (data.taxAmount > 0) {
-    enc.twoColumn(`PPN (${data.taxRate}%)`, `+${formatRp(data.taxAmount)}`, paperWidth);
+    enc.twoColumn(`PPN (${data.taxRate}%)`, `+${formatRupiah(data.taxAmount)}`, paperWidth);
   }
   enc.divider('-', paperWidth);
 
   // 5. Total & Payment
-  enc.bold(true).size('double-height');
-  enc.twoColumn('TOTAL', formatRp(data.total), paperWidth);
-  enc.size('normal').bold(false);
+  enc.bold(true).twoColumn('TOTAL', formatRupiah(data.total), paperWidth).bold(false);
+  enc.divider('-', paperWidth);
 
-  enc.twoColumn(`Metode (${data.paymentMethod.toUpperCase()})`, formatRp(data.cashReceived || data.total), paperWidth);
+  enc.twoColumn(`Metode: ${data.paymentMethod.toUpperCase()}`, formatRupiah(data.cashReceived || data.total), paperWidth);
   if (data.paymentMethod === 'cash' && data.change != null) {
-    enc.bold(true).twoColumn('Kembalian', formatRp(data.change), paperWidth).bold(false);
+    enc.bold(true).twoColumn('Kembalian', formatRupiah(data.change), paperWidth).bold(false);
   }
   enc.divider('=', paperWidth);
 

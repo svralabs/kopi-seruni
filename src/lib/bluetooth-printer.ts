@@ -12,11 +12,61 @@ const BLUETOOTH_PRINT_SERVICES = [
   '0000fff0-0000-1000-8000-00805f9b34fb', // Custom Bluetooth POS
 ];
 
+// In-memory reference to previously connected printer for 1-click silent printing
+let activeBluetoothDevice: any = null;
+
 export function isBluetoothSupported(): boolean {
   return typeof navigator !== 'undefined' && 'bluetooth' in navigator;
 }
 
-export async function printDirectBluetooth(data: Uint8Array): Promise<{ success: boolean; message: string }> {
+/**
+ * Get active or previously permitted Bluetooth printer without showing picker dialog
+ */
+async function resolveBluetoothDevice(nav: any, forcePicker: boolean = false): Promise<any> {
+  // 1. If we already have an active device reference and forcePicker is false, try reusing it
+  if (!forcePicker && activeBluetoothDevice?.gatt) {
+    return activeBluetoothDevice;
+  }
+
+  // 2. Check if browser has previously permitted devices (Web Bluetooth getDevices API)
+  if (!forcePicker && typeof nav.bluetooth.getDevices === 'function') {
+    try {
+      const permittedDevices = await nav.bluetooth.getDevices();
+      if (permittedDevices && permittedDevices.length > 0) {
+        activeBluetoothDevice = permittedDevices[0];
+        return activeBluetoothDevice;
+      }
+    } catch {
+      // Fallback to requestDevice if getDevices fails
+    }
+  }
+
+  // 3. Prompt user once to select printer from Bluetooth picker dialog
+  const device = await nav.bluetooth.requestDevice({
+    acceptAllDevices: true,
+    optionalServices: BLUETOOTH_PRINT_SERVICES,
+  });
+
+  activeBluetoothDevice = device;
+  return device;
+}
+
+/**
+ * Disconnect and clear active printer cache
+ */
+export function forgetBluetoothPrinter() {
+  if (activeBluetoothDevice?.gatt?.connected) {
+    try {
+      activeBluetoothDevice.gatt.disconnect();
+    } catch {}
+  }
+  activeBluetoothDevice = null;
+}
+
+export async function printDirectBluetooth(
+  data: Uint8Array,
+  forcePicker: boolean = false
+): Promise<{ success: boolean; message: string; deviceName?: string }> {
   const nav = navigator as any;
   if (!nav.bluetooth) {
     return {
@@ -26,22 +76,30 @@ export async function printDirectBluetooth(data: Uint8Array): Promise<{ success:
   }
 
   try {
-    // 1. Request Bluetooth Device with printer service filter
-    const device = await nav.bluetooth.requestDevice({
-      acceptAllDevices: true,
-      optionalServices: BLUETOOTH_PRINT_SERVICES,
-    });
+    // 1. Resolve device (Cached / Previously Permitted / Picker Dialog)
+    let device: any;
+    try {
+      device = await resolveBluetoothDevice(nav, forcePicker);
+    } catch (e: any) {
+      if (forcePicker || activeBluetoothDevice == null) {
+        throw e;
+      }
+      // If cached device failed to resolve, retry with picker dialog
+      device = await resolveBluetoothDevice(nav, true);
+    }
 
-    if (!device.gatt) {
-      return { success: false, message: 'Printer tidak mendukung koneksi GATT Bluetooth.' };
+    if (!device?.gatt) {
+      return { success: false, message: 'Perangkat printer tidak memiliki antarmuka Bluetooth GATT.' };
     }
 
     // 2. Connect to GATT Server
-    const server = await device.gatt.connect();
+    let server = device.gatt;
+    if (!server.connected) {
+      server = await device.gatt.connect();
+    }
 
     // 3. Find writable characteristic
     let writeChar: any = null;
-
     const services = await server.getPrimaryServices();
     for (const service of services) {
       const chars = await service.getCharacteristics();
@@ -56,7 +114,7 @@ export async function printDirectBluetooth(data: Uint8Array): Promise<{ success:
 
     if (!writeChar) {
       server.disconnect();
-      return { success: false, message: 'Tidak menemukan port tulis (write characteristic) pada printer.' };
+      return { success: false, message: 'Tidak menemukan port cetak (write characteristic) pada printer.' };
     }
 
     // 4. Send ESC/POS binary chunks (chunking 128 bytes per packet for Bluetooth MTU)
@@ -72,14 +130,12 @@ export async function printDirectBluetooth(data: Uint8Array): Promise<{ success:
       await new Promise((r) => setTimeout(r, 20));
     }
 
-    // Disconnect after print finished
-    setTimeout(() => {
-      if (device.gatt?.connected) {
-        device.gatt.disconnect();
-      }
-    }, 1000);
-
-    return { success: true, message: 'Struk berhasil dicetak langsung ke printer Bluetooth!' };
+    const deviceName = device.name || 'Printer Bluetooth';
+    return {
+      success: true,
+      message: `Struk berhasil dicetak ke [${deviceName}]!`,
+      deviceName,
+    };
   } catch (error: any) {
     if (error?.name === 'NotFoundError') {
       return { success: false, message: 'Pencarian perangkat dibatalkan.' };
@@ -94,7 +150,7 @@ export async function printDirectBluetooth(data: Uint8Array): Promise<{ success:
       return {
         success: false,
         message:
-          'Izin Bluetooth diblokir browser. Buka Pengaturan Situs browser (ikon gembok/setelan di URL bar) untuk Mengizinkan Bluetooth, atau gunakan tombol Cetak via Dialog OS.',
+          'Izin Bluetooth diblokir browser. Buka Pengaturan Situs browser untuk Mengizinkan Bluetooth, atau gunakan tombol Cetak via Dialog OS.',
       };
     }
     return { success: false, message: `Gagal cetak Bluetooth: ${msg}` };
