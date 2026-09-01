@@ -153,7 +153,7 @@ export default function ReceiptModal({
                 <img
                   src="/logo-receipt.png"
                   alt="Logo Kopi Seruni"
-                  className="w-16 h-16 object-contain filter grayscale contrast-200 mx-auto"
+                  className="w-40 h-auto max-h-18 object-contain mx-auto"
                 />
               </div>
               <p className="text-[11px] font-sans font-bold text-[#201C1A]">

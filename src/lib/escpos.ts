@@ -1,4 +1,5 @@
 import { formatRupiah, formatDateTime } from './utils';
+import { SERUNI_LOGO_ESC_POS } from './logo-bitmap';
 
 export interface ReceiptPrintData {
   orderId: string;
@@ -55,6 +56,13 @@ export class EscPosEncoder {
 
   bold(enable: boolean) {
     this.buffer.push(0x1b, 0x45, enable ? 0x01 : 0x00); // ESC E n
+    return this;
+  }
+
+  raw(bytes: Uint8Array | number[]) {
+    for (const b of bytes) {
+      this.buffer.push(b);
+    }
     return this;
   }
 
@@ -123,9 +131,12 @@ export class EscPosEncoder {
 export function generateEscPosReceipt(data: ReceiptPrintData, paperWidth: 32 | 48 = 32): Uint8Array {
   const enc = new EscPosEncoder();
 
-  // 1. Header (Store Name & Outlet Info)
+  // 1. Header: 1-Bit Thermal Bitmap Logo
   enc.alignCenter();
-  enc.bold(true).size('double-height').line('KOPI SERUNI');
+  enc.raw(SERUNI_LOGO_ESC_POS);
+  enc.feed(1);
+
+  // Store Outlet Info
   enc.size('normal').bold(true).line(data.outletName);
   enc.bold(false);
   if (data.outletAddress) enc.line(data.outletAddress);

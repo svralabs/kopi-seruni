@@ -103,12 +103,10 @@ input[type="button"],
     max-width: 80mm !important;
   }
   #thermal-receipt img {
-    max-width: 24mm !important;
+    max-width: 42mm !important;
     height: auto !important;
-    margin: 0 auto 1.5mm auto !important;
+    margin: 0 auto 2mm auto !important;
     display: block !important;
-    filter: grayscale(100%) contrast(200%) !important;
-    -webkit-filter: grayscale(100%) contrast(200%) !important;
   }
   #thermal-receipt .border-dashed {
     border-bottom: 1px dashed #000000 !important;
