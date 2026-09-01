@@ -19,6 +19,14 @@ export function isBluetoothSupported(): boolean {
   return typeof navigator !== 'undefined' && 'bluetooth' in navigator;
 }
 
+export function getActivePrinterName(): string | null {
+  return activeBluetoothDevice?.name || null;
+}
+
+export function isPrinterConnected(): boolean {
+  return !!activeBluetoothDevice?.gatt?.connected;
+}
+
 /**
  * Get active or previously permitted Bluetooth printer without showing picker dialog
  */
@@ -49,6 +57,44 @@ async function resolveBluetoothDevice(nav: any, forcePicker: boolean = false): P
 
   activeBluetoothDevice = device;
   return device;
+}
+
+/**
+ * Connect to Bluetooth printer in advance (e.g. from Settings or Shift start)
+ */
+export async function connectBluetoothPrinter(forcePicker: boolean = true): Promise<{
+  success: boolean;
+  message: string;
+  deviceName?: string;
+}> {
+  const nav = navigator as any;
+  if (!nav.bluetooth) {
+    return {
+      success: false,
+      message: 'Web Bluetooth tidak didukung di browser ini. Gunakan Google Chrome atau Microsoft Edge.',
+    };
+  }
+
+  try {
+    const device = await resolveBluetoothDevice(nav, forcePicker);
+    if (!device?.gatt) {
+      return { success: false, message: 'Perangkat tidak memiliki antarmuka Bluetooth GATT.' };
+    }
+    if (!device.gatt.connected) {
+      await device.gatt.connect();
+    }
+    const name = device.name || 'Printer Bluetooth';
+    return {
+      success: true,
+      message: `Printer [${name}] berhasil terhubung!`,
+      deviceName: name,
+    };
+  } catch (err: any) {
+    if (err?.name === 'NotFoundError') {
+      return { success: false, message: 'Pemilihan printer dibatalkan.' };
+    }
+    return { success: false, message: `Gagal menghubungkan printer: ${err.message || err}` };
+  }
 }
 
 /**
