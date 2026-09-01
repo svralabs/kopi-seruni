@@ -213,6 +213,7 @@ export function generateEscPosReceipt(data: ReceiptPrintData, paperWidth: 32 | 4
   enc.alignCenter();
   enc.line(data.footerText || 'Terima kasih atas kunjungan Anda!', paperWidth);
   enc.line('Follow IG: @kopiseruni', paperWidth);
+  enc.line('POS by svralabs.com', paperWidth);
   enc.feed(paperWidth === 48 ? 2 : 4);
 
   // Only send automatic cutter command on 80mm printers

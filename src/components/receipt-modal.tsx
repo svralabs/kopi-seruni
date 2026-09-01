@@ -261,6 +261,17 @@ export default function ReceiptModal({
               <p className="text-[9px] text-[#A8A095] font-sans">
                 Follow IG: @kopiseruni
               </p>
+              <p className="text-[8px] text-[#C4BCB0] font-sans pt-1">
+                POS by{' '}
+                <a
+                  href="https://svralabs.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline font-bold text-[#A8A095] hover:text-[#54382B]"
+                >
+                  svralabs.com
+                </a>
+              </p>
             </div>
           </div>
         </div>

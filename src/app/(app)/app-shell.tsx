@@ -228,6 +228,22 @@ export default function AppShell({
             <LogOut className="w-3.5 h-3.5 shrink-0" />
             {!isDesktopCollapsed && <span>Keluar Akun</span>}
           </button>
+
+          {!isDesktopCollapsed && (
+            <div className="pt-2 text-center">
+              <a
+                href="https://svralabs.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[10px] text-[#9B9489] hover:text-[#54382B] transition-colors"
+              >
+                <span>Dibuat oleh</span>
+                <span className="font-bold text-[#201C1A] underline decoration-[#C4BCB0] underline-offset-2 hover:decoration-[#54382B]">
+                  Svralabs
+                </span>
+              </a>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -329,6 +345,20 @@ export default function AppShell({
                 <LogOut className="w-4 h-4" />
                 <span>Keluar Akun</span>
               </button>
+
+              <div className="pt-2 text-center">
+                <a
+                  href="https://svralabs.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[10px] text-[#9B9489] hover:text-[#54382B] transition-colors"
+                >
+                  <span>Dibuat oleh</span>
+                  <span className="font-bold text-[#201C1A] underline decoration-[#C4BCB0] underline-offset-2 hover:decoration-[#54382B]">
+                    Svralabs
+                  </span>
+                </a>
+              </div>
             </div>
           </aside>
         </div>
@@ -387,6 +417,23 @@ export default function AppShell({
           }`}
         >
           {isPending ? <PageSkeleton pathname={pathname} /> : children}
+
+          {!isPOSPage && (
+            <footer className="mt-12 pt-6 border-t border-[#EBE7DF]/80 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-[#9B9489]">
+              <p>© {new Date().getFullYear()} Toko Kopi Seruni. All rights reserved.</p>
+              <a
+                href="https://svralabs.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 hover:text-[#54382B] transition-colors"
+              >
+                <span>Dibuat oleh</span>
+                <span className="font-bold text-[#201C1A] underline decoration-[#C4BCB0] underline-offset-2 hover:decoration-[#54382B]">
+                  Svralabs
+                </span>
+              </a>
+            </footer>
+          )}
         </main>
       </div>
 

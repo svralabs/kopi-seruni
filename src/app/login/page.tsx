@@ -28,10 +28,23 @@ export default function LoginPage() {
 
         <LoginForm />
 
-        <div className="text-center pt-2 border-t border-[#F0ECE4]">
+        <div className="text-center pt-2 border-t border-[#F0ECE4] space-y-2">
           <p className="text-[11px] text-[#A8A095]">
             Default Login: <span className="font-mono text-[#201C1A]">owner@kopiseruni.com</span>
           </p>
+          <div className="pt-1">
+            <a
+              href="https://svralabs.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[11px] text-[#8E867C] hover:text-[#201C1A] transition-colors"
+            >
+              <span>Dibuat oleh</span>
+              <span className="font-bold text-[#201C1A] underline decoration-[#CBC4B8] underline-offset-2 hover:decoration-[#201C1A]">
+                Svralabs
+              </span>
+            </a>
+          </div>
         </div>
       </div>
     </div>
