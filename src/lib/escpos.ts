@@ -95,7 +95,21 @@ export class EscPosEncoder {
     return this;
   }
 
-  line(str: string = '') {
+  line(str: string = '', maxWidth?: number) {
+    if (maxWidth && str.length > maxWidth) {
+      const words = str.split(' ');
+      let current = '';
+      for (const w of words) {
+        if ((current + (current ? ' ' : '') + w).length <= maxWidth) {
+          current += (current ? ' ' : '') + w;
+        } else {
+          if (current) this.text(current + '\n');
+          current = w;
+        }
+      }
+      if (current) this.text(current + '\n');
+      return this;
+    }
     this.text(str + '\n');
     return this;
   }
@@ -149,10 +163,10 @@ export function generateEscPosReceipt(data: ReceiptPrintData, paperWidth: 32 | 4
   enc.feed(1);
 
   // Store Outlet Info
-  enc.bold(true).line(data.outletName);
+  enc.bold(true).line(data.outletName, paperWidth);
   enc.bold(false);
-  if (data.outletAddress) enc.line(data.outletAddress);
-  if (data.outletPhone) enc.line(`Telp: ${data.outletPhone}`);
+  if (data.outletAddress) enc.line(data.outletAddress, paperWidth);
+  if (data.outletPhone) enc.line(`Telp: ${data.outletPhone}`, paperWidth);
   enc.divider('=', paperWidth);
 
   // 2. Transaction Metadata
@@ -170,7 +184,7 @@ export function generateEscPosReceipt(data: ReceiptPrintData, paperWidth: 32 | 4
     const qtyPrice = `${item.quantity} x ${formatRp(item.productPrice)}`;
     enc.line(`  ${qtyPrice}`);
     if (item.notes) {
-      enc.line(`  * ${item.notes}`);
+      enc.line(`  * ${item.notes}`, paperWidth);
     }
   }
   enc.divider('-', paperWidth);
@@ -197,8 +211,8 @@ export function generateEscPosReceipt(data: ReceiptPrintData, paperWidth: 32 | 4
 
   // 6. Footer
   enc.alignCenter();
-  enc.line(data.footerText || 'Terima kasih atas kunjungan Anda!');
-  enc.line('Follow IG: @kopiseruni');
+  enc.line(data.footerText || 'Terima kasih atas kunjungan Anda!', paperWidth);
+  enc.line('Follow IG: @kopiseruni', paperWidth);
   enc.feed(paperWidth === 48 ? 2 : 4);
 
   // Only send automatic cutter command on 80mm printers
