@@ -413,13 +413,15 @@ export default function AppShell({
           className={`flex-1 min-w-0 overflow-y-auto ${
             isPOSPage
               ? 'p-2.5 sm:p-3.5 lg:p-4 flex flex-col h-[calc(100vh-3.5rem)] lg:h-screen min-h-0'
-              : 'p-3.5 sm:p-5 lg:p-6 xl:p-8 max-w-[1600px] w-full mx-auto pb-20'
+              : 'p-3.5 sm:p-5 lg:p-6 xl:p-8 max-w-[1600px] w-full mx-auto flex flex-col min-h-full'
           }`}
         >
-          {isPending ? <PageSkeleton pathname={pathname} /> : children}
+          <div className="flex-1 min-w-0">
+            {isPending ? <PageSkeleton pathname={pathname} /> : children}
+          </div>
 
           {!isPOSPage && (
-            <footer className="mt-12 pt-6 border-t border-[#EBE7DF]/80 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-[#9B9489]">
+            <footer className="mt-auto pt-8 pb-4 border-t border-[#EBE7DF]/80 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-[#9B9489] shrink-0">
               <p>© {new Date().getFullYear()} Toko Kopi Seruni. All rights reserved.</p>
               <a
                 href="https://svralabs.com"
