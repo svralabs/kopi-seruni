@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { formatRupiah, formatDate, formatDateTime } from '@/lib/utils';
 import { createExpense, updateExpense, deleteExpense } from '@/app/actions/expenses';
 import type { Outlet } from '@/lib/schema';
@@ -15,7 +16,9 @@ import {
   Search, 
   ArrowRight,
   Pencil,
-  Trash2
+  Trash2,
+  FileSpreadsheet,
+  FileText,
 } from 'lucide-react';
 import PaginationControls from '@/components/pagination-controls';
 
@@ -44,6 +47,8 @@ export default function ExpensesClient({
   const [searchQuery, setSearchQuery] = useState('');
   const [isPending, startTransition] = useTransition();
 
+  const searchParams = useSearchParams();
+  const currentOutlet = searchParams.get('outletId') || 'all';
   const outletMap = Object.fromEntries(outlets.map((o) => [o.id, o.name]));
   const averageAmount = totalItems > 0 ? Math.round(totalAmount / totalItems) : 0;
 
@@ -81,14 +86,36 @@ export default function ExpensesClient({
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white text-xs font-bold rounded-2xl shadow-xs transition-colors self-start sm:self-auto cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Catat Pengeluaran</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Export Excel / CSV */}
+          <a
+            href={`/api/export/expenses?format=csv${currentOutlet !== 'all' ? `&outletId=${currentOutlet}` : ''}`}
+            download
+            className="flex items-center gap-2 bg-white px-3.5 py-2.5 rounded-2xl border border-[#EBE7DF] hover:bg-[#FAF8F5] text-xs font-bold text-[#2D7A47] shadow-xs transition-colors"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-[#2D7A47]" />
+            <span>Ekspor Excel (.csv)</span>
+          </a>
+
+          {/* Export PDF (Server-Side Backend) */}
+          <a
+            href={`/api/export/expenses?format=pdf${currentOutlet !== 'all' ? `&outletId=${currentOutlet}` : ''}`}
+            download
+            className="flex items-center gap-2 bg-white px-3.5 py-2.5 rounded-2xl border border-[#EBE7DF] hover:bg-[#FAF8F5] text-xs font-bold text-[#964B3B] shadow-xs transition-colors"
+          >
+            <FileText className="w-4 h-4 text-[#964B3B]" />
+            <span>Ekspor PDF</span>
+          </a>
+
+          <button
+            type="button"
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white text-xs font-bold rounded-2xl shadow-xs transition-colors cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Catat Pengeluaran</span>
+          </button>
+        </div>
       </div>
 
       {/* 1. TOP SUMMARY CARDS */}

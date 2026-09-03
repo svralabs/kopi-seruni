@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { orders, outlets, user } from '@/lib/schema';
 import { eq, and, desc, gte, lte } from 'drizzle-orm';
 import { formatDateTime, getDateRangeFromParams } from '@/lib/utils';
+import { generateOrdersPdf } from '@/lib/pdf-generator';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -11,8 +12,9 @@ export async function GET(request: NextRequest) {
   const period = searchParams.get('period') || undefined;
   const from = searchParams.get('from') || undefined;
   const to = searchParams.get('to') || undefined;
+  const format = searchParams.get('format') || 'csv';
 
-  const { startEpoch, endEpoch } = getDateRangeFromParams({ period, from, to });
+  const { startEpoch, endEpoch, label } = getDateRangeFromParams({ period, from, to });
 
   const conditions = [];
   if (outletId !== 'all') conditions.push(eq(orders.outletId, outletId));
@@ -32,7 +34,31 @@ export async function GET(request: NextRequest) {
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(orders.createdAt));
 
-  // CSV headers with UTF-8 BOM for Microsoft Excel compatibility
+  let outletName = 'Semua Cabang';
+  if (outletId !== 'all') {
+    const [found] = await db.select().from(outlets).where(eq(outlets.id, outletId)).limit(1);
+    if (found) outletName = found.name;
+  }
+
+  // 1. PDF Export (Server-Side Backend Generation)
+  if (format === 'pdf') {
+    const pdfBuffer = await generateOrdersPdf(rows, {
+      outletName,
+      periodLabel: label,
+      statusLabel: status === 'all' ? 'Semua Status' : status.toUpperCase(),
+      printedAt: new Date().toLocaleString('id-ID'),
+    });
+
+    return new NextResponse(new Uint8Array(pdfBuffer), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="laporan-penjualan-seruni-${Date.now()}.pdf"`,
+      },
+    });
+  }
+
+  // 2. CSV Export (Default)
   const headers = ['No Struk', 'Waktu', 'Cabang Outlet', 'Kasir', 'Pelanggan', 'Subtotal', 'Diskon', 'PPN', 'Total', 'Metode Bayar', 'Status'];
   
   const csvRows = rows.map((r) => [

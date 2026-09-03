@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { orders, expenses, orderItems } from '@/lib/schema';
+import { orders, expenses, orderItems, outlets } from '@/lib/schema';
 import { sql, eq, and, gte, lte } from 'drizzle-orm';
 import { formatRupiah, getDateRangeFromParams } from '@/lib/utils';
+import { generateProfitLossPdf } from '@/lib/pdf-generator';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -10,6 +11,7 @@ export async function GET(request: NextRequest) {
   const from = searchParams.get('from') || undefined;
   const to = searchParams.get('to') || undefined;
   const outletId = searchParams.get('outletId') || 'all';
+  const format = searchParams.get('format') || 'csv';
 
   const { startEpoch, endEpoch, label: periodLabel } = getDateRangeFromParams({ period, from, to });
 
@@ -51,10 +53,44 @@ export async function GET(request: NextRequest) {
   const netProfit = grossProfit - totalExpenses;
   const netMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : '0';
 
+  let outletName = 'Semua Cabang';
+  if (outletId !== 'all') {
+    const [found] = await db.select().from(outlets).where(eq(outlets.id, outletId)).limit(1);
+    if (found) outletName = found.name;
+  }
+
+  // 1. PDF Export (Server-Side Backend Generation)
+  if (format === 'pdf') {
+    const pdfBuffer = await generateProfitLossPdf(
+      {
+        totalRevenue,
+        totalCOGS,
+        grossProfit,
+        totalExpenses,
+        netProfit,
+        netMargin,
+      },
+      {
+        outletName,
+        periodLabel,
+        printedAt: new Date().toLocaleString('id-ID'),
+      }
+    );
+
+    return new NextResponse(new Uint8Array(pdfBuffer), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="laporan-laba-rugi-seruni-${Date.now()}.pdf"`,
+      },
+    });
+  }
+
+  // 2. CSV Export (Default)
   const rows = [
     ['LAPORAN LABA RUGI — KOPI SERUNI', ''],
     ['Periode', periodLabel.toUpperCase()],
-    ['Cabang Outlet', outletId.toUpperCase()],
+    ['Cabang Outlet', outletName.toUpperCase()],
     ['Waktu Ekspor', new Date().toLocaleString('id-ID')],
     ['', ''],
     ['KOMPONEN KEUANGAN', 'NOMINAL (RP)'],

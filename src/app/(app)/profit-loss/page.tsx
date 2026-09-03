@@ -13,6 +13,7 @@ import {
   BarChart3,
   Store,
   FileSpreadsheet,
+  FileText,
   Layers,
   Percent,
   Tag,
@@ -161,14 +162,25 @@ export default async function ProfitLossPage({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Export Excel / CSV */}
           <a
-            href={exportUrl}
+            href={`${exportUrl}&format=csv`}
             download
             className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-2xl border border-[#EBE7DF] hover:bg-[#FAF8F5] text-xs font-bold text-[#2D7A47] shadow-xs transition-colors"
           >
             <FileSpreadsheet className="w-4 h-4 text-[#2D7A47]" />
             <span>Ekspor Excel (.csv)</span>
+          </a>
+
+          {/* Export PDF (Server-Side Backend) */}
+          <a
+            href={`${exportUrl}&format=pdf`}
+            download
+            className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-2xl border border-[#EBE7DF] hover:bg-[#FAF8F5] text-xs font-bold text-[#964B3B] shadow-xs transition-colors"
+          >
+            <FileText className="w-4 h-4 text-[#964B3B]" />
+            <span>Ekspor PDF</span>
           </a>
         </div>
       </div>
