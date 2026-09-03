@@ -1,23 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { expenses, outlets } from '@/lib/schema';
-import { eq, desc } from 'drizzle-orm';
-import { formatDate } from '@/lib/utils';
+import { expenses, expenseCategories, outlets } from '@/lib/schema';
+import { eq, desc, and, gte, lte, like, or } from 'drizzle-orm';
+import { formatDate, getDateRangeFromParams } from '@/lib/utils';
 import { generateExpensesPdf } from '@/lib/pdf-generator';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const outletId = searchParams.get('outletId') || 'all';
+  const period = searchParams.get('period') || undefined;
+  const from = searchParams.get('from') || undefined;
+  const to = searchParams.get('to') || undefined;
+  const q = searchParams.get('q') || undefined;
   const format = searchParams.get('format') || 'csv';
+
+  const { startEpoch, endEpoch, label } = getDateRangeFromParams({ period, from, to });
+
+  const conditions = [];
+  if (outletId !== 'all') conditions.push(eq(expenses.outletId, outletId));
+  if (startEpoch > 0) conditions.push(gte(expenses.expenseDate, startEpoch));
+  if (endEpoch > 0) conditions.push(lte(expenses.expenseDate, endEpoch));
+  if (q) {
+    const query = `%${q}%`;
+    conditions.push(or(like(expenses.description, query), like(expenses.id, query)));
+  }
 
   const rows = await db
     .select({
       expense: expenses,
       outlet: outlets,
+      category: expenseCategories,
     })
     .from(expenses)
     .leftJoin(outlets, eq(expenses.outletId, outlets.id))
-    .where(outletId !== 'all' ? eq(expenses.outletId, outletId) : undefined)
+    .leftJoin(expenseCategories, eq(expenses.categoryId, expenseCategories.id))
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(expenses.expenseDate));
 
   let outletName = 'Semua Cabang';
@@ -30,7 +47,7 @@ export async function GET(request: NextRequest) {
   if (format === 'pdf') {
     const pdfBuffer = await generateExpensesPdf(rows, {
       outletName,
-      periodLabel: 'Semua Waktu',
+      periodLabel: label,
       printedAt: new Date().toLocaleString('id-ID'),
     });
 
@@ -44,12 +61,13 @@ export async function GET(request: NextRequest) {
   }
 
   // 2. CSV Export (Default)
-  const headers = ['ID Pengeluaran', 'Tanggal', 'Cabang Outlet', 'Keterangan', 'Metode Bayar', 'Nominal (Rp)'];
+  const headers = ['ID Pengeluaran', 'Tanggal', 'Cabang Outlet', 'Kategori', 'Keterangan', 'Metode Bayar', 'Nominal (Rp)'];
   
   const csvRows = rows.map((r) => [
     `"${r.expense.id}"`,
     `"${formatDate(r.expense.expenseDate)}"`,
     `"${r.outlet?.name || 'Pusat'}"`,
+    `"${r.category?.name || 'Umum'}"`,
     `"${r.expense.description.replace(/"/g, '""')}"`,
     `"${r.expense.paymentMethod.toUpperCase()}"`,
     r.expense.amount,

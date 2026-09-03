@@ -146,6 +146,13 @@ export default function OrdersClient({
     });
   };
 
+  const getExportUrl = (format: 'pdf' | 'csv') => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('format', format);
+    params.delete('page');
+    return `/api/export/orders?${params.toString()}`;
+  };
+
   return (
     <div className="space-y-6">
       {/* Header Bento */}
@@ -162,7 +169,7 @@ export default function OrdersClient({
         <div className="flex flex-wrap items-center gap-2.5">
           {/* Export Excel / CSV */}
           <a
-            href={`/api/export/orders?format=csv${selectedOutlet !== 'all' ? `&outletId=${selectedOutlet}` : ''}${statusFilter !== 'all' ? `&status=${statusFilter}` : ''}`}
+            href={getExportUrl('csv')}
             download
             className="flex items-center gap-2 bg-white px-3.5 py-2.5 rounded-2xl border border-[#EBE7DF] hover:bg-[#FAF8F5] text-xs font-bold text-[#2D7A47] shadow-xs transition-colors"
           >
@@ -172,7 +179,7 @@ export default function OrdersClient({
 
           {/* Export PDF (Server-Side Backend) */}
           <a
-            href={`/api/export/orders?format=pdf${selectedOutlet !== 'all' ? `&outletId=${selectedOutlet}` : ''}${statusFilter !== 'all' ? `&status=${statusFilter}` : ''}`}
+            href={getExportUrl('pdf')}
             download
             className="flex items-center gap-2 bg-white px-3.5 py-2.5 rounded-2xl border border-[#EBE7DF] hover:bg-[#FAF8F5] text-xs font-bold text-[#964B3B] shadow-xs transition-colors"
           >

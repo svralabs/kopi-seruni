@@ -82,4 +82,26 @@ describe('Unit Test: Server-Side PDF Generator', () => {
     const magic = buf.subarray(0, 5).toString('ascii');
     expect(magic).toBe('%PDF-');
   });
+
+  it('should accept and process filtered query parameters in export routes', async () => {
+    const { NextRequest } = await import('next/server');
+    const { GET: getOrders } = await import('@/app/api/export/orders/route');
+    const { GET: getPL } = await import('@/app/api/export/profit-loss/route');
+    const { GET: getExpenses } = await import('@/app/api/export/expenses/route');
+
+    const ordersReq = new NextRequest('http://localhost:3000/api/export/orders?format=pdf&period=7d&status=completed&payment=qris&q=test');
+    const ordersRes = await getOrders(ordersReq);
+    expect(ordersRes.status).toBe(200);
+    expect(ordersRes.headers.get('Content-Type')).toBe('application/pdf');
+
+    const plReq = new NextRequest('http://localhost:3000/api/export/profit-loss?format=pdf&period=30d&outletId=out_default');
+    const plRes = await getPL(plReq);
+    expect(plRes.status).toBe(200);
+    expect(plRes.headers.get('Content-Type')).toBe('application/pdf');
+
+    const expReq = new NextRequest('http://localhost:3000/api/export/expenses?format=pdf&period=this_month&q=kopi');
+    const expRes = await getExpenses(expReq);
+    expect(expRes.status).toBe(200);
+    expect(expRes.headers.get('Content-Type')).toBe('application/pdf');
+  });
 });

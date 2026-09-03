@@ -142,8 +142,8 @@ export default async function ProfitLossPage({
   const netMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : '0';
   const cogsRatio = totalRevenue > 0 ? ((totalCOGS / totalRevenue) * 100).toFixed(1) : '0';
   const expenseRatio = totalRevenue > 0 ? ((totalExpenses / totalRevenue) * 100).toFixed(1) : '0';
-
-  const exportUrl = `/api/export/profit-loss?period=${resolvedParams.period || 'this_month'}${
+  const activePeriod = resolvedParams.period || 'today';
+  const exportUrl = `/api/export/profit-loss?period=${activePeriod}${
     resolvedParams.from ? `&from=${resolvedParams.from}` : ''
   }${resolvedParams.to ? `&to=${resolvedParams.to}` : ''}${
     outletId !== 'all' ? `&outletId=${outletId}` : ''

@@ -7,7 +7,7 @@ import { generateProfitLossPdf } from '@/lib/pdf-generator';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
-  const period = searchParams.get('period') || 'this_month';
+  const period = searchParams.get('period') || 'today';
   const from = searchParams.get('from') || undefined;
   const to = searchParams.get('to') || undefined;
   const outletId = searchParams.get('outletId') || 'all';

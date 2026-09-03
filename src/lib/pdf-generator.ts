@@ -155,7 +155,7 @@ export async function generateOrdersPdf(
   let y = drawHeader(doc, 'Laporan Transaksi Penjualan', [
     { label: 'Cabang Outlet', value: meta.outletName },
     { label: 'Periode Waktu', value: meta.periodLabel },
-    { label: 'Total Transaksi', value: `${totalCompleted} pesanan` },
+    { label: 'Filter / Status', value: meta.statusLabel },
     { label: 'Total Omset', value: cleanRp(totalOmset) },
   ]);
 
