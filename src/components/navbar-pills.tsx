@@ -45,7 +45,7 @@ export default function NavbarPills({
       ? rawOutletId && rawOutletId !== 'all'
         ? rawOutletId
         : defaultSingleOutletId
-      : rawOutletId || 'all';
+      : rawOutletId || defaultSingleOutletId;
 
   const selectedPeriod = searchParams?.get('period') || 'today';
 
@@ -84,10 +84,12 @@ export default function NavbarPills({
   const handleOutletChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value;
     const params = new URLSearchParams(searchParams?.toString() || '');
-    if (!isSingleOutletOnly && (value === 'all' || !value)) {
-      params.delete('outletId');
-    } else {
+    if (value === 'all') {
+      params.set('outletId', 'all');
+    } else if (value) {
       params.set('outletId', value);
+    } else {
+      params.delete('outletId');
     }
     const query = params.toString();
     startFilterTransition(() => {
@@ -146,13 +148,11 @@ export default function NavbarPills({
 
   // Dynamic label for the profile pill next to notification bell
   const displayProfileOutletName =
-    outlets.length === 1
-      ? outlets[0]?.name || activeOutletName
-      : currentEffectiveOutletId && currentEffectiveOutletId !== 'all'
-      ? outlets.find((o) => o.id === currentEffectiveOutletId)?.name || activeOutletName
-      : outlets.length > 1
+    currentEffectiveOutletId === 'all'
       ? 'Semua Cabang'
-      : outlets[0]?.name || activeOutletName;
+      : outlets.find((o) => o.id === currentEffectiveOutletId)?.name ||
+        outlets[0]?.name ||
+        activeOutletName;
 
   return (
     <header className="flex flex-wrap items-center justify-between gap-2.5 pb-3 mb-3 lg:pb-4 lg:mb-4 border-b border-[#EBE7DF]/80">

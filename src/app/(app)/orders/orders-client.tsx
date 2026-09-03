@@ -146,10 +146,14 @@ export default function OrdersClient({
     });
   };
 
+  const effectiveOutlet = searchParams.get('outletId') || currentOutletId || 'out_default';
   const getExportUrl = (format: 'pdf' | 'csv') => {
     const params = new URLSearchParams(searchParams.toString());
     params.set('format', format);
     params.delete('page');
+    if (!params.has('outletId')) {
+      params.set('outletId', effectiveOutlet);
+    }
     return `/api/export/orders?${params.toString()}`;
   };
 

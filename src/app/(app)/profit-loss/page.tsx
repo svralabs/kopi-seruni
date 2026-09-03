@@ -145,9 +145,7 @@ export default async function ProfitLossPage({
   const activePeriod = resolvedParams.period || 'today';
   const exportUrl = `/api/export/profit-loss?period=${activePeriod}${
     resolvedParams.from ? `&from=${resolvedParams.from}` : ''
-  }${resolvedParams.to ? `&to=${resolvedParams.to}` : ''}${
-    outletId !== 'all' ? `&outletId=${outletId}` : ''
-  }`;
+  }${resolvedParams.to ? `&to=${resolvedParams.to}` : ''}&outletId=${outletId}`;
 
   return (
     <div className="space-y-8">

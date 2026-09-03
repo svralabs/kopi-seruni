@@ -94,6 +94,7 @@ export default async function ExpensesPage({
       currentPage={page}
       pageSize={pageSize}
       totalAmount={totalAmount}
+      currentOutletId={params?.outletId || outletId}
     />
   );
 }

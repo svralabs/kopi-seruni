@@ -14,15 +14,11 @@ export default async function Header({
 
   try {
     if (userId) {
-      const { outlets, userRole: role, isGlobalOwner } = await getUserAccessibleOutlets(userId);
+      const { outlets, userRole: role, primaryOutletId } = await getUserAccessibleOutlets(userId);
       allOutlets = outlets;
       userRole = role;
-      activeOutletName =
-        outlets.length === 1
-          ? outlets[0]?.name || 'Outlet Seruni'
-          : isGlobalOwner
-          ? 'Semua Cabang'
-          : outlets[0]?.name || 'Outlet Seruni';
+      const primary = outlets.find((o) => o.id === primaryOutletId) || outlets[0];
+      activeOutletName = primary?.name || 'Kopi Seruni - Pusat';
     }
   } catch (e) {
     console.warn('Error fetching header context:', e);

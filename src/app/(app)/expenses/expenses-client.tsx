@@ -31,6 +31,7 @@ export default function ExpensesClient({
   currentPage,
   pageSize,
   totalAmount,
+  currentOutletId,
 }: {
   expensesList: any[];
   categories: any[];
@@ -40,6 +41,7 @@ export default function ExpensesClient({
   currentPage: number;
   pageSize: number;
   totalAmount: number;
+  currentOutletId?: string;
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<any | null>(null);
@@ -48,7 +50,7 @@ export default function ExpensesClient({
   const [isPending, startTransition] = useTransition();
 
   const searchParams = useSearchParams();
-  const currentOutlet = searchParams.get('outletId') || 'all';
+  const currentOutlet = searchParams.get('outletId') || currentOutletId || 'out_default';
   const outletMap = Object.fromEntries(outlets.map((o) => [o.id, o.name]));
   const averageAmount = totalItems > 0 ? Math.round(totalAmount / totalItems) : 0;
 
@@ -77,6 +79,9 @@ export default function ExpensesClient({
     const params = new URLSearchParams(searchParams.toString());
     params.set('format', format);
     params.delete('page');
+    if (!params.has('outletId')) {
+      params.set('outletId', currentOutlet);
+    }
     if (searchQuery.trim()) {
       params.set('q', searchQuery.trim());
     } else {

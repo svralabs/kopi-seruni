@@ -117,7 +117,7 @@ export default async function OrdersPage({
     <OrdersClient
       initialOrders={ordersList}
       outlets={allOutlets}
-      currentOutletId={params?.outletId}
+      currentOutletId={params?.outletId || outletId}
       userRole={role}
       pagination={{
         currentPage: page,

@@ -7,10 +7,24 @@ import { generateProfitLossPdf } from '@/lib/pdf-generator';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
+  const rawOutletId = searchParams.get('outletId');
+  let outletId = rawOutletId;
+  let outletName = 'Semua Cabang';
+
+  if (outletId === 'all') {
+    outletName = 'Semua Cabang';
+  } else if (outletId) {
+    const [found] = await db.select().from(outlets).where(eq(outlets.id, outletId)).limit(1);
+    if (found) outletName = found.name;
+  } else {
+    const [found] = await db.select().from(outlets).limit(1);
+    outletId = found?.id || 'out_default';
+    outletName = found?.name || 'Kopi Seruni - Pusat';
+  }
+
   const period = searchParams.get('period') || 'today';
   const from = searchParams.get('from') || undefined;
   const to = searchParams.get('to') || undefined;
-  const outletId = searchParams.get('outletId') || 'all';
   const format = searchParams.get('format') || 'csv';
 
   const { startEpoch, endEpoch, label: periodLabel } = getDateRangeFromParams({ period, from, to });
@@ -52,12 +66,6 @@ export async function GET(request: NextRequest) {
   const grossProfit = totalRevenue - totalCOGS;
   const netProfit = grossProfit - totalExpenses;
   const netMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : '0';
-
-  let outletName = 'Semua Cabang';
-  if (outletId !== 'all') {
-    const [found] = await db.select().from(outlets).where(eq(outlets.id, outletId)).limit(1);
-    if (found) outletName = found.name;
-  }
 
   // 1. PDF Export (Server-Side Backend Generation)
   if (format === 'pdf') {
