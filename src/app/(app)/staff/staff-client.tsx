@@ -14,17 +14,18 @@ import {
   UserCog, 
   Search, 
   X, 
-  CheckCircle,
-  KeyRound,
-  Plus,
-  UserCheck,
-  Shield,
-  ArrowRight,
-  Mail,
-  User,
-  Lock,
-  Crown,
-  Briefcase
+  CheckCircle, 
+  KeyRound, 
+  Plus, 
+  UserCheck, 
+  Shield, 
+  ArrowRight, 
+  Mail, 
+  User, 
+  Lock, 
+  Crown, 
+  Briefcase,
+  Info
 } from 'lucide-react';
 
 export interface StaffMember {
@@ -41,11 +42,16 @@ export default function StaffClient({
   staffList,
   outlets,
   currentOutletId = 'all',
+  currentUserId,
+  currentUserRole = 'owner',
 }: {
   staffList: StaffMember[];
   outlets: Outlet[];
   currentOutletId?: string;
+  currentUserId?: string;
+  currentUserRole?: 'owner' | 'manager' | 'kasir';
 }) {
+  const isManager = currentUserRole === 'manager';
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
   const [deletingStaff, setDeletingStaff] = useState<StaffMember | null>(null);
@@ -67,6 +73,8 @@ export default function StaffClient({
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'kasir' | 'manager' | 'owner'>('all');
   const [isPending, startTransition] = useTransition();
+
+  const isEditingSelf = editingStaff ? editingStaff.id === currentUserId : false;
 
   const handleOpenAdd = () => {
     setAddName('');
@@ -109,7 +117,7 @@ export default function StaffClient({
       return;
     }
 
-    if (editOutletIds.length === 0) {
+    if (!isEditingSelf && editOutletIds.length === 0) {
       toast.error('Pilih minimal 1 cabang penempatan');
       return;
     }
@@ -119,11 +127,15 @@ export default function StaffClient({
         await updateStaffUser(editingStaff.id, {
           name: editName,
           email: editEmail,
-          role: editRole,
-          outletIds: editOutletIds,
+          role: isEditingSelf ? (editingStaff.role as any) : editRole,
+          outletIds: isEditingSelf ? editingStaff.outletIds : editOutletIds,
           newPassword: editNewPassword.trim() || undefined,
         });
-        toast.success(`Data pengguna "${editName}" berhasil diperbarui`);
+        toast.success(
+          isEditingSelf
+            ? 'Profil akun Anda berhasil diperbarui'
+            : `Data pengguna "${editName}" berhasil diperbarui`
+        );
         setEditingStaff(null);
       } catch (err: any) {
         toast.error(err?.message || 'Gagal memperbarui data pengguna');
@@ -139,12 +151,12 @@ export default function StaffClient({
         toast.success(`Akun "${deletingStaff.name}" berhasil dihapus`);
         setDeletingStaff(null);
       } catch (err: any) {
-        toast.error(err?.message || 'Gagal menghapus pengguna');
+        toast.error(err?.message || 'Gagal menghapus akun pengguna');
       }
     });
   };
 
-  // Metrics
+  // Aggregates
   const totalCount = staffList.length;
   const kasirCount = staffList.filter((s) => s.role === 'kasir').length;
   const adminCount = totalCount - kasirCount;
@@ -166,10 +178,12 @@ export default function StaffClient({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-[#201C1A]">
-            Kelola Pengguna & Hak Akses (User & RBAC)
+            Kelola Pengguna & Hak Akses
           </h1>
           <p className="text-xs text-[#8E867C] mt-0.5">
-            Daftarkan dan kelola akun Kasir, Manajer Outlet, dan Owner beserta wewenang cabang
+            {isManager
+              ? 'Kelola staf kasir pada cabang yang Anda naungi, atau perbarui profil akun Anda sendiri.'
+              : 'Daftarkan dan kelola akun Kasir, Manajer Outlet, dan Owner beserta wewenang cabang.'}
           </p>
         </div>
 
@@ -179,7 +193,7 @@ export default function StaffClient({
           className="flex items-center gap-2 px-4 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white text-xs font-bold rounded-2xl shadow-xs transition-colors self-start sm:self-auto cursor-pointer"
         >
           <UserPlus className="w-4 h-4" />
-          <span>Tambah Pengguna Baru</span>
+          <span>{isManager ? 'Tambah Staf Kasir' : 'Tambah Pengguna Baru'}</span>
         </button>
       </div>
 
@@ -187,7 +201,9 @@ export default function StaffClient({
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white rounded-3xl border border-[#EBE7DF] p-5 shadow-xs flex items-center justify-between">
           <div>
-            <p className="text-xs font-bold text-[#8E867C]">Total Pengguna Terdaftar</p>
+            <p className="text-xs font-bold text-[#8E867C]">
+              {isManager ? 'Total Staf Cabang' : 'Total Pengguna Terdaftar'}
+            </p>
             <h3 className="text-2xl font-black text-[#201C1A] mt-1">{totalCount} Akun</h3>
           </div>
           <div className="w-10 h-10 rounded-2xl bg-[#FAF8F5] border border-[#ECE7DE] flex items-center justify-center text-[#54382B]">
@@ -207,7 +223,9 @@ export default function StaffClient({
 
         <div className="bg-white rounded-3xl border border-[#EBE7DF] p-5 shadow-xs flex items-center justify-between">
           <div>
-            <p className="text-xs font-bold text-[#8E867C]">Owner & Manajer</p>
+            <p className="text-xs font-bold text-[#8E867C]">
+              {isManager ? 'Akun Manajer' : 'Owner & Manajer'}
+            </p>
             <h3 className="text-2xl font-black text-[#96631E] mt-1">{adminCount} Akun</h3>
           </div>
           <div className="w-10 h-10 rounded-2xl bg-[#FDF4E5] border border-[#F2E0C4] flex items-center justify-center text-[#96631E]">
@@ -233,17 +251,23 @@ export default function StaffClient({
 
           <div className="flex items-center gap-1 bg-[#F9F7F2] p-1 rounded-xl border border-[#E5E0D6] text-xs">
             {(
-              [
-                { key: 'all', label: 'Semua' },
-                { key: 'kasir', label: 'Kasir' },
-                { key: 'manager', label: 'Manager' },
-                { key: 'owner', label: 'Owner' },
-              ] as const
+              isManager
+                ? [
+                    { key: 'all', label: 'Semua' },
+                    { key: 'kasir', label: 'Kasir' },
+                    { key: 'manager', label: 'Manager' },
+                  ]
+                : [
+                    { key: 'all', label: 'Semua' },
+                    { key: 'kasir', label: 'Kasir' },
+                    { key: 'manager', label: 'Manager' },
+                    { key: 'owner', label: 'Owner' },
+                  ]
             ).map((t) => (
               <button
                 key={t.key}
                 type="button"
-                onClick={() => setRoleFilter(t.key)}
+                onClick={() => setRoleFilter(t.key as any)}
                 className={`px-3 py-1 rounded-lg font-bold transition-all text-xs ${
                   roleFilter === t.key
                     ? 'bg-white text-[#201C1A] shadow-xs'
@@ -268,48 +292,60 @@ export default function StaffClient({
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F4F0E8]">
-              {filteredList.map((s) => (
-                <tr key={s.id} className="hover:bg-[#FBF9F6] transition-colors">
-                  <td className="py-3.5 px-4">
-                    <p className="font-bold text-[#201C1A]">{s.name}</p>
-                    <p className="text-[10px] text-[#8E867C]">{s.email}</p>
-                  </td>
-                  <td className="py-3.5 px-4 font-semibold text-[#4A4238]">
-                    {s.outletName}
-                  </td>
-                  <td className="py-3.5 px-4">
-                    <span
-                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                        s.role === 'owner'
-                          ? 'bg-[#FAF3E8] text-[#96631E] border border-[#F2E0C4]'
-                          : s.role === 'manager'
-                          ? 'bg-[#EBF6EE] text-[#2D7A47] border border-[#D1EBD8]'
-                          : 'bg-[#FAF8F5] text-[#201C1A] border border-[#E5E0D6]'
-                      }`}
-                    >
-                      {s.role}
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEdit(s)}
-                      className="px-2.5 py-1 bg-[#FAF8F5] hover:bg-[#F2EDE5] text-[#54382B] font-bold rounded-xl text-xs border border-[#E0D8CC] transition-colors inline-flex items-center gap-1 cursor-pointer"
-                    >
-                      <UserCog className="w-3.5 h-3.5" />
-                      <span>Edit Detail</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDeletingStaff(s)}
-                      className="p-1.5 text-[#9E968B] hover:text-[#964B3B] transition-colors rounded-xl hover:bg-[#FBEBE8] cursor-pointer"
-                      title="Hapus akun pengguna"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {filteredList.map((s) => {
+                const isSelf = s.id === currentUserId;
+                return (
+                  <tr key={s.id} className="hover:bg-[#FBF9F6] transition-colors">
+                    <td className="py-3.5 px-4">
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-[#201C1A]">{s.name}</p>
+                        {isSelf && (
+                          <span className="px-1.5 py-0.5 rounded-md text-[9px] font-extrabold bg-[#EBF6EE] text-[#2D7A47] border border-[#D1EBD8]">
+                            Akun Anda
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-[#8E867C]">{s.email}</p>
+                    </td>
+                    <td className="py-3.5 px-4 font-semibold text-[#4A4238]">
+                      {s.outletName}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                          s.role === 'owner'
+                            ? 'bg-[#FAF3E8] text-[#96631E] border border-[#F2E0C4]'
+                            : s.role === 'manager'
+                            ? 'bg-[#EBF6EE] text-[#2D7A47] border border-[#D1EBD8]'
+                            : 'bg-[#FAF8F5] text-[#201C1A] border border-[#E5E0D6]'
+                        }`}
+                      >
+                        {s.role}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEdit(s)}
+                        className="px-2.5 py-1 bg-[#FAF8F5] hover:bg-[#F2EDE5] text-[#54382B] font-bold rounded-xl text-xs border border-[#E0D8CC] transition-colors inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        <UserCog className="w-3.5 h-3.5" />
+                        <span>{isSelf ? 'Edit Profil' : 'Edit Detail'}</span>
+                      </button>
+                      {!isSelf && (
+                        <button
+                          type="button"
+                          onClick={() => setDeletingStaff(s)}
+                          className="p-1.5 text-[#9E968B] hover:text-[#964B3B] transition-colors rounded-xl hover:bg-[#FBEBE8] cursor-pointer"
+                          title="Hapus akun pengguna"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
 
               {filteredList.length === 0 && (
                 <tr>
@@ -317,7 +353,7 @@ export default function StaffClient({
                     <Users className="w-8 h-8 mx-auto mb-2 text-[#D5CEC2]" />
                     <p className="font-bold text-xs text-[#4A4238]">Tidak ada pengguna yang cocok</p>
                     <p className="text-[11px] text-[#9E968B] mt-0.5">
-                      Klik tombol &quot;Tambah Pengguna Baru&quot; di atas untuk mendaftarkan akun.
+                      Klik tombol &quot;{isManager ? 'Tambah Staf Kasir' : 'Tambah Pengguna Baru'}&quot; untuk mendaftarkan akun.
                     </p>
                   </td>
                 </tr>
@@ -335,8 +371,14 @@ export default function StaffClient({
               <div className="flex items-center gap-2 text-[#54382B]">
                 <UserPlus className="w-5 h-5" />
                 <div>
-                  <h3 className="font-bold text-sm text-[#201C1A]">Daftarkan Pengguna Baru</h3>
-                  <p className="text-[11px] text-[#8E867C]">Buat akun Kasir, Manajer Outlet, atau Owner</p>
+                  <h3 className="font-bold text-sm text-[#201C1A]">
+                    {isManager ? 'Daftarkan Staf Kasir Baru' : 'Daftarkan Pengguna Baru'}
+                  </h3>
+                  <p className="text-[11px] text-[#8E867C]">
+                    {isManager
+                      ? 'Buat akun kasir untuk operasional cabang yang Anda naungi'
+                      : 'Buat akun Kasir, Manajer Outlet, atau Owner'}
+                  </p>
                 </div>
               </div>
               <button
@@ -350,78 +392,23 @@ export default function StaffClient({
 
             <form
               action={async (formData) => {
-                try {
-                  await createStaff(formData);
-                  toast.success('Akun pengguna baru berhasil didaftarkan');
-                  setIsAddModalOpen(false);
-                } catch (err: any) {
-                  toast.error(err?.message || 'Gagal mendaftarkan pengguna');
+                if (addOutletIds.length === 0) {
+                  toast.error('Pilih minimal 1 cabang penempatan');
+                  return;
                 }
+                startTransition(async () => {
+                  try {
+                    await createStaff(formData);
+                    toast.success(`Pengguna "${addName}" berhasil ditambahkan`);
+                    setIsAddModalOpen(false);
+                  } catch (err: any) {
+                    toast.error(err?.message || 'Gagal menambahkan pengguna');
+                  }
+                });
               }}
               className="space-y-3.5 text-xs"
             >
-              {/* Role Selector Cards */}
-              <div>
-                <label className="block font-bold text-[#4A4238] mb-1.5">
-                  Role / Hak Akses Pengguna <span className="text-red-500">*</span>
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {[
-                    {
-                      role: 'owner',
-                      label: 'Owner',
-                      desc: 'Akses Penuh Seluruh Menu & L/R',
-                      icon: Crown,
-                      color: 'text-[#96631E] border-[#F2E0C4] bg-[#FAF3E8]',
-                    },
-                    {
-                      role: 'manager',
-                      label: 'Manager',
-                      desc: 'POS, Stok Bahan, Pengeluaran',
-                      icon: Briefcase,
-                      color: 'text-[#2D7A47] border-[#D1EBD8] bg-[#EBF6EE]',
-                    },
-                    {
-                      role: 'kasir',
-                      label: 'Kasir',
-                      desc: 'Khusus Transaksi Kasir POS',
-                      icon: UserCheck,
-                      color: 'text-[#54382B] border-[#E5E0D6] bg-[#FAF8F5]',
-                    },
-                  ].map((r) => {
-                    const isSelected = addRole === r.role;
-                    const Icon = r.icon;
-                    return (
-                      <button
-                        key={r.role}
-                        type="button"
-                        onClick={() => {
-                          setAddRole(r.role as any);
-                          if (r.role === 'owner') {
-                            setAddOutletIds(outlets.map((o) => o.id));
-                          }
-                        }}
-                        className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                          isSelected
-                            ? `${r.color} ring-2 ring-[#2E2520] shadow-xs`
-                            : 'border-[#E5E0D6] bg-white hover:bg-[#FAF8F5] text-[#7A7268]'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-black text-xs text-[#201C1A] flex items-center gap-1.5">
-                            <Icon className="w-3.5 h-3.5" />
-                            {r.label}
-                          </span>
-                          {isSelected && <CheckCircle className="w-3.5 h-3.5 text-[#2E2520]" />}
-                        </div>
-                        <p className="text-[10px] leading-tight opacity-80">{r.desc}</p>
-                      </button>
-                    );
-                  })}
-                </div>
-                <input type="hidden" name="role" value={addRole} />
-              </div>
-
+              {/* Name */}
               <div>
                 <label className="block font-bold text-[#4A4238] mb-1">
                   Nama Lengkap <span className="text-red-500">*</span>
@@ -432,12 +419,15 @@ export default function StaffClient({
                     type="text"
                     name="name"
                     required
-                    placeholder="Contoh: Rian Hendrawan"
+                    value={addName}
+                    onChange={(e) => setAddName(e.target.value)}
+                    placeholder="Contoh: Siti Rahmawati"
                     className="w-full pl-9 pr-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-bold"
                   />
                 </div>
               </div>
 
+              {/* Email */}
               <div>
                 <label className="block font-bold text-[#4A4238] mb-1">
                   Email Login <span className="text-red-500">*</span>
@@ -448,12 +438,15 @@ export default function StaffClient({
                     type="email"
                     name="email"
                     required
-                    placeholder="rian@kopiseruni.com"
+                    value={addEmail}
+                    onChange={(e) => setAddEmail(e.target.value)}
+                    placeholder="siti@kopiseruni.id"
                     className="w-full pl-9 pr-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
                   />
                 </div>
               </div>
 
+              {/* Password */}
               <div>
                 <label className="block font-bold text-[#4A4238] mb-1">
                   Password Login <span className="text-red-500">*</span>
@@ -465,10 +458,94 @@ export default function StaffClient({
                     name="password"
                     required
                     minLength={6}
+                    value={addPassword}
+                    onChange={(e) => setAddPassword(e.target.value)}
                     placeholder="Minimal 6 karakter"
                     className="w-full pl-9 pr-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
                   />
                 </div>
+              </div>
+
+              {/* Role Selection */}
+              <div>
+                <label className="block font-bold text-[#4A4238] mb-1.5">
+                  Role / Hak Akses Pengguna <span className="text-red-500">*</span>
+                </label>
+                {isManager ? (
+                  <div className="p-3 rounded-2xl border border-[#D1EBD8] bg-[#EBF6EE] flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-white border border-[#D1EBD8] flex items-center justify-center text-[#2D7A47]">
+                        <UserCheck className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="font-bold text-xs text-[#201C1A]">Staf Kasir (POS)</span>
+                        <p className="text-[10px] text-[#2D7A47] font-medium">
+                          Wewenang operasional kasir untuk cabang yang Anda naungi
+                        </p>
+                      </div>
+                    </div>
+                    <input type="hidden" name="role" value="kasir" />
+                    <CheckCircle className="w-4 h-4 text-[#2D7A47]" />
+                  </div>
+                ) : (
+                  <>
+                    <input type="hidden" name="role" value={addRole} />
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {[
+                        {
+                          role: 'owner',
+                          label: 'Owner',
+                          desc: 'Akses Penuh Seluruh Menu & L/R',
+                          icon: Crown,
+                          color: 'text-[#96631E] border-[#F2E0C4] bg-[#FAF3E8]',
+                        },
+                        {
+                          role: 'manager',
+                          label: 'Manager',
+                          desc: 'POS, Stok Bahan, Pengeluaran',
+                          icon: Briefcase,
+                          color: 'text-[#2D7A47] border-[#D1EBD8] bg-[#EBF6EE]',
+                        },
+                        {
+                          role: 'kasir',
+                          label: 'Kasir',
+                          desc: 'Khusus Transaksi Kasir POS',
+                          icon: UserCheck,
+                          color: 'text-[#54382B] border-[#E5E0D6] bg-[#FAF8F5]',
+                        },
+                      ].map((r) => {
+                        const isSelected = addRole === r.role;
+                        const Icon = r.icon;
+                        return (
+                          <button
+                            key={r.role}
+                            type="button"
+                            onClick={() => {
+                              setAddRole(r.role as any);
+                              if (r.role === 'owner') {
+                                setAddOutletIds(outlets.map((o) => o.id));
+                              }
+                            }}
+                            className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                              isSelected
+                                ? `${r.color} ring-2 ring-[#2E2520] shadow-xs`
+                                : 'border-[#E5E0D6] bg-white hover:bg-[#FAF8F5] text-[#7A7268]'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="font-black text-xs text-[#201C1A] flex items-center gap-1.5">
+                                <Icon className="w-3.5 h-3.5" />
+                                {r.label}
+                              </span>
+                              {isSelected && <CheckCircle className="w-3.5 h-3.5 text-[#2E2520]" />}
+                            </div>
+                            <p className="text-[10px] leading-tight opacity-80">{r.desc}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Multi-Select Outlet Checklist */}
@@ -477,19 +554,21 @@ export default function StaffClient({
                   <label className="block font-bold text-[#4A4238]">
                     Penempatan Cabang Kerja <span className="text-red-500">*</span>
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (addOutletIds.length === outlets.length) {
-                        setAddOutletIds([outlets[0]?.id || 'out_default']);
-                      } else {
-                        setAddOutletIds(outlets.map((o) => o.id));
-                      }
-                    }}
-                    className="text-[11px] font-bold text-[#96631E] hover:underline cursor-pointer"
-                  >
-                    {addOutletIds.length === outlets.length ? 'Reset Pilihan' : 'Pilih Semua Cabang'}
-                  </button>
+                  {outlets.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (addOutletIds.length === outlets.length) {
+                          setAddOutletIds([outlets[0]?.id || 'out_default']);
+                        } else {
+                          setAddOutletIds(outlets.map((o) => o.id));
+                        }
+                      }}
+                      className="text-[11px] font-bold text-[#96631E] hover:underline cursor-pointer"
+                    >
+                      {addOutletIds.length === outlets.length ? 'Reset Pilihan' : 'Pilih Semua Cabang'}
+                    </button>
+                  )}
                 </div>
 
                 <div className="space-y-1.5 p-2 bg-[#F9F7F2] rounded-2xl border border-[#E5E0D6] max-h-36 overflow-y-auto">
@@ -524,14 +603,11 @@ export default function StaffClient({
                     );
                   })}
                 </div>
-                {/* Hidden input to pass selected outletIds array */}
                 {addOutletIds.map((id) => (
                   <input key={id} type="hidden" name="outletIds" value={id} />
                 ))}
                 <p className="text-[10px] text-[#8E867C]">
-                  {addOutletIds.length === outlets.length
-                    ? '✓ Akun memiliki hak akses di SEMUA cabang.'
-                    : `✓ Akun ditugaskan di ${addOutletIds.length} cabang terpilih.`}
+                  ✓ Akun ditugaskan di {addOutletIds.length} cabang terpilih.
                 </p>
               </div>
 
@@ -545,9 +621,10 @@ export default function StaffClient({
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl shadow-xs cursor-pointer"
+                  disabled={isPending}
+                  className="flex-1 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl shadow-xs cursor-pointer disabled:opacity-50"
                 >
-                  Buat Akun Pengguna
+                  {isPending ? 'Menyimpan...' : 'Buat Akun Pengguna'}
                 </button>
               </div>
             </form>
@@ -563,9 +640,13 @@ export default function StaffClient({
               <div className="flex items-center gap-2 text-[#54382B]">
                 <UserCog className="w-5 h-5" />
                 <div>
-                  <h3 className="font-bold text-sm text-[#201C1A]">Edit Pengguna & Hak Akses</h3>
+                  <h3 className="font-bold text-sm text-[#201C1A]">
+                    {isEditingSelf ? 'Edit Profil Akun Anda' : 'Edit Pengguna & Hak Akses'}
+                  </h3>
                   <p className="text-[11px] text-[#8E867C]">
-                    Ubah profil, reset password, peran (RBAC), atau cabang kerja
+                    {isEditingSelf
+                      ? 'Perbarui nama lengkap, email, dan reset password login Anda'
+                      : 'Ubah profil, reset password, peran (RBAC), atau cabang kerja'}
                   </p>
                 </div>
               </div>
@@ -634,126 +715,162 @@ export default function StaffClient({
                 </p>
               </div>
 
-              {/* Role Selection Cards */}
-              <div>
-                <label className="block font-bold text-[#4A4238] mb-1.5">
-                  Role / Hak Akses Pengguna <span className="text-red-500">*</span>
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {[
-                    {
-                      role: 'owner',
-                      label: 'Owner',
-                      desc: 'Akses Penuh Seluruh Menu & L/R',
-                      icon: Crown,
-                      color: 'text-[#96631E] border-[#F2E0C4] bg-[#FAF3E8]',
-                    },
-                    {
-                      role: 'manager',
-                      label: 'Manager',
-                      desc: 'POS, Stok Bahan, Pengeluaran',
-                      icon: Briefcase,
-                      color: 'text-[#2D7A47] border-[#D1EBD8] bg-[#EBF6EE]',
-                    },
-                    {
-                      role: 'kasir',
-                      label: 'Kasir',
-                      desc: 'Khusus Transaksi Kasir POS',
-                      icon: UserCheck,
-                      color: 'text-[#54382B] border-[#E5E0D6] bg-[#FAF8F5]',
-                    },
-                  ].map((r) => {
-                    const isSelected = editRole === r.role;
-                    const Icon = r.icon;
-                    return (
-                      <button
-                        key={r.role}
-                        type="button"
-                        onClick={() => {
-                          setEditRole(r.role as any);
-                          if (r.role === 'owner') {
-                            setEditOutletIds(outlets.map((o) => o.id));
-                          }
-                        }}
-                        className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                          isSelected
-                            ? `${r.color} ring-2 ring-[#2E2520] shadow-xs`
-                            : 'border-[#E5E0D6] bg-white hover:bg-[#FAF8F5] text-[#7A7268]'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-black text-xs text-[#201C1A] flex items-center gap-1.5">
-                            <Icon className="w-3.5 h-3.5" />
-                            {r.label}
-                          </span>
-                          {isSelected && <CheckCircle className="w-3.5 h-3.5 text-[#2E2520]" />}
+              {/* Role & Outlet Settings */}
+              {isEditingSelf ? (
+                <div className="p-3 bg-[#FAF8F5] border border-[#EBE7DF] rounded-2xl space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-[#4A4238]">
+                    <ShieldCheck className="w-4 h-4 text-[#2D7A47]" />
+                    <span>Role & Penugasan Cabang Anda</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-[#EBF6EE] text-[#2D7A47] border border-[#D1EBD8]">
+                      {editingStaff.role}
+                    </span>
+                    <span className="text-[#8E867C]">• {editingStaff.outletName}</span>
+                  </div>
+                  <p className="text-[10px] text-[#8E867C]">
+                    Peran dan cabang akun Anda sendiri dikelola langsung oleh Pemilik (Owner).
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Role Selection Cards */}
+                  <div>
+                    <label className="block font-bold text-[#4A4238] mb-1.5">
+                      Role / Hak Akses Pengguna <span className="text-red-500">*</span>
+                    </label>
+                    {isManager ? (
+                      <div className="p-3 rounded-2xl border border-[#D1EBD8] bg-[#EBF6EE] flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <UserCheck className="w-4 h-4 text-[#2D7A47]" />
+                          <div>
+                            <span className="font-bold text-xs text-[#201C1A]">Staf Kasir (POS)</span>
+                            <p className="text-[10px] text-[#2D7A47]">
+                              Wewenang kasir untuk operasional cabang yang Anda naungi
+                            </p>
+                          </div>
                         </div>
-                        <p className="text-[10px] leading-tight opacity-80">{r.desc}</p>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+                        <CheckCircle className="w-4 h-4 text-[#2D7A47]" />
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        {[
+                          {
+                            role: 'owner',
+                            label: 'Owner',
+                            desc: 'Akses Penuh Seluruh Menu & L/R',
+                            icon: Crown,
+                            color: 'text-[#96631E] border-[#F2E0C4] bg-[#FAF3E8]',
+                          },
+                          {
+                            role: 'manager',
+                            label: 'Manager',
+                            desc: 'POS, Stok Bahan, Pengeluaran',
+                            icon: Briefcase,
+                            color: 'text-[#2D7A47] border-[#D1EBD8] bg-[#EBF6EE]',
+                          },
+                          {
+                            role: 'kasir',
+                            label: 'Kasir',
+                            desc: 'Khusus Transaksi Kasir POS',
+                            icon: UserCheck,
+                            color: 'text-[#54382B] border-[#E5E0D6] bg-[#FAF8F5]',
+                          },
+                        ].map((r) => {
+                          const isSelected = editRole === r.role;
+                          const Icon = r.icon;
+                          return (
+                            <button
+                              key={r.role}
+                              type="button"
+                              onClick={() => {
+                                setEditRole(r.role as any);
+                                if (r.role === 'owner') {
+                                  setEditOutletIds(outlets.map((o) => o.id));
+                                }
+                              }}
+                              className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                                isSelected
+                                  ? `${r.color} ring-2 ring-[#2E2520] shadow-xs`
+                                  : 'border-[#E5E0D6] bg-white hover:bg-[#FAF8F5] text-[#7A7268]'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="font-black text-xs text-[#201C1A] flex items-center gap-1.5">
+                                  <Icon className="w-3.5 h-3.5" />
+                                  {r.label}
+                                </span>
+                                {isSelected && <CheckCircle className="w-3.5 h-3.5 text-[#2E2520]" />}
+                              </div>
+                              <p className="text-[10px] leading-tight opacity-80">{r.desc}</p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
 
-              {/* Multi-Select Outlet Checklist for Edit */}
-              <div className="space-y-1.5 pt-1">
-                <div className="flex items-center justify-between">
-                  <label className="block font-bold text-[#4A4238]">
-                    Penempatan Cabang Kerja <span className="text-red-500">*</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (editOutletIds.length === outlets.length) {
-                        setEditOutletIds([outlets[0]?.id || 'out_default']);
-                      } else {
-                        setEditOutletIds(outlets.map((o) => o.id));
-                      }
-                    }}
-                    className="text-[11px] font-bold text-[#96631E] hover:underline cursor-pointer"
-                  >
-                    {editOutletIds.length === outlets.length ? 'Reset Pilihan' : 'Pilih Semua Cabang'}
-                  </button>
-                </div>
-
-                <div className="space-y-1.5 p-2 bg-[#F9F7F2] rounded-2xl border border-[#E5E0D6] max-h-36 overflow-y-auto">
-                  {outlets.map((o) => {
-                    const isChecked = editOutletIds.includes(o.id);
-                    return (
-                      <label
-                        key={o.id}
-                        className={`flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all cursor-pointer text-xs font-semibold ${
-                          isChecked
-                            ? 'bg-white text-[#201C1A] border border-[#2E2520]/20 shadow-xs'
-                            : 'text-[#7A7268] hover:bg-white/60'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => {
-                            if (isChecked) {
-                              if (editOutletIds.length > 1) {
-                                setEditOutletIds(editOutletIds.filter((id) => id !== o.id));
-                              }
+                  {/* Multi-Select Outlet Checklist for Edit */}
+                  <div className="space-y-1.5 pt-1">
+                    <div className="flex items-center justify-between">
+                      <label className="block font-bold text-[#4A4238]">
+                        Penempatan Cabang Kerja <span className="text-red-500">*</span>
+                      </label>
+                      {outlets.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (editOutletIds.length === outlets.length) {
+                              setEditOutletIds([outlets[0]?.id || 'out_default']);
                             } else {
-                              setEditOutletIds([...editOutletIds, o.id]);
+                              setEditOutletIds(outlets.map((o) => o.id));
                             }
                           }}
-                          className="w-4 h-4 rounded text-[#2E2520] accent-[#2E2520] cursor-pointer"
-                        />
-                        <Store className="w-3.5 h-3.5 text-[#54382B]" />
-                        <span className="truncate flex-1">{o.name}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-                <p className="text-[10px] text-[#8E867C]">
-                  {editOutletIds.length === outlets.length
-                    ? '✓ Akun memiliki hak akses di SEMUA cabang.'
-                    : `✓ Akun ditugaskan di ${editOutletIds.length} cabang terpilih.`}
-                </p>
-              </div>
+                          className="text-[11px] font-bold text-[#96631E] hover:underline cursor-pointer"
+                        >
+                          {editOutletIds.length === outlets.length ? 'Reset Pilihan' : 'Pilih Semua Cabang'}
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="space-y-1.5 p-2 bg-[#F9F7F2] rounded-2xl border border-[#E5E0D6] max-h-36 overflow-y-auto">
+                      {outlets.map((o) => {
+                        const isChecked = editOutletIds.includes(o.id);
+                        return (
+                          <label
+                            key={o.id}
+                            className={`flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all cursor-pointer text-xs font-semibold ${
+                              isChecked
+                                ? 'bg-white text-[#201C1A] border border-[#2E2520]/20 shadow-xs'
+                                : 'text-[#7A7268] hover:bg-white/60'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {
+                                if (isChecked) {
+                                  if (editOutletIds.length > 1) {
+                                    setEditOutletIds(editOutletIds.filter((id) => id !== o.id));
+                                  }
+                                } else {
+                                  setEditOutletIds([...editOutletIds, o.id]);
+                                }
+                              }}
+                              className="w-4 h-4 rounded text-[#2E2520] accent-[#2E2520] cursor-pointer"
+                            />
+                            <Store className="w-3.5 h-3.5 text-[#54382B]" />
+                            <span className="truncate flex-1">{o.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[10px] text-[#8E867C]">
+                      ✓ Akun ditugaskan di {editOutletIds.length} cabang terpilih.
+                    </p>
+                  </div>
+                </>
+              )}
 
               <div className="pt-2 flex gap-2">
                 <button

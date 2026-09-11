@@ -7,12 +7,19 @@ import { eq } from 'drizzle-orm';
 import { formatDate } from '@/lib/utils';
 
 export default async function StaffPage() {
-  await requireAuthRole(['owner']);
-  let allOutlets: any[] = [];
+  const {
+    session,
+    isOwner,
+    accessibleOutletIds,
+    accessibleOutlets,
+    role: currentUserRole,
+  } = await requireAuthRole(['owner', 'manager']);
+
+  let selectableOutlets: any[] = [];
   let staffList: StaffMember[] = [];
 
   try {
-    const [outletsRes, usersData] = await Promise.all([
+    const [allOutlets, usersData] = await Promise.all([
       getOutlets(),
       db
         .select({
@@ -25,7 +32,7 @@ export default async function StaffPage() {
         .leftJoin(outlets, eq(userOutletRoles.outletId, outlets.id)),
     ]);
 
-    allOutlets = outletsRes;
+    selectableOutlets = isOwner ? allOutlets : accessibleOutlets;
 
     const userMap = new Map<
       string,
@@ -66,7 +73,7 @@ export default async function StaffPage() {
       }
     }
 
-    staffList = Array.from(userMap.values()).map((s) => {
+    const allStaff = Array.from(userMap.values()).map((s) => {
       const isAllOutlets = s.outletNames.length >= allOutlets.length && allOutlets.length > 1;
       return {
         id: s.id,
@@ -80,9 +87,29 @@ export default async function StaffPage() {
         createdAt: s.createdAt,
       };
     });
+
+    if (isOwner) {
+      staffList = allStaff;
+    } else {
+      // Manager can see themselves + kasir in their branch
+      staffList = allStaff.filter((s) => {
+        if (s.id === session.user.id) return true;
+        if (s.role === 'kasir') {
+          return s.outletIds.some((id) => accessibleOutletIds.includes(id));
+        }
+        return false;
+      });
+    }
   } catch (e) {
     console.warn('Error fetching staff list:', e);
   }
 
-  return <StaffClient staffList={staffList} outlets={allOutlets} />;
+  return (
+    <StaffClient
+      staffList={staffList}
+      outlets={selectableOutlets}
+      currentUserId={session.user.id}
+      currentUserRole={currentUserRole}
+    />
+  );
 }

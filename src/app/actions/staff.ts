@@ -15,15 +15,15 @@ export async function createStaff(formData: FormData) {
   const session = await getSession();
   if (!session) redirect('/login');
 
-  const { isOwner } = await getUserAccessibleOutlets(session.user.id);
-  if (!isOwner) {
-    throw new Error('Akses ditolak: Hanya Owner yang berhak mengelola pengguna');
+  const { isOwner, userRole, accessibleOutletIds } = await getUserAccessibleOutlets(session.user.id);
+  if (!isOwner && userRole !== 'manager') {
+    throw new Error('Akses ditolak: Hanya Owner dan Manager yang berhak menambah staf');
   }
 
   const name = formData.get('name') as string;
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
-  const role = (formData.get('role') as 'kasir' | 'manager' | 'owner') || 'kasir';
+  let role = (formData.get('role') as 'kasir' | 'manager' | 'owner') || 'kasir';
 
   // Support multiple outlet checkboxes or single select
   const rawOutletIds = formData.getAll('outletIds') as string[];
@@ -36,6 +36,22 @@ export async function createStaff(formData: FormData) {
 
   if (password.length < 6) {
     throw new Error('Password minimal 6 karakter');
+  }
+
+  // Manager constraints: can only create 'kasir' for own outlets
+  if (!isOwner && userRole === 'manager') {
+    if (role !== 'kasir') {
+      throw new Error('Akses ditolak: Manager hanya berhak mendaftarkan staf Kasir');
+    }
+    selectedOutletIds = selectedOutletIds.filter((id) => id !== 'all');
+    if (selectedOutletIds.length === 0) {
+      selectedOutletIds = [accessibleOutletIds[0]];
+    }
+    for (const outId of selectedOutletIds) {
+      if (!accessibleOutletIds.includes(outId)) {
+        throw new Error('Akses ditolak: Manager hanya dapat menugaskan staf ke cabang yang dinaunginya');
+      }
+    }
   }
 
   try {
@@ -55,7 +71,7 @@ export async function createStaff(formData: FormData) {
     const allOutlets = await getOutlets();
     const now = Math.floor(Date.now() / 1000);
 
-    if (selectedOutletIds.includes('all') || selectedOutletIds.length === 0) {
+    if (isOwner && (selectedOutletIds.includes('all') || selectedOutletIds.length === 0)) {
       selectedOutletIds = allOutlets.map((o) => o.id);
     }
 
@@ -89,16 +105,12 @@ export async function updateStaffUser(
   const session = await getSession();
   if (!session) redirect('/login');
 
-  const { isOwner } = await getUserAccessibleOutlets(session.user.id);
-  if (!isOwner) {
-    throw new Error('Akses ditolak: Hanya Owner yang berhak mengelola pengguna');
+  const { isOwner, userRole, accessibleOutletIds } = await getUserAccessibleOutlets(session.user.id);
+  if (!isOwner && userRole !== 'manager') {
+    throw new Error('Akses ditolak: Anda tidak memiliki wewenang untuk mengelola data pengguna');
   }
 
   const { name, email, role, outletIds, newPassword } = payload;
-
-  if (session.user.id === userId && role !== 'owner') {
-    throw new Error('Tidak dapat mengubah peran akun Anda sendiri dari Owner');
-  }
 
   if (!name || !name.trim()) {
     throw new Error('Nama pengguna tidak boleh kosong');
@@ -119,6 +131,43 @@ export async function updateStaffUser(
 
   if (existingUserWithEmail) {
     throw new Error(`Email "${cleanEmail}" sudah digunakan oleh pengguna lain`);
+  }
+
+  const isSelf = session.user.id === userId;
+
+  if (!isSelf) {
+    // If editing someone else, enforce strict branch-manager RBAC
+    if (!isOwner && userRole === 'manager') {
+      const targetRoles = await db
+        .select()
+        .from(userOutletRoles)
+        .where(eq(userOutletRoles.userId, userId));
+
+      if (targetRoles.some((r) => r.role === 'owner')) {
+        throw new Error('Akses ditolak: Manager tidak diizinkan mengubah data akun Owner');
+      }
+
+      if (targetRoles.some((r) => r.role === 'manager')) {
+        throw new Error('Akses ditolak: Manager tidak diizinkan mengubah data akun sesama Manager');
+      }
+
+      const targetOutletIds = targetRoles.map((r) => r.outletId);
+      const isTargetInManagerBranch = targetOutletIds.some((id) => accessibleOutletIds.includes(id));
+      if (!isTargetInManagerBranch && targetRoles.length > 0) {
+        throw new Error('Akses ditolak: Staf ini bukan bagian dari cabang yang Anda naungi');
+      }
+
+      if (role !== 'kasir') {
+        throw new Error('Akses ditolak: Manager tidak dapat mengubah peran staf menjadi Manager atau Owner');
+      }
+
+      const requestedOutletIds = Array.isArray(outletIds) ? outletIds : [outletIds];
+      for (const outId of requestedOutletIds) {
+        if (!accessibleOutletIds.includes(outId)) {
+          throw new Error('Akses ditolak: Tidak dapat menugaskan staf ke cabang di luar wewenang Anda');
+        }
+      }
+    }
   }
 
   // 1. Update basic user profile (Name & Email)
@@ -146,24 +195,29 @@ export async function updateStaffUser(
       .where(and(eq(account.userId, userId), eq(account.providerId, 'credential')));
   }
 
-  // 3. Update outlet assignments and role
-  const allOutlets = await getOutlets();
-  let targetOutletIds = Array.isArray(outletIds) ? outletIds : [outletIds];
-  if (targetOutletIds.includes('all') || targetOutletIds.length === 0) {
-    targetOutletIds = allOutlets.map((o) => o.id);
-  }
+  // 3. Update outlet assignments and role (ONLY IF NOT SELF-EDIT)
+  // Self-edit preserves user role and outlet assignments to prevent accidental lockouts/escalation
+  if (!isSelf) {
+    const allOutlets = await getOutlets();
+    let targetOutletIds = Array.isArray(outletIds) ? outletIds : [outletIds];
+    if (isOwner && (targetOutletIds.includes('all') || targetOutletIds.length === 0)) {
+      targetOutletIds = allOutlets.map((o) => o.id);
+    } else {
+      targetOutletIds = targetOutletIds.filter((id) => id !== 'all');
+    }
 
-  const now = Math.floor(Date.now() / 1000);
-  await db.delete(userOutletRoles).where(eq(userOutletRoles.userId, userId));
+    const now = Math.floor(Date.now() / 1000);
+    await db.delete(userOutletRoles).where(eq(userOutletRoles.userId, userId));
 
-  for (const outId of targetOutletIds) {
-    await db.insert(userOutletRoles).values({
-      id: `uor_${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}`,
-      userId,
-      outletId: outId,
-      role: role as any,
-      createdAt: now,
-    });
+    for (const outId of targetOutletIds) {
+      await db.insert(userOutletRoles).values({
+        id: `uor_${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}`,
+        userId,
+        outletId: outId,
+        role: role as any,
+        createdAt: now,
+      });
+    }
   }
 
   revalidatePath('/staff');
@@ -174,21 +228,45 @@ export async function updateStaffRole(userId: string, outletIds: string[] | stri
   const session = await getSession();
   if (!session) redirect('/login');
 
-  const { isOwner } = await getUserAccessibleOutlets(session.user.id);
-  if (!isOwner) {
-    throw new Error('Akses ditolak: Hanya Owner yang berhak mengelola hak akses pengguna');
+  const { isOwner, userRole, accessibleOutletIds } = await getUserAccessibleOutlets(session.user.id);
+  if (!isOwner && userRole !== 'manager') {
+    throw new Error('Akses ditolak: Anda tidak memiliki wewenang untuk mengubah hak akses pengguna');
   }
 
-  if (session.user.id === userId && role !== 'owner') {
-    throw new Error('Tidak dapat mengubah peran akun Anda sendiri dari Owner');
+  if (session.user.id === userId) {
+    throw new Error('Tidak dapat mengubah peran akun Anda sendiri');
+  }
+
+  if (!isOwner && userRole === 'manager') {
+    const targetRoles = await db
+      .select()
+      .from(userOutletRoles)
+      .where(eq(userOutletRoles.userId, userId));
+
+    if (targetRoles.some((r) => r.role === 'owner' || r.role === 'manager')) {
+      throw new Error('Akses ditolak: Manager tidak dapat mengubah hak akses Owner atau Manager');
+    }
+
+    if (role !== 'kasir') {
+      throw new Error('Akses ditolak: Manager hanya dapat menugaskan peran Kasir');
+    }
+
+    const requestedOutletIds = Array.isArray(outletIds) ? outletIds : [outletIds];
+    for (const outId of requestedOutletIds) {
+      if (!accessibleOutletIds.includes(outId)) {
+        throw new Error('Akses ditolak: Cabang di luar wewenang Anda');
+      }
+    }
   }
 
   const now = Math.floor(Date.now() / 1000);
   const allOutlets = await getOutlets();
 
   let targetOutletIds = Array.isArray(outletIds) ? outletIds : [outletIds];
-  if (targetOutletIds.includes('all') || targetOutletIds.length === 0) {
+  if (isOwner && (targetOutletIds.includes('all') || targetOutletIds.length === 0)) {
     targetOutletIds = allOutlets.map((o) => o.id);
+  } else {
+    targetOutletIds = targetOutletIds.filter((id) => id !== 'all');
   }
 
   // Reset / replace assigned roles
@@ -212,16 +290,37 @@ export async function deleteStaff(userId: string) {
   const session = await getSession();
   if (!session) redirect('/login');
 
-  const { isOwner } = await getUserAccessibleOutlets(session.user.id);
-  if (!isOwner) {
-    throw new Error('Akses ditolak: Hanya Owner yang berhak menghapus pengguna');
-  }
-
   if (session.user.id === userId) {
     throw new Error('Tidak dapat menghapus akun yang sedang login');
   }
 
+  const { isOwner, userRole, accessibleOutletIds } = await getUserAccessibleOutlets(session.user.id);
+  if (!isOwner && userRole !== 'manager') {
+    throw new Error('Akses ditolak: Hanya Owner dan Manager yang berhak menghapus staf');
+  }
+
+  if (!isOwner && userRole === 'manager') {
+    const targetRoles = await db
+      .select()
+      .from(userOutletRoles)
+      .where(eq(userOutletRoles.userId, userId));
+
+    if (targetRoles.some((r) => r.role === 'owner')) {
+      throw new Error('Akses ditolak: Manager tidak dapat menghapus akun Owner');
+    }
+    if (targetRoles.some((r) => r.role === 'manager')) {
+      throw new Error('Akses ditolak: Manager tidak dapat menghapus akun Manager');
+    }
+
+    const targetOutletIds = targetRoles.map((r) => r.outletId);
+    const isInBranch = targetOutletIds.some((id) => accessibleOutletIds.includes(id));
+    if (!isInBranch && targetRoles.length > 0) {
+      throw new Error('Akses ditolak: Staf ini bukan bagian dari cabang yang Anda naungi');
+    }
+  }
+
   await db.delete(userOutletRoles).where(eq(userOutletRoles.userId, userId));
+  await db.delete(account).where(eq(account.userId, userId));
   await db.delete(user).where(eq(user.id, userId));
 
   revalidatePath('/staff');
