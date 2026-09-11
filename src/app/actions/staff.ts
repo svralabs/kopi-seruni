@@ -2,10 +2,12 @@
 
 import { db } from '@/lib/db';
 import { user, userOutletRoles, outlets } from '@/lib/schema';
+import { account } from '@/lib/auth-schema';
 import { getOutlets } from '@/lib/queries';
 import { auth } from '@/lib/auth';
+import { hashPassword } from 'better-auth/crypto';
 import { getSession } from '@/lib/auth-helpers';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, ne } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
@@ -67,6 +69,91 @@ export async function createStaff(formData: FormData) {
   } catch (err: any) {
     throw new Error(err?.message || 'Gagal mendaftarkan staff baru');
   }
+}
+
+export async function updateStaffUser(
+  userId: string,
+  payload: {
+    name: string;
+    email: string;
+    role: 'kasir' | 'manager' | 'owner';
+    outletIds: string[];
+    newPassword?: string;
+  }
+) {
+  const session = await getSession();
+  if (!session) redirect('/login');
+
+  const { name, email, role, outletIds, newPassword } = payload;
+
+  if (!name || !name.trim()) {
+    throw new Error('Nama pengguna tidak boleh kosong');
+  }
+
+  if (!email || !email.trim()) {
+    throw new Error('Email tidak boleh kosong');
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+
+  // Check email uniqueness if changed
+  const [existingUserWithEmail] = await db
+    .select({ id: user.id })
+    .from(user)
+    .where(and(ne(user.id, userId), eq(user.email, cleanEmail)))
+    .limit(1);
+
+  if (existingUserWithEmail) {
+    throw new Error(`Email "${cleanEmail}" sudah digunakan oleh pengguna lain`);
+  }
+
+  // 1. Update basic user profile (Name & Email)
+  await db
+    .update(user)
+    .set({
+      name: name.trim(),
+      email: cleanEmail,
+      updatedAt: new Date(),
+    })
+    .where(eq(user.id, userId));
+
+  // 2. Update password if provided
+  if (newPassword && newPassword.trim().length > 0) {
+    if (newPassword.trim().length < 6) {
+      throw new Error('Password baru minimal 6 karakter');
+    }
+    const hashedPassword = await hashPassword(newPassword.trim());
+    await db
+      .update(account)
+      .set({
+        password: hashedPassword,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(account.userId, userId), eq(account.providerId, 'credential')));
+  }
+
+  // 3. Update outlet assignments and role
+  const allOutlets = await getOutlets();
+  let targetOutletIds = Array.isArray(outletIds) ? outletIds : [outletIds];
+  if (targetOutletIds.includes('all') || targetOutletIds.length === 0) {
+    targetOutletIds = allOutlets.map((o) => o.id);
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  await db.delete(userOutletRoles).where(eq(userOutletRoles.userId, userId));
+
+  for (const outId of targetOutletIds) {
+    await db.insert(userOutletRoles).values({
+      id: `uor_${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}`,
+      userId,
+      outletId: outId,
+      role: role as any,
+      createdAt: now,
+    });
+  }
+
+  revalidatePath('/staff');
+  return { success: true };
 }
 
 export async function updateStaffRole(userId: string, outletIds: string[] | string, role: string) {

@@ -59,7 +59,7 @@ const ALL_NAV_ITEMS = [
   { href: '/profit-loss', label: 'Laba Rugi', icon: TrendingUp, roles: ['owner'] },
   { href: '/bagi-hasil', label: 'Bagi Hasil', icon: Users2, roles: ['owner'] },
   { href: '/outlets', label: 'Kelola Outlet', icon: Store, roles: ['owner'] },
-  { href: '/staff', label: 'Staff & Kasir', icon: UserCog, roles: ['owner'] },
+  { href: '/staff', label: 'Pengguna & Akses', icon: UserCog, roles: ['owner'] },
   { href: '/settings', label: 'Pengaturan', icon: Settings, roles: ['owner', 'manager'] },
 ];
 

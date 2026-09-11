@@ -72,5 +72,71 @@ describe('E2E Integration Test: Multi-Outlet & Order History Lifecycle', () => {
     await db.delete(user).where(eq(user.id, TEST_USER));
     await db.delete(outlets).where(eq(outlets.id, TEST_OUTLET_DAGO));
   });
+
+  it('Step 3: Update user profile details, role, and password hash', async () => {
+    const { hashPassword, verifyPassword } = await import('better-auth/crypto');
+    const { account } = await import('../../src/lib/auth-schema');
+    const { userOutletRoles } = await import('../../src/lib/schema');
+
+    const EDIT_USER_ID = `usr_test_edit_${Date.now().toString().slice(-4)}`;
+    const originalEmail = `edit_test_${Date.now()}@seruni.test`;
+    const updatedEmail = `updated_edit_test_${Date.now()}@seruni.test`;
+
+    // 1. Insert initial user and credential account
+    await db.insert(user).values({
+      id: EDIT_USER_ID,
+      name: 'Initial Staff Name',
+      email: originalEmail,
+      emailVerified: true,
+    });
+
+    const initialPassHash = await hashPassword('password123');
+    await db.insert(account).values({
+      id: `acc_test_${Date.now().toString().slice(-4)}`,
+      accountId: EDIT_USER_ID,
+      providerId: 'credential',
+      userId: EDIT_USER_ID,
+      password: initialPassHash,
+    });
+
+    // 2. Perform detail update: name, email, new password, and role
+    const newPassHash = await hashPassword('newSecret456');
+    await db.update(user).set({
+      name: 'Updated Staff Manager',
+      email: updatedEmail,
+    }).where(eq(user.id, EDIT_USER_ID));
+
+    await db.update(account).set({
+      password: newPassHash,
+    }).where(eq(account.userId, EDIT_USER_ID));
+
+    await db.insert(userOutletRoles).values({
+      id: `uor_test_${Date.now().toString().slice(-4)}`,
+      userId: EDIT_USER_ID,
+      outletId: 'out_default',
+      role: 'manager',
+      createdAt: Math.floor(Date.now() / 1000),
+    });
+
+    // 3. Verify user updated in database
+    const [fetchedUser] = await db.select().from(user).where(eq(user.id, EDIT_USER_ID));
+    expect(fetchedUser.name).toBe('Updated Staff Manager');
+    expect(fetchedUser.email).toBe(updatedEmail);
+
+    // 4. Verify new password validates correctly
+    const [fetchedAccount] = await db.select().from(account).where(eq(account.userId, EDIT_USER_ID));
+    expect(fetchedAccount.password).toBeDefined();
+    const isNewPassValid = await verifyPassword({ hash: fetchedAccount.password!, password: 'newSecret456' });
+    expect(isNewPassValid).toBe(true);
+
+    // 5. Verify role assigned
+    const [fetchedRole] = await db.select().from(userOutletRoles).where(eq(userOutletRoles.userId, EDIT_USER_ID));
+    expect(fetchedRole.role).toBe('manager');
+
+    // Cleanup
+    await db.delete(userOutletRoles).where(eq(userOutletRoles.userId, EDIT_USER_ID));
+    await db.delete(account).where(eq(account.userId, EDIT_USER_ID));
+    await db.delete(user).where(eq(user.id, EDIT_USER_ID));
+  });
 });
 
