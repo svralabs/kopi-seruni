@@ -56,6 +56,7 @@ export default function StaffClient({
   const isManager = currentUserRole === 'manager';
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
+  const [isConfirmEditOpen, setIsConfirmEditOpen] = useState(false);
   const [deletingStaff, setDeletingStaff] = useState<StaffMember | null>(null);
 
   // Add form states
@@ -92,6 +93,7 @@ export default function StaffClient({
 
   const handleOpenEdit = (staff: StaffMember) => {
     setEditingStaff(staff);
+    setIsConfirmEditOpen(false);
     setEditName(staff.name || '');
     setEditEmail(staff.email || '');
     setEditNewPassword('');
@@ -128,11 +130,18 @@ export default function StaffClient({
       return;
     }
 
+    // Buka modal konfirmasi sebelum menyimpan ke database
+    setIsConfirmEditOpen(true);
+  };
+
+  const handleExecuteUpdate = () => {
+    if (!editingStaff) return;
+
     startTransition(async () => {
       try {
         await updateStaffUser(editingStaff.id, {
-          name: editName,
-          email: editEmail,
+          name: editName.trim(),
+          email: editEmail.trim(),
           role: isEditingSelf ? (editingStaff.role as any) : editRole,
           outletIds: isEditingSelf ? editingStaff.outletIds : editOutletIds,
           newPassword: editNewPassword.trim() || undefined,
@@ -142,6 +151,7 @@ export default function StaffClient({
             ? 'Profil akun Anda berhasil diperbarui'
             : `Data pengguna "${editName}" berhasil diperbarui`
         );
+        setIsConfirmEditOpen(false);
         setEditingStaff(null);
       } catch (err: any) {
         toast.error(err?.message || 'Gagal memperbarui data pengguna');
@@ -917,7 +927,52 @@ export default function StaffClient({
         </div>
       )}
 
-      {/* 4. MODAL: KONFIRMASI HAPUS PENGGUNA */}
+      {/* 4. MODAL: KONFIRMASI EDIT PENGGUNA */}
+      <ConfirmModal
+        isOpen={isConfirmEditOpen}
+        title={isEditingSelf ? 'Simpan Perubahan Profil?' : 'Simpan Perubahan Pengguna?'}
+        description={
+          isEditingSelf
+            ? 'Pastikan data profil baru Anda sudah benar sebelum disimpan.'
+            : `Perubahan data dan wewenang akun "${editingStaff?.name}" akan langsung aktif di sistem POS.`
+        }
+        confirmLabel="Ya, Simpan"
+        cancelLabel="Batal"
+        variant="warning"
+        isPending={isPending}
+        onClose={() => setIsConfirmEditOpen(false)}
+        onConfirm={handleExecuteUpdate}
+        itemDetails={
+          editingStaff
+            ? [
+                { label: 'Nama Pengguna', value: editName },
+                { label: 'Email Login', value: editEmail },
+                {
+                  label: 'Role Akses',
+                  value: (isEditingSelf ? editingStaff.role : editRole).toUpperCase(),
+                },
+                {
+                  label: 'Penempatan',
+                  value:
+                    (isEditingSelf
+                      ? editingStaff.outletName
+                      : editOutletIds.length === outlets.length && outlets.length > 1
+                      ? `Semua Cabang (${outlets.length} Cabang)`
+                      : outlets
+                          .filter((o) => editOutletIds.includes(o.id))
+                          .map((o) => o.name)
+                          .join(', ')) || 'Belum dipilih',
+                },
+                {
+                  label: 'Kata Sandi',
+                  value: editNewPassword.trim() ? '✓ Diperbarui (Reset)' : 'Tidak diubah',
+                },
+              ]
+            : undefined
+        }
+      />
+
+      {/* 5. MODAL: KONFIRMASI HAPUS PENGGUNA */}
       <ConfirmModal
         isOpen={!!deletingStaff}
         title="Hapus Akun Pengguna?"
