@@ -25,7 +25,9 @@ import {
   Lock, 
   Crown, 
   Briefcase,
-  Info
+  Info,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 export interface StaffMember {
@@ -60,6 +62,7 @@ export default function StaffClient({
   const [addName, setAddName] = useState('');
   const [addEmail, setAddEmail] = useState('');
   const [addPassword, setAddPassword] = useState('');
+  const [showAddPassword, setShowAddPassword] = useState(false);
   const [addRole, setAddRole] = useState<'kasir' | 'manager' | 'owner'>('kasir');
   const [addOutletIds, setAddOutletIds] = useState<string[]>([]);
 
@@ -67,6 +70,7 @@ export default function StaffClient({
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editNewPassword, setEditNewPassword] = useState('');
+  const [showEditPassword, setShowEditPassword] = useState(false);
   const [editRole, setEditRole] = useState<'kasir' | 'manager' | 'owner'>('kasir');
   const [editOutletIds, setEditOutletIds] = useState<string[]>([]);
 
@@ -80,6 +84,7 @@ export default function StaffClient({
     setAddName('');
     setAddEmail('');
     setAddPassword('');
+    setShowAddPassword(false);
     setAddRole('kasir');
     setAddOutletIds(outlets.length > 0 ? [outlets[0].id] : ['out_default']);
     setIsAddModalOpen(true);
@@ -90,6 +95,7 @@ export default function StaffClient({
     setEditName(staff.name || '');
     setEditEmail(staff.email || '');
     setEditNewPassword('');
+    setShowEditPassword(false);
     setEditOutletIds(
       staff.outletIds && staff.outletIds.length > 0
         ? staff.outletIds
@@ -454,15 +460,24 @@ export default function StaffClient({
                 <div className="relative">
                   <Lock className="w-4 h-4 text-[#8E867C] absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
-                    type="password"
+                    type={showAddPassword ? 'text' : 'password'}
                     name="password"
                     required
                     minLength={6}
                     value={addPassword}
                     onChange={(e) => setAddPassword(e.target.value)}
                     placeholder="Minimal 6 karakter"
-                    className="w-full pl-9 pr-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
+                    className="w-full pl-9 pr-10 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowAddPassword(!showAddPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8E867C] hover:text-[#201C1A] p-1 cursor-pointer transition-colors"
+                    title={showAddPassword ? 'Sembunyikan sandi' : 'Tampilkan sandi'}
+                    aria-label={showAddPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                  >
+                    {showAddPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
 
@@ -702,13 +717,22 @@ export default function StaffClient({
                 <div className="relative">
                   <KeyRound className="w-4 h-4 text-[#8E867C] absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
-                    type="password"
+                    type={showEditPassword ? 'text' : 'password'}
                     minLength={6}
                     value={editNewPassword}
                     onChange={(e) => setEditNewPassword(e.target.value)}
                     placeholder="Kosongkan jika tidak ingin ganti password"
-                    className="w-full pl-9 pr-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
+                    className="w-full pl-9 pr-10 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowEditPassword(!showEditPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8E867C] hover:text-[#201C1A] p-1 cursor-pointer transition-colors"
+                    title={showEditPassword ? 'Sembunyikan password' : 'Lihat password'}
+                    aria-label={showEditPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                  >
+                    {showEditPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
                 <p className="text-[10px] text-[#8E867C] mt-1">
                   Isi hanya jika ingin mereset password akun pengguna ini (min. 6 karakter).
