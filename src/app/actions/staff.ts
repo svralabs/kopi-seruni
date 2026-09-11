@@ -6,7 +6,7 @@ import { account } from '@/lib/auth-schema';
 import { getOutlets } from '@/lib/queries';
 import { auth } from '@/lib/auth';
 import { hashPassword } from 'better-auth/crypto';
-import { getSession } from '@/lib/auth-helpers';
+import { getSession, getUserAccessibleOutlets } from '@/lib/auth-helpers';
 import { eq, and, ne } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -14,6 +14,11 @@ import { redirect } from 'next/navigation';
 export async function createStaff(formData: FormData) {
   const session = await getSession();
   if (!session) redirect('/login');
+
+  const { isOwner } = await getUserAccessibleOutlets(session.user.id);
+  if (!isOwner) {
+    throw new Error('Akses ditolak: Hanya Owner yang berhak mengelola pengguna');
+  }
 
   const name = formData.get('name') as string;
   const email = formData.get('email') as string;
@@ -84,7 +89,16 @@ export async function updateStaffUser(
   const session = await getSession();
   if (!session) redirect('/login');
 
+  const { isOwner } = await getUserAccessibleOutlets(session.user.id);
+  if (!isOwner) {
+    throw new Error('Akses ditolak: Hanya Owner yang berhak mengelola pengguna');
+  }
+
   const { name, email, role, outletIds, newPassword } = payload;
+
+  if (session.user.id === userId && role !== 'owner') {
+    throw new Error('Tidak dapat mengubah peran akun Anda sendiri dari Owner');
+  }
 
   if (!name || !name.trim()) {
     throw new Error('Nama pengguna tidak boleh kosong');
@@ -160,6 +174,15 @@ export async function updateStaffRole(userId: string, outletIds: string[] | stri
   const session = await getSession();
   if (!session) redirect('/login');
 
+  const { isOwner } = await getUserAccessibleOutlets(session.user.id);
+  if (!isOwner) {
+    throw new Error('Akses ditolak: Hanya Owner yang berhak mengelola hak akses pengguna');
+  }
+
+  if (session.user.id === userId && role !== 'owner') {
+    throw new Error('Tidak dapat mengubah peran akun Anda sendiri dari Owner');
+  }
+
   const now = Math.floor(Date.now() / 1000);
   const allOutlets = await getOutlets();
 
@@ -188,6 +211,11 @@ export async function updateStaffRole(userId: string, outletIds: string[] | stri
 export async function deleteStaff(userId: string) {
   const session = await getSession();
   if (!session) redirect('/login');
+
+  const { isOwner } = await getUserAccessibleOutlets(session.user.id);
+  if (!isOwner) {
+    throw new Error('Akses ditolak: Hanya Owner yang berhak menghapus pengguna');
+  }
 
   if (session.user.id === userId) {
     throw new Error('Tidak dapat menghapus akun yang sedang login');
