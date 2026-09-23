@@ -97,7 +97,7 @@ export default function AppShell({
   const isPOSPage = pathname === '/pos' || pathname.startsWith('/pos/');
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#F7F5F0] text-[#1E1B18]">
+    <div className="flex h-screen h-dvh overflow-hidden bg-[#F7F5F0] text-[#1E1B18]">
       {/* ============================================================ */}
       {/* 1. DESKTOP / TABLET LANDSCAPE SIDEBAR (>= 1024px) */}
       {/* ============================================================ */}
@@ -367,19 +367,19 @@ export default function AppShell({
       {/* ============================================================ */}
       {/* 3. MAIN CONTENT CONTAINER */}
       {/* ============================================================ */}
-      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden relative">
+      <div className="flex-1 flex flex-col min-w-0 h-screen h-dvh overflow-hidden relative">
         {/* Top Progress Loading Bar for Global Filters & Navigation */}
         {isPending && (
           <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gradient-to-r from-[#2D7A47] via-[#D49E35] to-[#2D7A47] animate-pulse shadow-sm" />
         )}
 
         {/* Mobile / Tablet Portrait Top Bar (< 1024px) */}
-        <header className="lg:hidden h-14 bg-white border-b border-[#EBE7DF] px-3 sm:px-4 flex items-center justify-between shrink-0 z-20">
+        <header className="lg:hidden sticky top-0 z-40 h-14 bg-white/95 backdrop-blur-xs border-b border-[#EBE7DF] px-3 sm:px-4 flex items-center justify-between shrink-0 shadow-2xs">
           <div className="flex items-center gap-2.5">
             <button
               type="button"
               onClick={() => setIsMobileDrawerOpen(true)}
-              className="p-2 rounded-xl bg-[#FAF8F5] border border-[#E5E0D6] text-[#201C1A] hover:bg-[#F2ECE3] transition-colors cursor-pointer"
+              className="p-2 rounded-xl bg-[#FAF8F5] border border-[#E5E0D6] text-[#201C1A] hover:bg-[#F2ECE3] active:scale-95 transition-all cursor-pointer relative z-40"
               title="Buka Menu"
             >
               <Menu className="w-4 h-4" />
@@ -410,9 +410,10 @@ export default function AppShell({
 
         {/* Scrollable / Fill Main View */}
         <main
+          id="main-content"
           className={`flex-1 min-w-0 overflow-y-auto ${
             isPOSPage
-              ? 'p-2.5 sm:p-3.5 lg:p-4 flex flex-col h-[calc(100vh-3.5rem)] lg:h-screen min-h-0'
+              ? 'p-2.5 sm:p-3.5 lg:p-4 flex flex-col h-[calc(100dvh-3.5rem)] lg:h-screen min-h-0'
               : 'p-3.5 sm:p-5 lg:p-6 xl:p-8 max-w-[1600px] w-full mx-auto flex flex-col min-h-full'
           }`}
         >

@@ -39,7 +39,6 @@ interface CartItem {
   product: Product;
   quantity: number;
   mood: 'Hot' | 'Ice';
-  size: 'S' | 'M' | 'L';
   sugar: '30%' | '50%' | '70%' | 'Normal';
   ice: '30%' | '50%' | '70%' | 'Normal';
   notes: string;
@@ -86,7 +85,6 @@ export default function POSClient({
       string,
       {
         mood: 'Hot' | 'Ice';
-        size: 'S' | 'M' | 'L';
         sugar: '30%' | '50%' | '70%' | 'Normal';
         ice: '30%' | '50%' | '70%' | 'Normal';
       }
@@ -145,7 +143,6 @@ export default function POSClient({
     return (
       cardOptions[prodId] || {
         mood: 'Ice',
-        size: 'M',
         sugar: 'Normal',
         ice: 'Normal',
       }
@@ -155,7 +152,7 @@ export default function POSClient({
   // Update option for product
   const setOption = (
     prodId: string,
-    key: 'mood' | 'size' | 'sugar' | 'ice',
+    key: 'mood' | 'sugar' | 'ice',
     value: string
   ) => {
     setCardOptions((prev) => ({
@@ -170,7 +167,7 @@ export default function POSClient({
   // Add to cart with chosen options
   const addToCartWithOptions = (product: Product) => {
     const opt = getOptions(product.id);
-    const cartKey = `${product.id}_${opt.mood}_${opt.size}_${opt.sugar}_${opt.ice}`;
+    const cartKey = `${product.id}_${opt.mood}_${opt.sugar}_${opt.ice}`;
 
     setCart((prev) => {
       const existing = prev.find((item) => item.id === cartKey);
@@ -186,7 +183,6 @@ export default function POSClient({
           product,
           quantity: 1,
           mood: opt.mood,
-          size: opt.size,
           sugar: opt.sugar,
           ice: opt.ice,
           notes: '',
@@ -248,18 +244,14 @@ export default function POSClient({
     : 0;
 
   const afterDiscount = Math.max(0, subtotal - discountAmount);
-  const taxRate = 11;
-  const taxAmount = calcTax(afterDiscount, taxRate);
+  const taxRate = 0;
+  const taxAmount = 0;
   const total = calcTotal(subtotal, discountAmount, taxAmount);
 
   const changeAmount = Math.max(0, cashReceived - total);
 
   // Open Checkout Modal
   const handleOpenCheckoutModal = () => {
-    if (!shiftId) {
-      setErrorMessage('Shift kasir belum dibuka! Harap buka shift kasir terlebih dahulu pada menu Shift.');
-      return;
-    }
     if (cart.length === 0) return;
     setCashReceived(total);
     setErrorMessage(null);
@@ -271,6 +263,24 @@ export default function POSClient({
     cartSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  // Receipt Modal Close / Reset handlers with smooth scroll back to top
+  const handleCloseReceipt = () => {
+    setCompletedReceipt(null);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      document.getElementById('main-content')?.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleNewTransaction = () => {
+    setCompletedReceipt(null);
+    clearCart();
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      document.getElementById('main-content')?.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
   // Process checkout
   const handleProcessCheckout = () => {
     setErrorMessage(null);
@@ -278,7 +288,6 @@ export default function POSClient({
       productId: item.product.id,
       productName: item.product.name,
       mood: item.mood,
-      size: item.size,
       sugar: item.sugar,
       ice: item.ice,
       quantity: item.quantity,
@@ -346,9 +355,9 @@ export default function POSClient({
               <Clock className="w-3.5 h-3.5" />
             </div>
             <div>
-              <h4 className="text-xs font-bold text-[#664311]">Shift Kasir Belum Dibuka!</h4>
+              <h4 className="text-xs font-bold text-[#664311]">Shift Kasir Belum Dibuka</h4>
               <p className="text-[11px] text-[#8A5C1B]">
-                Harap buka shift kasir terlebih dahulu untuk merekap kas awal & memproses pembayaran transaksi.
+                Transaksi tetap dapat diproses langsung. Buka shift kasir jika ingin merekap kas modal awal.
               </p>
             </div>
           </div>
@@ -356,7 +365,7 @@ export default function POSClient({
             href={`/shift${currentOutlet?.id ? `?outletId=${currentOutlet.id}` : ''}`}
             className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-[#96631E] hover:bg-[#7D4E12] text-white text-xs font-bold rounded-xl shadow-2xs transition-colors"
           >
-            <span>Buka Shift Sekarang</span>
+            <span>Buka Shift</span>
             <ArrowRight className="w-3 h-3" />
           </Link>
         </div>
@@ -491,82 +500,66 @@ export default function POSClient({
                     </h3>
                   </div>
 
-                  {/* Options: Mood, Size, Sugar, Ice */}
-                  <div className="space-y-1 pt-1 border-t border-[#ECE7DE]">
-                    {/* Mood & Size */}
-                    <div className="grid grid-cols-2 gap-1">
+                  {/* Options: Mood, Sugar, Ice */}
+                  <div className="pt-1 border-t border-[#ECE7DE]">
+                    <div className="grid grid-cols-3 gap-1 text-[9px]">
                       {/* Mood: Hot vs Ice */}
                       <div className="bg-white p-0.5 rounded-lg border border-[#EAE5DC] flex gap-0.5">
                         <button
                           type="button"
                           onClick={() => setOption(p.id, 'mood', 'Ice')}
-                          className={`flex-1 py-0.5 text-[9px] font-bold rounded-md flex items-center justify-center gap-0.5 transition-all cursor-pointer ${
+                          className={`flex-1 py-1 text-[9px] font-bold rounded-md flex items-center justify-center gap-0.5 transition-all cursor-pointer ${
                             opt.mood === 'Ice'
                               ? 'bg-[#2E2520] text-white shadow-2xs'
                               : 'text-[#8E867C] hover:text-[#201C1A]'
                           }`}
+                          title="Dingin"
                         >
-                          <Snowflake className="w-2.5 h-2.5" />
-                          <span>Ice</span>
+                          <Snowflake className="w-2.5 h-2.5 shrink-0" />
+                          <span className="text-[8px] sm:text-[9px]">Ice</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => setOption(p.id, 'mood', 'Hot')}
-                          className={`flex-1 py-0.5 text-[9px] font-bold rounded-md flex items-center justify-center gap-0.5 transition-all cursor-pointer ${
+                          className={`flex-1 py-1 text-[9px] font-bold rounded-md flex items-center justify-center gap-0.5 transition-all cursor-pointer ${
                             opt.mood === 'Hot'
                               ? 'bg-[#964B3B] text-white shadow-2xs'
                               : 'text-[#8E867C] hover:text-[#201C1A]'
                           }`}
+                          title="Panas"
                         >
-                          <Flame className="w-2.5 h-2.5" />
-                          <span>Hot</span>
+                          <Flame className="w-2.5 h-2.5 shrink-0" />
+                          <span className="text-[8px] sm:text-[9px]">Hot</span>
                         </button>
                       </div>
 
-                      {/* Size: S / M / L */}
-                      <div className="bg-white p-0.5 rounded-lg border border-[#EAE5DC] flex gap-0.5">
-                        {(['S', 'M', 'L'] as const).map((sz) => (
-                          <button
-                            key={sz}
-                            type="button"
-                            onClick={() => setOption(p.id, 'size', sz)}
-                            className={`flex-1 py-0.5 text-[9px] font-bold rounded-md transition-all cursor-pointer ${
-                              opt.size === sz
-                                ? 'bg-[#2E2520] text-white shadow-2xs'
-                                : 'text-[#8E867C] hover:text-[#201C1A]'
-                            }`}
-                          >
-                            {sz}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Sugar & Ice Level */}
-                    <div className="grid grid-cols-2 gap-1 text-[9px]">
+                      {/* Sugar Level */}
                       <div>
                         <select
                           value={opt.sugar}
                           onChange={(e) => setOption(p.id, 'sugar', e.target.value)}
-                          className="w-full px-1 py-0.5 bg-white border border-[#EAE5DC] rounded-md text-[9px] font-semibold text-[#4A4238] focus:outline-none cursor-pointer"
+                          className="w-full h-full px-1 py-1 bg-white border border-[#EAE5DC] rounded-lg text-[9px] font-semibold text-[#4A4238] focus:outline-none cursor-pointer"
+                          title="Level Gula"
                         >
-                          <option value="30%">Gula 30%</option>
-                          <option value="50%">Gula 50%</option>
-                          <option value="70%">Gula 70%</option>
-                          <option value="Normal">Gula Normal</option>
+                          <option value="Normal">Gl Nrml</option>
+                          <option value="70%">Gl 70%</option>
+                          <option value="50%">Gl 50%</option>
+                          <option value="30%">Gl 30%</option>
                         </select>
                       </div>
 
+                      {/* Ice Level */}
                       <div>
                         <select
                           value={opt.ice}
                           onChange={(e) => setOption(p.id, 'ice', e.target.value)}
-                          className="w-full px-1 py-0.5 bg-white border border-[#EAE5DC] rounded-md text-[9px] font-semibold text-[#4A4238] focus:outline-none cursor-pointer"
+                          className="w-full h-full px-1 py-1 bg-white border border-[#EAE5DC] rounded-lg text-[9px] font-semibold text-[#4A4238] focus:outline-none cursor-pointer"
+                          title="Level Es"
                         >
-                          <option value="30%">Es 30%</option>
-                          <option value="50%">Es 50%</option>
+                          <option value="Normal">Es Nrml</option>
                           <option value="70%">Es 70%</option>
-                          <option value="Normal">Es Normal</option>
+                          <option value="50%">Es 50%</option>
+                          <option value="30%">Es 30%</option>
                         </select>
                       </div>
                     </div>
@@ -683,7 +676,7 @@ export default function POSClient({
                 <div className="min-w-0 flex-1">
                   <h4 className="font-bold text-xs text-[#201C1A] truncate">{item.product.name}</h4>
                   <p className="text-[9px] text-[#7A7268]">
-                    {item.mood} • Sz {item.size} • Gl {item.sugar} • Es {item.ice}
+                    {item.mood} • Gl {item.sugar} • Es {item.ice}
                   </p>
                   {item.notes && (
                     <p className="text-[9px] text-[#54382B] italic mt-0.5 bg-[#F2EDE5] px-1.5 py-0.5 rounded inline-block">
@@ -785,10 +778,12 @@ export default function POSClient({
                 <span>-{formatRupiah(discountAmount)}</span>
               </div>
             )}
-            <div className="flex justify-between text-[#7A7268] text-[10px]">
-              <span>PPN (11%)</span>
-              <span>+{formatRupiah(taxAmount)}</span>
-            </div>
+            {taxAmount > 0 && (
+              <div className="flex justify-between text-[#7A7268] text-[10px]">
+                <span>PPN ({taxRate}%)</span>
+                <span>+{formatRupiah(taxAmount)}</span>
+              </div>
+            )}
             <div className="flex justify-between pt-1 border-t border-[#F0ECE4] text-xs font-black text-[#201C1A]">
               <span>Total</span>
               <span>{formatRupiah(total)}</span>
@@ -1106,11 +1101,8 @@ export default function POSClient({
       {completedReceipt && (
         <ReceiptModal
           receipt={completedReceipt}
-          onClose={() => setCompletedReceipt(null)}
-          onNewTransaction={() => {
-            setCompletedReceipt(null);
-            clearCart();
-          }}
+          onClose={handleCloseReceipt}
+          onNewTransaction={handleNewTransaction}
         />
       )}
     </div>
