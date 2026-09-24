@@ -27,7 +27,7 @@ export interface CheckoutPayload {
   discountType?: 'percentage' | 'fixed';
   discountValue?: number;
   taxRate: number; // dari settings outlet
-  paymentMethod: 'cash' | 'qris' | 'transfer' | 'debit';
+  paymentMethod: 'cash' | 'qris' | 'transfer' | 'debit' | 'edc' | 'shopeefood' | 'gofood';
   notes?: string;
 }
 

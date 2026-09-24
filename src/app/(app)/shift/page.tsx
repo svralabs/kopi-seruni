@@ -1,9 +1,9 @@
 import { db } from '@/lib/db';
-import { shifts, outlets, user } from '@/lib/schema';
+import { shifts, outlets, user, orders } from '@/lib/schema';
 import { getOutlets } from '@/lib/queries';
 import { requireAuthRole } from '@/lib/auth-helpers';
 import ShiftClient from './shift-client';
-import { desc, eq, isNull, and, sql } from 'drizzle-orm';
+import { desc, eq, isNull, and, or, gte, sql } from 'drizzle-orm';
 
 export default async function ShiftPage({
   searchParams,
@@ -25,6 +25,19 @@ export default async function ShiftPage({
   let allOutlets: any[] = accessibleOutlets;
   let totalItems = 0;
   let totalPages = 1;
+
+  let activeShiftSales = {
+    totalSales: 0,
+    cashTotal: 0,
+    qrisTotal: 0,
+    edcTotal: 0,
+    transferTotal: 0,
+    debitTotal: 0,
+    shopeeFoodTotal: 0,
+    goFoodTotal: 0,
+    orderCount: 0,
+    expectedCash: 0,
+  };
 
   try {
     const [activeList, countRes, rawShifts] = await Promise.all([
@@ -58,6 +71,43 @@ export default async function ShiftPage({
       ...r.shift,
       kasirName: r.kasir?.name || 'Kasir',
     }));
+
+    if (activeShift) {
+      const shiftOrders = await db
+        .select({
+          paymentMethod: orders.paymentMethod,
+          total: orders.total,
+        })
+        .from(orders)
+        .where(
+          and(
+            eq(orders.status, 'completed'),
+            or(
+              eq(orders.shiftId, activeShift.id),
+              and(
+                eq(orders.outletId, outletId),
+                isNull(orders.shiftId),
+                gte(orders.createdAt, activeShift.openedAt)
+              )
+            )
+          )
+        );
+
+      for (const o of shiftOrders) {
+        const pm = (o.paymentMethod || 'cash').toLowerCase();
+        activeShiftSales.totalSales += o.total;
+        activeShiftSales.orderCount += 1;
+        if (pm === 'cash') activeShiftSales.cashTotal += o.total;
+        else if (pm === 'qris') activeShiftSales.qrisTotal += o.total;
+        else if (pm === 'edc') activeShiftSales.edcTotal += o.total;
+        else if (pm === 'debit') activeShiftSales.debitTotal += o.total;
+        else if (pm === 'transfer') activeShiftSales.transferTotal += o.total;
+        else if (pm === 'shopeefood') activeShiftSales.shopeeFoodTotal += o.total;
+        else if (pm === 'gofood') activeShiftSales.goFoodTotal += o.total;
+      }
+
+      activeShiftSales.expectedCash = (activeShift.openingCash || 0) + activeShiftSales.cashTotal;
+    }
   } catch (e) {
     console.warn('Error fetching shifts:', e);
   }
@@ -65,6 +115,7 @@ export default async function ShiftPage({
   return (
     <ShiftClient
       activeShift={activeShift}
+      activeShiftSales={activeShiftSales}
       recentShifts={recentShifts}
       outletId={outletId}
       allOutlets={allOutlets}

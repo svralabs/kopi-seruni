@@ -72,7 +72,9 @@ export default function POSClient({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [page, setPage] = useState<number>(1);
   const [selectedDiscountId, setSelectedDiscountId] = useState<string>('');
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'qris' | 'transfer' | 'debit'>('cash');
+  const [paymentMethod, setPaymentMethod] = useState<
+    'cash' | 'qris' | 'edc' | 'debit' | 'transfer' | 'shopeefood' | 'gofood'
+  >('cash');
   const [customerName, setCustomerName] = useState<string>('');
 
   // Cash calculation state
@@ -792,44 +794,32 @@ export default function POSClient({
 
           {/* Payment Method Selector */}
           <div className="grid grid-cols-3 gap-1">
-            <button
-              type="button"
-              onClick={() => setPaymentMethod('cash')}
-              className={`py-1 px-1 rounded-xl text-[10px] font-bold border flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                paymentMethod === 'cash'
-                  ? 'bg-[#2E2520] text-white border-[#2E2520] shadow-2xs'
-                  : 'bg-[#FAF8F5] text-[#4A4238] border-[#ECE7DE] hover:bg-[#F2ECE3]'
-              }`}
-            >
-              <Banknote className="w-3 h-3" />
-              <span>Tunai</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setPaymentMethod('qris')}
-              className={`py-1 px-1 rounded-xl text-[10px] font-bold border flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                paymentMethod === 'qris'
-                  ? 'bg-[#2E2520] text-white border-[#2E2520] shadow-2xs'
-                  : 'bg-[#FAF8F5] text-[#4A4238] border-[#ECE7DE] hover:bg-[#F2ECE3]'
-              }`}
-            >
-              <QrCode className="w-3 h-3" />
-              <span>QRIS</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setPaymentMethod('debit')}
-              className={`py-1 px-1 rounded-xl text-[10px] font-bold border flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                paymentMethod === 'debit'
-                  ? 'bg-[#2E2520] text-white border-[#2E2520] shadow-2xs'
-                  : 'bg-[#FAF8F5] text-[#4A4238] border-[#ECE7DE] hover:bg-[#F2ECE3]'
-              }`}
-            >
-              <CreditCard className="w-3 h-3" />
-              <span>Debit</span>
-            </button>
+            {[
+              { id: 'cash' as const, label: 'Tunai', icon: Banknote },
+              { id: 'qris' as const, label: 'QRIS', icon: QrCode },
+              { id: 'edc' as const, label: 'EDC', icon: CreditCard },
+              { id: 'shopeefood' as const, label: 'Shopee', icon: ShoppingBag },
+              { id: 'gofood' as const, label: 'GoFood', icon: Utensils },
+              { id: 'debit' as const, label: 'Debit/TF', icon: CreditCard },
+            ].map((pm) => {
+              const Icon = pm.icon;
+              const isSelected = paymentMethod === pm.id;
+              return (
+                <button
+                  key={pm.id}
+                  type="button"
+                  onClick={() => setPaymentMethod(pm.id)}
+                  className={`py-1 px-1 rounded-xl text-[9px] font-bold border flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-[#2E2520] text-white border-[#2E2520] shadow-2xs'
+                      : 'bg-[#FAF8F5] text-[#4A4238] border-[#ECE7DE] hover:bg-[#F2ECE3]'
+                  }`}
+                >
+                  <Icon className="w-2.5 h-2.5 shrink-0" />
+                  <span className="truncate">{pm.label}</span>
+                </button>
+              );
+            })}
           </div>
 
           {/* Action Checkout Button */}
@@ -979,6 +969,39 @@ export default function POSClient({
                 />
               </div>
 
+              {/* PILIH METODE BAYAR DI DALAM MODAL */}
+              <div>
+                <label className="block font-bold text-[#4A4238] mb-1.5 text-xs">Metode Pembayaran</label>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-1">
+                  {[
+                    { id: 'cash' as const, label: 'Tunai', icon: Banknote },
+                    { id: 'qris' as const, label: 'QRIS', icon: QrCode },
+                    { id: 'edc' as const, label: 'EDC', icon: CreditCard },
+                    { id: 'shopeefood' as const, label: 'ShopeeFood', icon: ShoppingBag },
+                    { id: 'gofood' as const, label: 'GoFood', icon: Utensils },
+                    { id: 'debit' as const, label: 'Debit/TF', icon: CreditCard },
+                  ].map((pm) => {
+                    const Icon = pm.icon;
+                    const isSelected = paymentMethod === pm.id;
+                    return (
+                      <button
+                        key={pm.id}
+                        type="button"
+                        onClick={() => setPaymentMethod(pm.id)}
+                        className={`py-1.5 px-1 rounded-xl text-[10px] font-bold border flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#2E2520] text-white border-[#2E2520] shadow-2xs'
+                            : 'bg-[#FAF8F5] text-[#4A4238] border-[#ECE7DE] hover:bg-[#F2ECE3]'
+                        }`}
+                      >
+                        <Icon className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{pm.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* PAYMENT METHOD SPECIFIC CONTROLS */}
               {paymentMethod === 'cash' && (
                 <div className="p-3.5 rounded-2xl bg-[#FAF8F5] border border-[#EBE7DF] space-y-2.5">
@@ -1058,14 +1081,65 @@ export default function POSClient({
                 </div>
               )}
 
-              {(paymentMethod === 'debit' || paymentMethod === 'transfer') && (
+              {paymentMethod === 'edc' && (
                 <div className="p-3.5 rounded-2xl bg-[#FAF8F5] border border-[#EBE7DF] space-y-1.5">
-                  <label className="font-bold text-[#4A4238]">Approval Code / No. Referensi</label>
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-[#4A4238]">No. Ref / Approval Mesin EDC</label>
+                    <span className="text-[10px] text-[#8E867C]">Opsional</span>
+                  </div>
                   <input
                     type="text"
                     value={paymentRefNumber}
                     onChange={(e) => setPaymentRefNumber(e.target.value)}
-                    placeholder="Contoh: BCA-839201"
+                    placeholder="Contoh: EDC-BCA-98124 / Approval: 849201"
+                    className="w-full px-3 py-2 bg-white border border-[#E5E0D6] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
+                  />
+                  <p className="text-[10px] text-[#8E867C]">Gesek / tap kartu debit atau kredit pada mesin EDC kasir</p>
+                </div>
+              )}
+
+              {paymentMethod === 'shopeefood' && (
+                <div className="p-3.5 rounded-2xl bg-[#FFF9F5] border border-[#FCDDC9] space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-[#D96B27]">No. Pesanan ShopeeFood</label>
+                    <span className="text-[10px] text-[#D96B27]">Opsional</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={paymentRefNumber}
+                    onChange={(e) => setPaymentRefNumber(e.target.value)}
+                    placeholder="Contoh: SPF-2819389"
+                    className="w-full px-3 py-2 bg-white border border-[#FCDDC9] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#D96B27] text-[#201C1A]"
+                  />
+                  <p className="text-[10px] text-[#8E867C]">Nomor order dari aplikasi Merchant ShopeeFood</p>
+                </div>
+              )}
+
+              {paymentMethod === 'gofood' && (
+                <div className="p-3.5 rounded-2xl bg-[#F5FAF5] border border-[#CFE8CF] space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-[#00880D]">No. Pesanan GoFood</label>
+                    <span className="text-[10px] text-[#00880D]">Opsional</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={paymentRefNumber}
+                    onChange={(e) => setPaymentRefNumber(e.target.value)}
+                    placeholder="Contoh: GF-928193"
+                    className="w-full px-3 py-2 bg-white border border-[#CFE8CF] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#00880D] text-[#201C1A]"
+                  />
+                  <p className="text-[10px] text-[#8E867C]">Nomor order dari aplikasi GoBiz / GoFood</p>
+                </div>
+              )}
+
+              {(paymentMethod === 'debit' || paymentMethod === 'transfer') && (
+                <div className="p-3.5 rounded-2xl bg-[#FAF8F5] border border-[#EBE7DF] space-y-1.5">
+                  <label className="font-bold text-[#4A4238]">Approval Code / No. Referensi Transfer</label>
+                  <input
+                    type="text"
+                    value={paymentRefNumber}
+                    onChange={(e) => setPaymentRefNumber(e.target.value)}
+                    placeholder="Contoh: TF-BCA-839201"
                     className="w-full px-3 py-2 bg-white border border-[#E5E0D6] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
                   />
                 </div>

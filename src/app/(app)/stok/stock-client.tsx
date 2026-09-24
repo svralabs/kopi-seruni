@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { adjustRawMaterialStock } from '@/app/actions/stock';
+import { adjustRawMaterialStock, updateRawMaterial, createRawMaterial } from '@/app/actions/stock';
 import { formatDate, formatDateTime, formatRupiah } from '@/lib/utils';
 import { toast } from '@/lib/toast';
 import { 
@@ -18,7 +18,8 @@ import {
   Coffee,
   Coins,
   ArrowRight,
-  Info
+  Info,
+  Pencil
 } from 'lucide-react';
 
 export interface ProductEstimation {
@@ -55,6 +56,8 @@ export default function StockClient({
 }) {
   const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAddRmModalOpen, setIsAddRmModalOpen] = useState(false);
+  const [editingRm, setEditingRm] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState<'bahan-baku' | 'estimasi-menu' | 'history'>(
     initialTab === 'estimasi-menu' || initialTab === 'produk'
       ? 'estimasi-menu'
@@ -146,19 +149,29 @@ export default function StockClient({
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            if (rawMaterialList.length > 0 && !selectedRmId) {
-              setSelectedRmId(rawMaterialList[0].material.id);
-            }
-            setIsModalOpen(true);
-          }}
-          className="flex items-center gap-2 px-4 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white text-xs font-bold rounded-2xl shadow-xs transition-colors self-start sm:self-auto cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Input Mutasi Bahan Baku</span>
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setIsAddRmModalOpen(true)}
+            className="flex items-center gap-2 px-3.5 py-2.5 bg-white hover:bg-[#FAF8F5] text-[#201C1A] text-xs font-bold rounded-2xl border border-[#E5E0D6] shadow-2xs transition-colors cursor-pointer"
+          >
+            <Plus className="w-4 h-4 text-[#54382B]" />
+            <span>Tambah Bahan Baku</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (rawMaterialList.length > 0 && !selectedRmId) {
+                setSelectedRmId(rawMaterialList[0].material.id);
+              }
+              setIsModalOpen(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white text-xs font-bold rounded-2xl shadow-xs transition-colors cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Input Mutasi Bahan Baku</span>
+          </button>
+        </div>
       </div>
 
       {/* 1. TOP SUMMARY CARDS */}
@@ -197,13 +210,13 @@ export default function StockClient({
       {/* 2. FULL-WIDTH DATA TABLE WITH TABS */}
       <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-xs p-6 space-y-4">
         {/* Tab Switcher & Filter Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#F0ECE4]">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-[#F0ECE4]">
           {/* Tabs */}
-          <div className="flex items-center gap-1.5 bg-[#F9F7F2] p-1 rounded-2xl border border-[#E5E0D6] text-xs">
+          <div className="flex items-center gap-1.5 bg-[#F9F7F2] p-1 rounded-2xl border border-[#E5E0D6] text-xs overflow-x-auto max-w-full">
             <button
               type="button"
               onClick={() => setActiveTab('bahan-baku')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 activeTab === 'bahan-baku'
                   ? 'bg-white text-[#201C1A] shadow-xs'
                   : 'text-[#8E867C] hover:text-[#201C1A]'
@@ -215,7 +228,7 @@ export default function StockClient({
             <button
               type="button"
               onClick={() => setActiveTab('estimasi-menu')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 activeTab === 'estimasi-menu'
                   ? 'bg-white text-[#201C1A] shadow-xs'
                   : 'text-[#8E867C] hover:text-[#201C1A]'
@@ -227,7 +240,7 @@ export default function StockClient({
             <button
               type="button"
               onClick={() => setActiveTab('history')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 activeTab === 'history'
                   ? 'bg-white text-[#201C1A] shadow-xs'
                   : 'text-[#8E867C] hover:text-[#201C1A]'
@@ -240,19 +253,19 @@ export default function StockClient({
 
           {/* Filter Bar Tab 1: Bahan Baku */}
           {activeTab === 'bahan-baku' && (
-            <div className="flex items-center gap-2">
-              <div className="relative">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
+              <div className="relative flex-1 sm:w-56">
                 <Search className="w-3.5 h-3.5 text-[#8E867C] absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   placeholder="Cari bahan baku..."
                   value={rmSearchQuery}
                   onChange={(e) => setRmSearchQuery(e.target.value)}
-                  className="pl-8 pr-3 py-1.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
+                  className="w-full pl-8 pr-3 py-1.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
                 />
               </div>
 
-              <div className="flex items-center gap-1 bg-[#F9F7F2] p-1 rounded-xl border border-[#E5E0D6] text-xs">
+              <div className="flex items-center gap-1 bg-[#F9F7F2] p-1 rounded-xl border border-[#E5E0D6] text-xs overflow-x-auto shrink-0">
                 {(
                   [
                     { key: 'all', label: 'Semua' },
@@ -265,7 +278,7 @@ export default function StockClient({
                     key={t.key}
                     type="button"
                     onClick={() => setRmStatusFilter(t.key)}
-                    className={`px-2.5 py-0.5 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
+                    className={`px-2.5 py-0.5 rounded-lg font-bold text-[11px] transition-all cursor-pointer whitespace-nowrap ${
                       rmStatusFilter === t.key
                         ? 'bg-white text-[#201C1A] shadow-xs'
                         : 'text-[#8E867C] hover:text-[#201C1A]'
@@ -280,19 +293,19 @@ export default function StockClient({
 
           {/* Filter Bar Tab 2: Estimasi Menu */}
           {activeTab === 'estimasi-menu' && (
-            <div className="flex items-center gap-2">
-              <div className="relative">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
+              <div className="relative flex-1 sm:w-56">
                 <Search className="w-3.5 h-3.5 text-[#8E867C] absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   placeholder="Cari menu minuman/makanan..."
                   value={menuSearchQuery}
                   onChange={(e) => setMenuSearchQuery(e.target.value)}
-                  className="pl-8 pr-3 py-1.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
+                  className="w-full pl-8 pr-3 py-1.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
                 />
               </div>
 
-              <div className="flex items-center gap-1 bg-[#F9F7F2] p-1 rounded-xl border border-[#E5E0D6] text-xs">
+              <div className="flex items-center gap-1 bg-[#F9F7F2] p-1 rounded-xl border border-[#E5E0D6] text-xs overflow-x-auto shrink-0">
                 {(
                   [
                     { key: 'all', label: 'Semua' },
@@ -305,7 +318,7 @@ export default function StockClient({
                     key={t.key}
                     type="button"
                     onClick={() => setMenuStatusFilter(t.key)}
-                    className={`px-2.5 py-0.5 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
+                    className={`px-2.5 py-0.5 rounded-lg font-bold text-[11px] transition-all cursor-pointer whitespace-nowrap ${
                       menuStatusFilter === t.key
                         ? 'bg-white text-[#201C1A] shadow-xs'
                         : 'text-[#8E867C] hover:text-[#201C1A]'
@@ -322,7 +335,7 @@ export default function StockClient({
         {/* Tab 1: Sisa Stok Fisik Bahan Baku */}
         {activeTab === 'bahan-baku' && (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-xs min-w-[720px]">
               <thead>
                 <tr className="border-b border-[#F0ECE4] bg-[#FAF8F5] text-[#8E867C] text-[10px] font-bold uppercase tracking-wider">
                   <th className="py-3.5 px-4">Nama Bahan Baku</th>
@@ -331,6 +344,7 @@ export default function StockClient({
                   <th className="py-3.5 px-4 text-right">Harga Beli / Satuan</th>
                   <th className="py-3.5 px-4 text-right">Total Nilai Stok</th>
                   <th className="py-3.5 px-4 text-right">Status Ketersediaan</th>
+                  <th className="py-3.5 px-4 text-right">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F4F0E8]">
@@ -367,12 +381,35 @@ export default function StockClient({
                           {isOut ? 'Habis' : isLow ? 'Menipis' : 'Aman'}
                         </span>
                       </td>
+                      <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => setEditingRm(m)}
+                          className="px-2.5 py-1 bg-[#FAF8F5] hover:bg-[#F2EDE5] text-[#201C1A] font-bold rounded-xl border border-[#E2DDD3] text-[11px] transition-colors inline-flex items-center gap-1 cursor-pointer"
+                          title="Edit Nama, Satuan & Harga Beli"
+                        >
+                          <Pencil className="w-3 h-3 text-[#54382B]" />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedRmId(m.id);
+                            setIsModalOpen(true);
+                          }}
+                          className="px-2.5 py-1 bg-[#F4EFE7] hover:bg-[#EBE4D8] text-[#54382B] font-bold rounded-xl border border-[#DCD5C9] text-[11px] transition-colors inline-flex items-center gap-1 cursor-pointer"
+                          title="Input Mutasi Stok"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>Mutasi</span>
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
                 {filteredRawMaterials.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="text-center py-12 text-[#9E968B] text-xs">
+                    <td colSpan={7} className="text-center py-12 text-[#9E968B] text-xs">
                       Tidak ada bahan baku yang cocok dengan filter pencarian.
                     </td>
                   </tr>
@@ -393,7 +430,7 @@ export default function StockClient({
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-xs min-w-[650px]">
                 <thead>
                   <tr className="border-b border-[#F0ECE4] bg-[#FAF8F5] text-[#8E867C] text-[10px] font-bold uppercase tracking-wider">
                     <th className="py-3.5 px-4">Nama Menu Produk</th>
@@ -480,7 +517,7 @@ export default function StockClient({
         {/* Tab 3: Riwayat Mutasi Bahan Baku */}
         {activeTab === 'history' && (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-xs min-w-[600px]">
               <thead>
                 <tr className="border-b border-[#F0ECE4] bg-[#FAF8F5] text-[#8E867C] text-[10px] font-bold uppercase tracking-wider">
                   <th className="py-3.5 px-4">Waktu</th>
@@ -543,8 +580,8 @@ export default function StockClient({
 
       {/* 3. MODAL DIALOG: INPUT MUTASI BAHAN BAKU */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-2xl max-w-md w-full p-6 space-y-4">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-2xl max-w-md w-full p-6 space-y-4 my-8 max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-[#F0ECE4] pb-3">
               <div className="flex items-center gap-2 text-[#54382B]">
                 <Plus className="w-4 h-4" />
@@ -650,6 +687,237 @@ export default function StockClient({
                   className="flex-1 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl shadow-xs cursor-pointer"
                 >
                   Simpan Mutasi
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 4. MODAL DIALOG: EDIT BAHAN BAKU & HARGA SATUAN */}
+      {editingRm && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-2xl max-w-md w-full p-6 space-y-4 my-8 max-h-[90dvh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-[#F0ECE4] pb-3">
+              <div className="flex items-center gap-2 text-[#54382B]">
+                <Pencil className="w-4 h-4" />
+                <h3 className="font-bold text-sm text-[#201C1A]">Edit Bahan Baku & Harga Satuan</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingRm(null)}
+                className="text-[#9E968B] hover:text-[#201C1A] p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form
+              action={async (formData) => {
+                try {
+                  await updateRawMaterial(formData);
+                  toast.success('Bahan baku dan harga satuan berhasil diperbarui');
+                  setEditingRm(null);
+                  router.refresh();
+                } catch (err: any) {
+                  toast.error(err?.message || 'Gagal memperbarui bahan baku');
+                }
+              }}
+              className="space-y-3.5 text-xs"
+            >
+              <input type="hidden" name="id" value={editingRm.id} />
+              <input type="hidden" name="outletId" value={currentOutletId} />
+
+              <div>
+                <label className="block font-bold text-[#4A4238] mb-1.5">
+                  Nama Bahan Baku <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  required
+                  defaultValue={editingRm.name}
+                  placeholder="Contoh: Biji Kopi House Blend"
+                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-bold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-[#4A4238] mb-1.5">
+                    Satuan Pengukuran <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    name="unit"
+                    required
+                    defaultValue={editingRm.unit}
+                    className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-bold cursor-pointer"
+                  >
+                    <option value="gr">Gram (gr)</option>
+                    <option value="ml">Mililiter (ml)</option>
+                    <option value="pcs">Pieces (pcs)</option>
+                    <option value="lbr">Lembar (lbr)</option>
+                    <option value="kg">Kilogram (kg)</option>
+                    <option value="liter">Liter (liter)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#4A4238] mb-1.5">
+                    Harga Beli / Satuan (Rp) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    name="costPerUnit"
+                    required
+                    min="0"
+                    step="1"
+                    defaultValue={editingRm.costPerUnit}
+                    placeholder="Contoh: 200"
+                    className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-black"
+                  />
+                </div>
+              </div>
+
+              <div className="p-3 bg-[#FAF8F5] rounded-2xl border border-[#ECE7DE] text-[11px] text-[#7A7268] space-y-1">
+                <div className="font-bold text-[#54382B] flex items-center gap-1">
+                  <Info className="w-3.5 h-3.5 shrink-0" />
+                  <span>Keterangan Harga Satuan:</span>
+                </div>
+                <p>
+                  Harga per satuan ini (misal Rp/gr atau Rp/ml) digunakan sebagai basis perhitungan otomatis HPP resep menu dan valuasi total nilai aset gudang.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setEditingRm(null)}
+                  className="flex-1 py-2.5 border border-[#E5E0D6] text-[#7A7268] font-bold rounded-2xl hover:bg-[#FAF8F5] cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl shadow-xs cursor-pointer"
+                >
+                  Simpan Perubahan
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 5. MODAL DIALOG: TAMBAH BAHAN BAKU BARU */}
+      {isAddRmModalOpen && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-2xl max-w-md w-full p-6 space-y-4 my-8 max-h-[90dvh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-[#F0ECE4] pb-3">
+              <div className="flex items-center gap-2 text-[#54382B]">
+                <Plus className="w-4 h-4" />
+                <h3 className="font-bold text-sm text-[#201C1A]">Tambah Bahan Baku Baru</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddRmModalOpen(false)}
+                className="text-[#9E968B] hover:text-[#201C1A] p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form
+              action={async (formData) => {
+                try {
+                  await createRawMaterial(formData);
+                  toast.success('Bahan baku baru berhasil ditambahkan');
+                  setIsAddRmModalOpen(false);
+                  router.refresh();
+                } catch (err: any) {
+                  toast.error(err?.message || 'Gagal menambahkan bahan baku');
+                }
+              }}
+              className="space-y-3.5 text-xs"
+            >
+              <input type="hidden" name="outletId" value={currentOutletId} />
+
+              <div>
+                <label className="block font-bold text-[#4A4238] mb-1.5">
+                  Nama Bahan Baku <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  required
+                  placeholder="Contoh: Susu Full Cream Fresh"
+                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-bold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-[#4A4238] mb-1.5">
+                    Satuan Pengukuran <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    name="unit"
+                    required
+                    defaultValue="gr"
+                    className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-bold cursor-pointer"
+                  >
+                    <option value="gr">Gram (gr)</option>
+                    <option value="ml">Mililiter (ml)</option>
+                    <option value="pcs">Pieces (pcs)</option>
+                    <option value="lbr">Lembar (lbr)</option>
+                    <option value="kg">Kilogram (kg)</option>
+                    <option value="liter">Liter (liter)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#4A4238] mb-1.5">
+                    Harga Beli / Satuan (Rp) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    name="costPerUnit"
+                    required
+                    min="0"
+                    step="1"
+                    placeholder="Contoh: 18"
+                    className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-black"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-[#4A4238] mb-1.5">
+                  Stok Awal Fisik (Opsional)
+                </label>
+                <input
+                  type="number"
+                  name="initialStock"
+                  min="0"
+                  step="1"
+                  placeholder="Contoh: 5000"
+                  className="w-full px-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A] font-bold"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setIsAddRmModalOpen(false)}
+                  className="flex-1 py-2.5 border border-[#E5E0D6] text-[#7A7268] font-bold rounded-2xl hover:bg-[#FAF8F5] cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-2xl shadow-xs cursor-pointer"
+                >
+                  Simpan Bahan Baku
                 </button>
               </div>
             </form>

@@ -141,3 +141,116 @@ export async function adjustStock(formData: FormData) {
 
   revalidatePath('/stok');
 }
+
+export async function updateRawMaterial(formData: FormData) {
+  const session = await getSession();
+  if (!session) redirect('/login');
+
+  const id = formData.get('id') as string;
+  const outletId = (formData.get('outletId') as string) || 'out_default';
+  const name = (formData.get('name') as string)?.trim();
+  const unit = (formData.get('unit') as 'gr' | 'ml' | 'pcs' | 'lbr' | 'kg' | 'liter') || 'gr';
+  const costPerUnit = Math.max(0, Math.round(Number(formData.get('costPerUnit')) || 0));
+
+  const { role, allRoles } = await getCurrentUserRole(session.user.id);
+  if (role === 'kasir') {
+    throw new Error('Akses Ditolak: Kasir tidak memiliki izin untuk mengubah data bahan baku.');
+  }
+
+  const hasAccess = role === 'owner' || allRoles.some((r) => r.outletId === outletId);
+  if (!hasAccess) {
+    throw new Error('Akses Ditolak: Anda tidak memiliki izin untuk mengelola stok di cabang ini.');
+  }
+
+  if (!id || !name) {
+    throw new Error('ID dan Nama bahan baku wajib diisi');
+  }
+
+  const validUnits = ['gr', 'ml', 'pcs', 'lbr', 'kg', 'liter'];
+  if (!validUnits.includes(unit)) {
+    throw new Error('Satuan bahan baku tidak valid');
+  }
+
+  await db
+    .update(rawMaterials)
+    .set({
+      name,
+      unit,
+      costPerUnit,
+    })
+    .where(and(eq(rawMaterials.id, id), eq(rawMaterials.outletId, outletId)));
+
+  revalidatePath('/stok');
+  revalidatePath('/pos');
+  revalidatePath('/products');
+}
+
+export async function createRawMaterial(formData: FormData) {
+  const session = await getSession();
+  if (!session) redirect('/login');
+
+  const outletId = (formData.get('outletId') as string) || 'out_default';
+  const name = (formData.get('name') as string)?.trim();
+  const unit = (formData.get('unit') as 'gr' | 'ml' | 'pcs' | 'lbr' | 'kg' | 'liter') || 'gr';
+  const costPerUnit = Math.max(0, Math.round(Number(formData.get('costPerUnit')) || 0));
+  const initialStock = Math.max(0, Math.round(Number(formData.get('initialStock')) || 0));
+
+  const { role, allRoles } = await getCurrentUserRole(session.user.id);
+  if (role === 'kasir') {
+    throw new Error('Akses Ditolak: Kasir tidak memiliki izin untuk menambah bahan baku.');
+  }
+
+  const hasAccess = role === 'owner' || allRoles.some((r) => r.outletId === outletId);
+  if (!hasAccess) {
+    throw new Error('Akses Ditolak: Anda tidak memiliki izin untuk mengelola stok di cabang ini.');
+  }
+
+  if (!name) {
+    throw new Error('Nama bahan baku wajib diisi');
+  }
+
+  const validUnits = ['gr', 'ml', 'pcs', 'lbr', 'kg', 'liter'];
+  if (!validUnits.includes(unit)) {
+    throw new Error('Satuan bahan baku tidak valid');
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const newId = `rm_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
+
+  await db.transaction(async (tx) => {
+    await tx.insert(rawMaterials).values({
+      id: newId,
+      outletId,
+      name,
+      unit,
+      costPerUnit,
+      createdAt: now,
+    });
+
+    if (initialStock > 0) {
+      await tx.insert(rawMaterialStock).values({
+        id: `rms_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`,
+        outletId,
+        rawMaterialId: newId,
+        quantityOnHand: initialStock,
+        updatedAt: now,
+      });
+
+      await tx.insert(rawMaterialMovements).values({
+        id: `rmm_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`,
+        outletId,
+        rawMaterialId: newId,
+        type: 'purchase',
+        quantity: initialStock,
+        notes: 'Stok awal bahan baku baru',
+        createdBy: session.user.id,
+        createdAt: now,
+      });
+    }
+  });
+
+  revalidatePath('/stok');
+  revalidatePath('/pos');
+  revalidatePath('/products');
+}
+

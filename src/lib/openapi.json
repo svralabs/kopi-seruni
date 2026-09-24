@@ -328,7 +328,7 @@
           "discountType": { "type": "string", "enum": ["percentage", "fixed"], "nullable": true },
           "discountValue": { "type": "integer", "nullable": true },
           "taxRate": { "type": "integer", "example": 11, "description": "Tarif PPN persen (11%)" },
-          "paymentMethod": { "type": "string", "enum": ["cash", "qris", "transfer", "debit"], "example": "cash" },
+          "paymentMethod": { "type": "string", "enum": ["cash", "qris", "transfer", "debit", "edc", "shopeefood", "gofood"], "example": "cash" },
           "notes": { "type": "string", "nullable": true }
         }
       },

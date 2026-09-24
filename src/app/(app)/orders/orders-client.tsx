@@ -294,8 +294,11 @@ export default function OrdersClient({
           <option value="all">Semua Metode Bayar</option>
           <option value="cash">Tunai (Cash)</option>
           <option value="qris">QRIS</option>
-          <option value="debit">Debit / EDC</option>
+          <option value="edc">Mesin EDC</option>
+          <option value="debit">Debit</option>
           <option value="transfer">Transfer Bank</option>
+          <option value="shopeefood">ShopeeFood</option>
+          <option value="gofood">GoFood</option>
         </select>
       </div>
 

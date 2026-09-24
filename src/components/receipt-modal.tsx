@@ -26,7 +26,7 @@ export interface ReceiptData {
   taxRate: number;
   taxAmount: number;
   total: number;
-  paymentMethod: 'cash' | 'qris' | 'transfer' | 'debit';
+  paymentMethod: 'cash' | 'qris' | 'transfer' | 'debit' | 'edc' | 'shopeefood' | 'gofood';
   cashReceived?: number;
   change?: number;
   notes?: string | null;

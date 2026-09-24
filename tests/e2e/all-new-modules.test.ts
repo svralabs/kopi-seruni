@@ -124,4 +124,25 @@ describe('E2E Integration Test: Phase 1-5 Extended POS Modules', () => {
     expect(stockRes).toBeDefined();
     expect(stockRes.quantityOnHand).toBe(5000);
   });
+
+  it('Module 4: Update Raw Material (Name, Unit, Cost per Unit)', async () => {
+    // Update raw material name and cost per unit
+    await db
+      .update(rawMaterials)
+      .set({
+        name: 'Biji Kopi Arabica Gayo Premium',
+        unit: 'gr',
+        costPerUnit: 250, // Updated from 200 to 250
+      })
+      .where(and(eq(rawMaterials.id, rawId), eq(rawMaterials.outletId, TEST_OUTLET)));
+
+    const [updated] = await db
+      .select()
+      .from(rawMaterials)
+      .where(and(eq(rawMaterials.id, rawId), eq(rawMaterials.outletId, TEST_OUTLET)));
+
+    expect(updated).toBeDefined();
+    expect(updated.name).toBe('Biji Kopi Arabica Gayo Premium');
+    expect(updated.costPerUnit).toBe(250);
+  });
 });

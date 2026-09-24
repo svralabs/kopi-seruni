@@ -53,11 +53,16 @@ export async function closeShift(shiftId: string, outletId: string, closingCash:
     ));
 
   const expectedCash = shift.openingCash + (cashResult?.total ?? 0);
+  const diff = closingCash - expectedCash;
+
+  if (diff !== 0 && (!notes || notes.trim() === '')) {
+    throw new Error('Terdapat selisih kas fisik laci. Catatan alasan selisih wajib diisi!');
+  }
 
   await db
     .update(shifts)
-    .set({ closedAt: now, closingCash, expectedCash, notes: notes ?? null })
+    .set({ closedAt: now, closingCash, expectedCash, notes: notes ? notes.trim() : null })
     .where(eq(shifts.id, shiftId));
 
-  return { expectedCash, closingCash, diff: closingCash - expectedCash };
+  return { expectedCash, closingCash, diff };
 }

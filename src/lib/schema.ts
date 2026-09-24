@@ -127,7 +127,7 @@ export const orders = sqliteTable('orders', {
   taxAmount: integer('tax_amount').notNull().default(0),
   total: integer('total').notNull(),                 // subtotal - discount + tax
   paymentMethod: text('payment_method', {
-    enum: ['cash', 'qris', 'transfer', 'debit'],
+    enum: ['cash', 'qris', 'transfer', 'debit', 'edc', 'shopeefood', 'gofood'],
   }).notNull().default('cash'),
   status: text('status', {
     enum: ['pending', 'completed', 'voided'],
