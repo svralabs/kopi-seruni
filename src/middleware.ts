@@ -3,6 +3,19 @@ import { NextRequest, NextResponse } from 'next/server';
 // Middleware berjalan di Edge runtime — TIDAK import db di sini.
 // Gunakan cookie cache BetterAuth untuk validasi session tanpa DB hit.
 export async function middleware(req: NextRequest) {
+  const pathname = req.nextUrl.pathname;
+  if (
+    pathname === '/manifest.webmanifest' ||
+    pathname === '/sw.js' ||
+    pathname === '/offline.html' ||
+    pathname.startsWith('/icon-') ||
+    pathname === '/icon.png' ||
+    pathname === '/apple-icon.png' ||
+    pathname === '/favicon.ico'
+  ) {
+    return NextResponse.next();
+  }
+
   // Cek session dari cookie (BetterAuth cookie cache)
   const sessionToken = req.cookies.get('better-auth.session_token')?.value
     ?? req.cookies.get('__Secure-better-auth.session_token')?.value;

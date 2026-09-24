@@ -1,5 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { SWRegister } from "@/components/sw-register";
+import { PWAInstallBanner } from "@/components/pwa-install-banner";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -12,9 +14,18 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+export const viewport: Viewport = {
+  themeColor: "#201C1A",
+};
+
 export const metadata: Metadata = {
   title: "Kopi Seruni POS — Point of Sale & Manajemen Outlet",
   description: "Sistem Point of Sale, Kasir, dan Manajemen Multi-Owner Kopi Seruni",
+  appleWebApp: {
+    capable: true,
+    title: "Kopi Seruni",
+    statusBarStyle: "default",
+  },
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
@@ -32,7 +43,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       lang="id"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        <SWRegister />
+        <PWAInstallBanner />
+      </body>
     </html>
   );
 }
