@@ -147,7 +147,7 @@ export default function OrdersClient({
   };
 
   const effectiveOutlet = searchParams.get('outletId') || currentOutletId || 'out_default';
-  const getExportUrl = (format: 'pdf' | 'csv') => {
+  const getExportUrl = (format: 'pdf' | 'xlsx') => {
     const params = new URLSearchParams(searchParams.toString());
     params.set('format', format);
     params.delete('page');
@@ -171,14 +171,14 @@ export default function OrdersClient({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Export Excel / CSV */}
+          {/* Export Excel (.xlsx) */}
           <a
-            href={getExportUrl('csv')}
+            href={getExportUrl('xlsx')}
             download
             className="flex items-center gap-2 bg-white px-3.5 py-2.5 rounded-2xl border border-[#EBE7DF] hover:bg-[#FAF8F5] text-xs font-bold text-[#2D7A47] shadow-xs transition-colors"
           >
             <FileSpreadsheet className="w-4 h-4 text-[#2D7A47]" />
-            <span>Ekspor Excel (.csv)</span>
+            <span>Ekspor Excel (.xlsx)</span>
           </a>
 
           {/* Export PDF (Server-Side Backend) */}

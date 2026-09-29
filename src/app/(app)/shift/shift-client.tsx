@@ -1,13 +1,35 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { openShift, closeShift } from '@/app/actions/shift';
 import { formatRupiah, formatDateTime } from '@/lib/utils';
 import type { Shift, Outlet } from '@/lib/schema';
 import { toast } from '@/lib/toast';
-import { Clock, Lock, Play, Store, CheckCircle, AlertTriangle, X, Wallet, ArrowRight, Receipt, CreditCard, Banknote, QrCode, Building2, ShoppingBag, Utensils } from 'lucide-react';
+import {
+  Clock,
+  Lock,
+  Play,
+  Store,
+  CheckCircle,
+  AlertTriangle,
+  X,
+  Wallet,
+  ArrowRight,
+  Receipt,
+  CreditCard,
+  Banknote,
+  QrCode,
+  Building2,
+  ShoppingBag,
+  Utensils,
+  FileSpreadsheet,
+  FileText,
+  Search,
+  User,
+} from 'lucide-react';
 import PaginationControls from '@/components/pagination-controls';
+import SortableTh from '@/components/sortable-th';
 
 export interface ShiftSalesSummary {
   totalSales: number;
@@ -32,6 +54,7 @@ export default function ShiftClient({
   totalPages = 1,
   currentPage = 1,
   pageSize = 15,
+  periodLabel = 'Semua Periode',
 }: {
   activeShift: Shift | null;
   activeShiftSales?: ShiftSalesSummary;
@@ -42,8 +65,35 @@ export default function ShiftClient({
   totalPages?: number;
   currentPage?: number;
   pageSize?: number;
+  periodLabel?: string;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const searchQuery = searchParams.get('q') || '';
+  const statusFilter = searchParams.get('status') || 'all';
+
+  const updateFilter = (key: string, value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value && value !== 'all') {
+      params.set(key, value);
+    } else {
+      params.delete(key);
+    }
+    if (params.has('page')) params.set('page', '1');
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  const getExportUrl = (format: 'xlsx' | 'pdf') => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('format', format);
+    if (outletId && outletId !== 'all') {
+      params.set('outletId', outletId);
+    }
+    return `/api/export/shifts?${params.toString()}`;
+  };
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [openingCash, setOpeningCash] = useState(100000);
   const [closingCash, setClosingCash] = useState<number | ''>('');
@@ -113,25 +163,47 @@ export default function ShiftClient({
           </p>
         </div>
 
-        {activeShift ? (
-          <button
-            type="button"
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[#964B3B] hover:bg-red-800 text-white text-xs font-bold rounded-2xl shadow-xs transition-colors self-start sm:self-auto"
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Export Excel (.xlsx) */}
+          <a
+            href={getExportUrl('xlsx')}
+            download
+            className="flex items-center gap-2 bg-white px-3.5 py-2.5 rounded-2xl border border-[#EBE7DF] hover:bg-[#FAF8F5] text-xs font-bold text-[#2D7A47] shadow-xs transition-colors"
           >
-            <Lock className="w-4 h-4" />
-            <span>Tutup Shift & Rekonsiliasi</span>
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white text-xs font-bold rounded-2xl shadow-xs transition-colors self-start sm:self-auto"
+            <FileSpreadsheet className="w-4 h-4 text-[#2D7A47]" />
+            <span>Ekspor Excel (.xlsx)</span>
+          </a>
+
+          {/* Export PDF (Server-Side Backend) */}
+          <a
+            href={getExportUrl('pdf')}
+            download
+            className="flex items-center gap-2 bg-white px-3.5 py-2.5 rounded-2xl border border-[#EBE7DF] hover:bg-[#FAF8F5] text-xs font-bold text-[#964B3B] shadow-xs transition-colors"
           >
-            <Play className="w-4 h-4" />
-            <span>Buka Shift Baru</span>
-          </button>
-        )}
+            <FileText className="w-4 h-4 text-[#964B3B]" />
+            <span>Ekspor PDF</span>
+          </a>
+
+          {activeShift ? (
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-[#964B3B] hover:bg-red-800 text-white text-xs font-bold rounded-2xl shadow-xs transition-colors cursor-pointer self-start sm:self-auto"
+            >
+              <Lock className="w-4 h-4" />
+              <span>Tutup Shift & Rekonsiliasi</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-[#2E2520] hover:bg-[#453932] text-white text-xs font-bold rounded-2xl shadow-xs transition-colors cursor-pointer self-start sm:self-auto"
+            >
+              <Play className="w-4 h-4" />
+              <span>Buka Shift Baru</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* 1. TOP SUMMARY CARDS */}
@@ -268,24 +340,104 @@ export default function ShiftClient({
 
       {/* 2. FULL-WIDTH DATA TABLE */}
       <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-xs p-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="font-bold text-sm text-[#201C1A]">
-            Riwayat Sesi Shift & Rekonsiliasi Kas ({totalItems || recentShifts.length} Sesi)
-          </h3>
-          <span className="text-xs font-bold text-[#8E867C] px-3 py-1 bg-[#FAF8F5] rounded-xl border border-[#EBE7DF]">
+        {/* Table Title & Summary */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2">
+          <div>
+            <h3 className="font-bold text-sm text-[#201C1A]">
+              Riwayat Sesi Shift & Rekonsiliasi Kas ({totalItems || recentShifts.length} Sesi)
+            </h3>
+            <p className="text-[11px] text-[#8E867C] mt-0.5">
+              Periode: <span className="font-semibold text-[#201C1A]">{periodLabel}</span>
+            </p>
+          </div>
+          <span className="text-xs font-bold text-[#8E867C] px-3 py-1 bg-[#FAF8F5] rounded-xl border border-[#EBE7DF] self-start sm:self-auto">
             {currentOutletName}
           </span>
         </div>
 
+        {/* Filter and Search Bar */}
+        <div className="bg-[#FAF8F5] border border-[#ECE7DE] rounded-2xl p-3 flex flex-wrap items-center gap-3">
+          {/* Search Box */}
+          <div className="relative flex-1 min-w-[220px]">
+            <Search className="w-3.5 h-3.5 text-[#9E968B] absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              defaultValue={searchQuery}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') updateFilter('q', e.currentTarget.value);
+              }}
+              onBlur={(e) => updateFilter('q', e.target.value)}
+              placeholder="Cari nama kasir atau catatan shift (Enter)..."
+              className="w-full pl-9 pr-3 py-2 bg-white border border-[#EAE5DC] rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
+            />
+          </div>
+
+          {/* Status Filter */}
+          <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-[#ECE7DE]">
+            <button
+              type="button"
+              onClick={() => updateFilter('status', 'all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                statusFilter === 'all'
+                  ? 'bg-[#2E2520] text-white shadow-2xs'
+                  : 'text-[#8E867C] hover:text-[#201C1A]'
+              }`}
+            >
+              Semua Status
+            </button>
+            <button
+              type="button"
+              onClick={() => updateFilter('status', 'active')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                statusFilter === 'active'
+                  ? 'bg-emerald-700 text-white shadow-2xs'
+                  : 'text-[#8E867C] hover:text-[#201C1A]'
+              }`}
+            >
+              Sedang Berjalan
+            </button>
+            <button
+              type="button"
+              onClick={() => updateFilter('status', 'closed')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                statusFilter === 'closed'
+                  ? 'bg-[#2E2520] text-white shadow-2xs'
+                  : 'text-[#8E867C] hover:text-[#201C1A]'
+              }`}
+            >
+              Selesai
+            </button>
+          </div>
+
+          {/* Multi-Outlet Dropdown if multiple outlets */}
+          {allOutlets.length > 1 && (
+            <select
+              value={outletId}
+              onChange={(e) => updateFilter('outletId', e.target.value)}
+              className="px-3 py-2 bg-white border border-[#EAE5DC] rounded-xl text-xs font-bold text-[#4A4238] focus:outline-none"
+            >
+              <option value="all">Semua Cabang</option>
+              {allOutlets.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        {/* Table with Sortable Headers */}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-[#F0ECE4] bg-[#FAF8F5] text-[#8E867C] text-[10px] font-bold uppercase tracking-wider">
-                <th className="py-3.5 px-4">Waktu Buka / Tutup</th>
-                <th className="py-3.5 px-4">Modal Awal</th>
-                <th className="py-3.5 px-4">Kas Seharusnya</th>
-                <th className="py-3.5 px-4">Kas Fisik Laci</th>
-                <th className="py-3.5 px-4 text-right">Selisih Rekonsiliasi</th>
+                <SortableTh label="Waktu Buka / Tutup" field="openedAt" />
+                <SortableTh label="Petugas Kasir" field="kasir" />
+                <th className="py-3.5 px-4">Cabang</th>
+                <SortableTh label="Modal Awal" field="openingCash" />
+                <SortableTh label="Kas Seharusnya" field="expectedCash" />
+                <SortableTh label="Kas Fisik Laci" field="closingCash" />
+                <SortableTh label="Selisih Rekonsiliasi" field="selisih" className="text-right" />
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F4F0E8]">
@@ -294,6 +446,7 @@ export default function ShiftClient({
                   s.closingCash != null && s.expectedCash != null ? s.closingCash - s.expectedCash : null;
                 return (
                   <tr key={s.id} className="hover:bg-[#FBF9F6] transition-colors">
+                    {/* Waktu Buka & Tutup */}
                     <td className="py-3.5 px-4 text-xs">
                       <p className="font-bold text-[#201C1A]">
                         {formatDateTime(s.openedAt)}
@@ -317,13 +470,35 @@ export default function ShiftClient({
                         </p>
                       )}
                     </td>
+
+                    {/* Petugas Kasir */}
+                    <td className="py-3.5 px-4">
+                      <div className="flex items-center gap-1.5 font-bold text-[#201C1A]">
+                        <User className="w-3.5 h-3.5 text-[#8E867C]" />
+                        <span>{s.kasirName || 'Kasir'}</span>
+                      </div>
+                      <span className="text-[10px] text-[#8E867C] font-mono">{s.id}</span>
+                    </td>
+
+                    {/* Cabang Outlet */}
+                    <td className="py-3.5 px-4 font-semibold text-[#54382B]">
+                      {s.outletName || currentOutletName}
+                    </td>
+
+                    {/* Modal Awal */}
                     <td className="py-3.5 px-4 text-[#6B635A] font-semibold">{formatRupiah(s.openingCash)}</td>
+
+                    {/* Kas Seharusnya */}
                     <td className="py-3.5 px-4 font-bold text-[#201C1A]">
                       {s.expectedCash != null ? formatRupiah(s.expectedCash) : '-'}
                     </td>
+
+                    {/* Kas Fisik Laci */}
                     <td className="py-3.5 px-4 font-bold text-[#201C1A]">
                       {s.closingCash != null ? formatRupiah(s.closingCash) : '-'}
                     </td>
+
+                    {/* Selisih */}
                     <td className="py-3.5 px-4 text-right font-black text-sm">
                       {diff != null ? (
                         <span
@@ -346,8 +521,12 @@ export default function ShiftClient({
               })}
               {recentShifts.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="text-center py-12 text-[#9E968B] text-xs">
-                    Belum ada riwayat shift pada outlet ini.
+                  <td colSpan={7} className="text-center py-12 text-[#9E968B] text-xs">
+                    <Clock className="w-8 h-8 mx-auto mb-2 text-[#D5CEC2] stroke-[1.2]" />
+                    <p className="font-bold text-sm text-[#201C1A]">Tidak ada riwayat shift ditemukan</p>
+                    <p className="text-xs text-[#8E867C] mt-0.5">
+                      Coba sesuaikan filter outlet, status, atau kata kunci pencarian
+                    </p>
                   </td>
                 </tr>
               )}

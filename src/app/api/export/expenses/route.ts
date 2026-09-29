@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { expenses, expenseCategories, outlets } from '@/lib/schema';
-import { eq, desc, and, gte, lte, like, or } from 'drizzle-orm';
+import { eq, desc, and, gte, lte, like, or, inArray } from 'drizzle-orm';
 import { formatDate, getDateRangeFromParams } from '@/lib/utils';
 import { generateExpensesPdf } from '@/lib/pdf-generator';
+import { generateExpensesExcel } from '@/lib/excel-generator';
+import { auth } from '@/lib/auth';
+import { userOutletRoles } from '@/lib/schema';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -26,12 +29,33 @@ export async function GET(request: NextRequest) {
   const from = searchParams.get('from') || undefined;
   const to = searchParams.get('to') || undefined;
   const q = searchParams.get('q') || undefined;
-  const format = searchParams.get('format') || 'csv';
+  const format = searchParams.get('format') || 'xlsx';
 
   const { startEpoch, endEpoch, label } = getDateRangeFromParams({ period, from, to });
 
   const conditions = [];
-  if (outletId !== 'all') conditions.push(eq(expenses.outletId, outletId));
+
+  try {
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (session?.user?.id) {
+      const roles = await db
+        .select({ outletId: userOutletRoles.outletId })
+        .from(userOutletRoles)
+        .where(eq(userOutletRoles.userId, session.user.id));
+      if (roles.length > 0) {
+        const allowedIds = roles.map((r) => r.outletId);
+        if (outletId === 'all') {
+          conditions.push(inArray(expenses.outletId, allowedIds));
+        } else if (!allowedIds.includes(outletId)) {
+          return new NextResponse('Akses ditolak ke cabang ini', { status: 403 });
+        }
+      }
+    }
+  } catch {}
+
+  if (outletId !== 'all' && !conditions.some((c: any) => c === eq(expenses.outletId, outletId))) {
+    conditions.push(eq(expenses.outletId, outletId));
+  }
   if (startEpoch > 0) conditions.push(gte(expenses.expenseDate, startEpoch));
   if (endEpoch > 0) conditions.push(lte(expenses.expenseDate, endEpoch));
   if (q) {
@@ -68,26 +92,42 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // 2. CSV Export (Default)
-  const headers = ['ID Pengeluaran', 'Tanggal', 'Cabang Outlet', 'Kategori', 'Keterangan', 'Metode Bayar', 'Nominal (Rp)'];
-  
-  const csvRows = rows.map((r) => [
-    `"${r.expense.id}"`,
-    `"${formatDate(r.expense.expenseDate)}"`,
-    `"${r.outlet?.name || 'Pusat'}"`,
-    `"${r.category?.name || 'Umum'}"`,
-    `"${r.expense.description.replace(/"/g, '""')}"`,
-    `"${r.expense.paymentMethod.toUpperCase()}"`,
-    r.expense.amount,
-  ]);
+  // 2. CSV Export (Fallback)
+  if (format === 'csv') {
+    const headers = ['ID Pengeluaran', 'Tanggal', 'Cabang Outlet', 'Kategori', 'Keterangan', 'Metode Bayar', 'Nominal (Rp)'];
+    const csvRows = rows.map((r) => [
+      `"${r.expense.id}"`,
+      `"${formatDate(r.expense.expenseDate)}"`,
+      `"${r.outlet?.name || 'Pusat'}"`,
+      `"${r.category?.name || 'Umum'}"`,
+      `"${r.expense.description.replace(/"/g, '""')}"`,
+      `"${r.expense.paymentMethod.toUpperCase()}"`,
+      r.expense.amount,
+    ]);
 
-  const csvContent = '\uFEFF' + [headers.join(','), ...csvRows.map((e) => e.join(','))].join('\n');
+    const csvContent = '\uFEFF' + [headers.join(','), ...csvRows.map((e) => e.join(','))].join('\n');
 
-  return new NextResponse(csvContent, {
+    return new NextResponse(csvContent, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="laporan-pengeluaran-seruni-${Date.now()}.csv"`,
+      },
+    });
+  }
+
+  // 3. Excel (.xlsx) Export (Default)
+  const excelBuffer = await generateExpensesExcel(rows, {
+    outletName,
+    periodLabel: label,
+    printedAt: new Date().toLocaleString('id-ID'),
+  });
+
+  return new NextResponse(new Uint8Array(excelBuffer), {
     status: 200,
     headers: {
-      'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': `attachment; filename="laporan-pengeluaran-seruni-${Date.now()}.csv"`,
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="laporan-pengeluaran-seruni-${Date.now()}.xlsx"`,
     },
   });
 }

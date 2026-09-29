@@ -61,13 +61,13 @@ export async function checkout(payload: CheckoutPayload) {
   const taxAmount = calcTax(afterDiscount, payload.taxRate);
   const total = calcTotal(subtotal, discountAmount, taxAmount);
 
-  // Sanitize shiftId (verify against DB or find active open shift)
+  // Sanitize shiftId (verify against DB and ensure shift is open)
   let sanitizedShiftId: string | null = null;
   if (payload.shiftId && payload.shiftId.trim() !== '' && payload.shiftId !== 'shf_default') {
     const [existingShift] = await db
       .select({ id: shifts.id })
       .from(shifts)
-      .where(eq(shifts.id, payload.shiftId.trim()))
+      .where(and(eq(shifts.id, payload.shiftId.trim()), isNull(shifts.closedAt)))
       .limit(1);
     if (existingShift) {
       sanitizedShiftId = existingShift.id;
@@ -84,6 +84,10 @@ export async function checkout(payload: CheckoutPayload) {
     if (activeShift) {
       sanitizedShiftId = activeShift.id;
     }
+  }
+
+  if (!sanitizedShiftId) {
+    throw new Error('Shift kasir belum dibuka. Anda harus membuka shift kasir terlebih dahulu sebelum memproses transaksi.');
   }
 
   const orderId = `ord_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;

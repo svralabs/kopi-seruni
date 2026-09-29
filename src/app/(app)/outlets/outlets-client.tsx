@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { createOutlet, updateOutlet } from '@/app/actions/outlets';
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { createOutlet, updateOutlet, deleteOutlet } from '@/app/actions/outlets';
 import { formatDate } from '@/lib/utils';
 import type { Outlet } from '@/lib/schema';
 import { toast } from '@/lib/toast';
@@ -13,10 +14,11 @@ import {
   Calendar, 
   ArrowRight, 
   Building2, 
-  X,
-  Search,
-  CheckCircle,
-  Pencil
+  X, 
+  Search, 
+  CheckCircle, 
+  Pencil, 
+  Trash2 
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -25,8 +27,11 @@ export default function OutletsClient({
 }: {
   outletList: Outlet[];
 }) {
+  const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingOutlet, setEditingOutlet] = useState<Outlet | null>(null);
+  const [deletingOutlet, setDeletingOutlet] = useState<Outlet | null>(null);
+  const [isPending, startTransition] = useTransition();
   const [searchQuery, setSearchQuery] = useState('');
 
   const totalCount = outletList.length;
@@ -148,6 +153,15 @@ export default function OutletsClient({
                       title="Edit Cabang"
                     >
                       <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isPending}
+                      onClick={() => setDeletingOutlet(outlet)}
+                      className="p-1.5 text-[#964B3B] hover:bg-[#FBEBE8] rounded-xl transition-colors inline-flex cursor-pointer disabled:opacity-50"
+                      title="Hapus Cabang"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                     <Link
                       href={`/pos?outletId=${outlet.id}`}
@@ -338,6 +352,56 @@ export default function OutletsClient({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 4. MODAL DIALOG: KONFIRMASI HAPUS CABANG */}
+      {deletingOutlet && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-3xl border border-[#EBE7DF] shadow-2xl max-w-sm w-full p-6 space-y-4 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-[#FBEBE8] text-[#964B3B] flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-bold text-base text-[#201C1A]">Hapus Cabang Outlet?</h3>
+              <p className="text-xs text-[#7A7268] mt-1.5 leading-relaxed">
+                Tindakan ini akan menghapus outlet <strong className="text-[#201C1A]">{deletingOutlet.name}</strong> beserta seluruh riwayat transaksi dan data terkait. Tindakan ini tidak dapat dibatalkan.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() => setDeletingOutlet(null)}
+                className="flex-1 py-2.5 bg-[#FAF8F5] hover:bg-[#F2ECE3] text-[#4A4238] font-bold text-xs rounded-xl border border-[#E5E0D6] transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() => {
+                  startTransition(async () => {
+                    try {
+                      const res = await deleteOutlet(deletingOutlet.id);
+                      if (!res.success) {
+                        toast.error(res.error || 'Gagal menghapus cabang');
+                        return;
+                      }
+                      toast.success(`Cabang "${deletingOutlet.name}" berhasil dihapus`);
+                      setDeletingOutlet(null);
+                      router.refresh();
+                    } catch (err: any) {
+                      toast.error(err?.message || 'Gagal menghapus cabang');
+                    }
+                  });
+                }}
+                className="flex-1 py-2.5 bg-[#964B3B] hover:bg-[#7D3E30] text-white font-bold text-xs rounded-xl transition-colors shadow-xs cursor-pointer disabled:opacity-50"
+              >
+                {isPending ? 'Menghapus...' : 'Ya, Hapus'}
+              </button>
+            </div>
           </div>
         </div>
       )}

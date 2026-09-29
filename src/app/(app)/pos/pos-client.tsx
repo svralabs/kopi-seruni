@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useTransition, useRef } from 'react';
+import { useState, useTransition, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { formatRupiah, calcDiscount, calcTax, calcTotal } from '@/lib/utils';
 import { checkout } from '@/app/actions/checkout';
+import { openShift } from '@/app/actions/shift';
+import { toast } from '@/lib/toast';
 import type { Product, Category, Discount, Outlet } from '@/lib/schema';
 import ReceiptModal, { type ReceiptData } from '@/components/receipt-modal';
 import {
@@ -31,7 +33,9 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   ShoppingBag,
+  Lock,
 } from 'lucide-react';
 
 interface CartItem {
@@ -42,6 +46,7 @@ interface CartItem {
   sugar: '30%' | '50%' | '70%' | 'Normal';
   ice: '30%' | '50%' | '70%' | 'Normal';
   notes: string;
+  customPrice?: number;
 }
 
 const ITEMS_PER_PAGE = 8;
@@ -67,6 +72,29 @@ export default function POSClient({
 }) {
   const router = useRouter();
   const cartSectionRef = useRef<HTMLDivElement>(null);
+  const [activeShiftId, setActiveShiftId] = useState<string | undefined>(shiftId);
+  const [openingCashInput, setOpeningCashInput] = useState<number>(0);
+  const [isOpeningShift, setIsOpeningShift] = useState<boolean>(false);
+
+  useEffect(() => {
+    setActiveShiftId(shiftId);
+  }, [shiftId]);
+
+  const handleOpenShift = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsOpeningShift(true);
+    try {
+      const res = await openShift(currentOutlet.id, openingCashInput);
+      setActiveShiftId(res.shiftId);
+      toast.success('Shift kasir berhasil dibuka!');
+      router.refresh();
+    } catch (err: any) {
+      toast.error(err?.message || 'Gagal membuka shift kasir');
+    } finally {
+      setIsOpeningShift(false);
+    }
+  };
+
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -95,6 +123,13 @@ export default function POSClient({
 
   // Note edit modal state
   const [editingNoteItem, setEditingNoteItem] = useState<{ id: string; name: string; notes: string } | null>(null);
+
+  // Dynamic price modal state (e.g. Spesial Beans)
+  const [priceModalProduct, setPriceModalProduct] = useState<{
+    product: Product;
+    priceInput: string;
+    beanNotes: string;
+  } | null>(null);
 
   // Modals & Receipt state
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
@@ -167,15 +202,36 @@ export default function POSClient({
   };
 
   // Add to cart with chosen options
-  const addToCartWithOptions = (product: Product) => {
+  const addToCartWithOptions = (product: Product, overridePrice?: number, extraNote?: string) => {
+    // If product has dynamic price (price <= 0) and overridePrice wasn't provided, trigger modal
+    if (product.price <= 0 && overridePrice === undefined) {
+      setPriceModalProduct({
+        product,
+        priceInput: '',
+        beanNotes: '',
+      });
+      return;
+    }
+
     const opt = getOptions(product.id);
-    const cartKey = `${product.id}_${opt.mood}_${opt.sugar}_${opt.ice}`;
+    const effectivePrice = overridePrice !== undefined ? overridePrice : product.price;
+    const cartKey = `${product.id}_${opt.mood}_${opt.sugar}_${opt.ice}_${effectivePrice}`;
 
     setCart((prev) => {
       const existing = prev.find((item) => item.id === cartKey);
       if (existing) {
         return prev.map((item) =>
-          item.id === cartKey ? { ...item, quantity: item.quantity + 1 } : item
+          item.id === cartKey
+            ? {
+                ...item,
+                quantity: item.quantity + 1,
+                notes: extraNote
+                  ? item.notes
+                    ? `${item.notes}, ${extraNote}`
+                    : extraNote
+                  : item.notes,
+              }
+            : item
         );
       }
       return [
@@ -187,7 +243,8 @@ export default function POSClient({
           mood: opt.mood,
           sugar: opt.sugar,
           ice: opt.ice,
-          notes: '',
+          notes: extraNote || '',
+          customPrice: overridePrice !== undefined ? overridePrice : undefined,
         },
       ];
     });
@@ -232,7 +289,7 @@ export default function POSClient({
 
   // Calculations
   const subtotal = cart.reduce(
-    (sum, item) => sum + item.product.price * item.quantity,
+    (sum, item) => sum + (item.customPrice ?? item.product.price) * item.quantity,
     0
   );
 
@@ -286,25 +343,28 @@ export default function POSClient({
   // Process checkout
   const handleProcessCheckout = () => {
     setErrorMessage(null);
-    const snapshotItems = cart.map((item) => ({
-      productId: item.product.id,
-      productName: item.product.name,
-      mood: item.mood,
-      sugar: item.sugar,
-      ice: item.ice,
-      quantity: item.quantity,
-      unitPrice: item.product.price,
-      productPrice: item.product.price,
-      costPrice: item.product.costPrice || 0,
-      subtotal: item.product.price * item.quantity,
-      notes: item.notes || undefined,
-    }));
+    const snapshotItems = cart.map((item) => {
+      const price = item.customPrice ?? item.product.price;
+      return {
+        productId: item.product.id,
+        productName: item.product.name,
+        mood: item.mood,
+        sugar: item.sugar,
+        ice: item.ice,
+        quantity: item.quantity,
+        unitPrice: price,
+        productPrice: price,
+        costPrice: item.product.costPrice || 0,
+        subtotal: price * item.quantity,
+        notes: item.notes || undefined,
+      };
+    });
 
     startTransition(async () => {
       try {
         const payload = {
           outletId: currentOutlet.id,
-          shiftId,
+          shiftId: activeShiftId,
           customerName: customerName.trim() || 'Pelanggan Walk-in',
           items: snapshotItems,
           discountId: selectedDiscount?.id,
@@ -347,32 +407,126 @@ export default function POSClient({
     });
   };
 
-  return (
-    <div className="flex flex-col gap-3 lg:h-[calc(100vh-5.5rem)] lg:min-h-[520px] lg:overflow-hidden pb-16 lg:pb-0 relative min-w-0">
-      {/* SHIFT STATUS WARNING BANNER */}
-      {!shiftId && (
-        <div className="w-full bg-[#FFF9EB] border border-[#F2DEAA] rounded-2xl p-3 sm:px-4 sm:py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 shadow-2xs shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-xl bg-[#FDECC0] text-[#96631E] flex items-center justify-center shrink-0">
+  if (!activeShiftId) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[500px] h-[calc(100vh-6.5rem)] px-4">
+        <div className="w-full max-w-md bg-white border border-[#EBE7DF] rounded-3xl p-6 sm:p-8 shadow-sm text-center space-y-5">
+          {/* Lock Icon */}
+          <div className="w-16 h-16 rounded-3xl bg-[#FAF6F0] border border-[#EAE3D6] flex items-center justify-center mx-auto text-[#54382B] shadow-2xs">
+            <Lock className="w-7 h-7" />
+          </div>
+
+          {/* Heading */}
+          <div className="space-y-1.5">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FDF4E5] border border-[#F5E2BE] text-[#96631E] text-xs font-bold">
               <Clock className="w-3.5 h-3.5" />
+              <span>Shift Kasir Belum Dibuka</span>
             </div>
-            <div>
-              <h4 className="text-xs font-bold text-[#664311]">Shift Kasir Belum Dibuka</h4>
-              <p className="text-[11px] text-[#8A5C1B]">
-                Transaksi tetap dapat diproses langsung. Buka shift kasir jika ingin merekap kas modal awal.
-              </p>
+            <h2 className="text-xl font-black text-[#201C1A] tracking-tight">
+              Akses POS Terkunci
+            </h2>
+            <p className="text-xs text-[#7A7268] leading-relaxed max-w-sm mx-auto">
+              Untuk mulai melayani transaksi di <span className="font-bold text-[#201C1A]">{currentOutlet?.name || 'Outlet'}</span>, kasir wajib membuka shift terlebih dahulu guna mencatat modal kas awal dan merekonsiliasi penerimaan.
+            </p>
+          </div>
+
+          {/* Kasir & Outlet Info Box */}
+          <div className="bg-[#FAF8F5] border border-[#ECE7DE] rounded-2xl p-3.5 text-xs text-left space-y-2.5">
+            {allOutlets && allOutlets.length > 1 ? (
+              <div>
+                <label className="block text-[11px] font-bold text-[#8E867C] mb-1">Pilih Outlet Cabang:</label>
+                <select
+                  value={currentOutlet.id}
+                  onChange={(e) => router.push(`/pos?outletId=${e.target.value}`)}
+                  className="w-full px-3 py-2 bg-white border border-[#EAE5DC] rounded-xl text-xs font-bold text-[#201C1A] focus:outline-none focus:ring-2 focus:ring-[#2E2520]"
+                >
+                  {allOutlets.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="flex justify-between items-center">
+                <span className="text-[#8E867C]">Outlet:</span>
+                <span className="font-bold text-[#201C1A]">{currentOutlet?.name}</span>
+              </div>
+            )}
+            <div className="flex justify-between items-center pt-1.5 border-t border-[#EFEAE2]">
+              <span className="text-[#8E867C]">Petugas Kasir:</span>
+              <span className="font-bold text-[#201C1A]">{kasirName}</span>
             </div>
           </div>
-          <Link
-            href={`/shift${currentOutlet?.id ? `?outletId=${currentOutlet.id}` : ''}`}
-            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-[#96631E] hover:bg-[#7D4E12] text-white text-xs font-bold rounded-xl shadow-2xs transition-colors"
-          >
-            <span>Buka Shift</span>
-            <ArrowRight className="w-3 h-3" />
-          </Link>
-        </div>
-      )}
 
+          {/* Open Shift Form */}
+          <form onSubmit={handleOpenShift} className="space-y-4 text-left">
+            <div>
+              <label className="block text-xs font-bold text-[#201C1A] mb-1.5">
+                Modal Kas Awal di Laci (Rp)
+              </label>
+              <div className="relative">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-[#8E867C]">
+                  Rp
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  step="1000"
+                  value={openingCashInput === 0 ? '' : openingCashInput}
+                  onChange={(e) => setOpeningCashInput(Math.max(0, Number(e.target.value)))}
+                  placeholder="0"
+                  className="w-full pl-10 pr-4 py-2.5 bg-[#FAF8F5] border border-[#EAE5DC] rounded-2xl text-sm font-bold text-[#201C1A] focus:outline-none focus:ring-2 focus:ring-[#2E2520]"
+                />
+              </div>
+
+              {/* Quick Presets */}
+              <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                <span className="text-[10px] text-[#8E867C] font-semibold">Cepat:</span>
+                {[0, 50000, 100000, 200000].map((amt) => (
+                  <button
+                    key={amt}
+                    type="button"
+                    onClick={() => setOpeningCashInput(amt)}
+                    className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition-colors ${
+                      openingCashInput === amt
+                        ? 'bg-[#2E2520] text-white border-[#2E2520]'
+                        : 'bg-white text-[#54382B] border-[#E8E3DA] hover:bg-[#FAF8F5]'
+                    }`}
+                  >
+                    {amt === 0 ? 'Rp 0' : formatRupiah(amt)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isOpeningShift}
+              className="w-full py-3 bg-[#2E2520] hover:bg-[#1F1915] text-white rounded-2xl font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-xs disabled:opacity-50"
+            >
+              <span>{isOpeningShift ? 'Membuka Shift...' : 'Buka Shift & Masuk POS'}</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </form>
+
+          {/* Secondary Link to Shift History */}
+          <div className="pt-2 border-t border-[#F0ECE4]">
+            <Link
+              href={`/shift${currentOutlet?.id ? `?outletId=${currentOutlet.id}` : ''}`}
+              className="text-xs font-semibold text-[#8E867C] hover:text-[#201C1A] transition-colors inline-flex items-center gap-1"
+            >
+              <span>Lihat Rekap & Riwayat Shift</span>
+              <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3 lg:h-[calc(100vh-5.5rem)] lg:min-h-[520px] lg:overflow-hidden pb-16 lg:pb-0 relative min-w-0">
       <div className="flex-1 flex flex-col lg:flex-row gap-3.5 min-h-0 min-w-0 lg:overflow-hidden">
         {/* ============================================================ */}
         {/* LEFT COLUMN: COMPACT CATALOG WITH PAGINATION (65%) */}
@@ -395,16 +549,14 @@ export default function POSClient({
                 <span className="font-bold text-[#201C1A] text-[11px]">{kasirName}</span>
               </div>
 
-              <div
-                className={`px-2 py-0.5 rounded-full border flex items-center gap-1.5 font-bold text-[10px] ${
-                  shiftId
-                    ? 'bg-[#EBF6EE] text-[#2D7A47] border-[#D1EBD8]'
-                    : 'bg-[#FDF4E5] text-[#96631E] border-[#F5E2BE]'
-                }`}
+              <Link
+                href={`/shift${currentOutlet?.id ? `?outletId=${currentOutlet.id}` : ''}`}
+                title="Kelola shift kasir"
+                className="px-2 py-0.5 rounded-full border flex items-center gap-1.5 font-bold text-[10px] bg-[#EBF6EE] text-[#2D7A47] border-[#D1EBD8] hover:bg-[#DDF3E4] transition-colors"
               >
                 <Clock className="w-3 h-3" />
-                <span>{shiftId ? 'Shift Aktif' : 'Shift Belum Dibuka'}</span>
-              </div>
+                <span>Shift Aktif</span>
+              </Link>
             </div>
           </div>
 
@@ -462,25 +614,25 @@ export default function POSClient({
 
         {/* Center Grid: Compact Products (Responsive for Desktop & Tablet Landscape) */}
         <div className="flex-1 lg:min-h-0 lg:overflow-y-auto custom-scrollbar py-2 pr-0.5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-2.5 sm:gap-3">
             {paginatedProducts.map((p) => {
               const opt = getOptions(p.id);
 
               return (
                 <div
                   key={p.id}
-                  className="bg-[#FAF8F5] rounded-2xl border border-[#EBE7DF] p-2.5 flex flex-col justify-between shadow-2xs hover:border-[#D5CEC2] hover:bg-[#F8F5EE] transition-all space-y-1.5"
+                  className="bg-[#FAF8F5] rounded-2xl border border-[#EBE7DF] p-2.5 sm:p-3 flex flex-col justify-between shadow-2xs hover:border-[#D5CEC2] hover:bg-[#F8F5EE] transition-all gap-2"
                 >
-                  {/* Top: Category & Price */}
+                  {/* Top: Category, Stock & Price */}
                   <div>
-                    <div className="flex items-center justify-between mb-0.5">
-                      <div className="flex items-center gap-1">
-                        <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-white text-[#54382B] border border-[#ECE7DE] truncate max-w-[70px]">
+                    <div className="flex items-center justify-between gap-1.5 mb-1">
+                      <div className="flex items-center gap-1 min-w-0">
+                        <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-white text-[#54382B] border border-[#ECE7DE] truncate">
                           {categories.find((c) => c.id === p.categoryId)?.name || 'Menu'}
                         </span>
                         {estimatedStockMap[p.id] !== undefined && estimatedStockMap[p.id] < 999 && (
                           <span
-                            className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded-md ${
+                            className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded-md shrink-0 ${
                               estimatedStockMap[p.id] <= 0
                                 ? 'bg-[#FBEBE8] text-[#964B3B] border border-[#F3DAD5]'
                                 : estimatedStockMap[p.id] <= 10
@@ -492,77 +644,84 @@ export default function POSClient({
                           </span>
                         )}
                       </div>
-                      <span className="font-serif font-black text-xs text-[#201C1A]">
-                        {formatRupiah(p.price)}
+                      <span className="font-serif font-black text-xs sm:text-sm text-[#201C1A] shrink-0">
+                        {p.price > 0 ? (
+                          formatRupiah(p.price)
+                        ) : (
+                          <span className="px-1.5 py-0.5 rounded-md bg-[#FDF4E5] text-[#96631E] border border-[#F2E0C4] text-[9.5px] font-sans font-bold">
+                            Input Harga (ASK)
+                          </span>
+                        )}
                       </span>
                     </div>
 
-                    <h3 className="font-bold text-xs text-[#201C1A] line-clamp-1" title={p.name}>
+                    <h3 className="font-bold text-xs sm:text-[13px] text-[#201C1A] line-clamp-2 min-h-[2rem] leading-snug" title={p.name}>
                       {p.name}
                     </h3>
                   </div>
 
                   {/* Options: Mood, Sugar, Ice */}
-                  <div className="pt-1 border-t border-[#ECE7DE]">
-                    <div className="grid grid-cols-3 gap-1 text-[9px]">
-                      {/* Mood: Hot vs Ice */}
-                      <div className="bg-white p-0.5 rounded-lg border border-[#EAE5DC] flex gap-0.5">
-                        <button
-                          type="button"
-                          onClick={() => setOption(p.id, 'mood', 'Ice')}
-                          className={`flex-1 py-1 text-[9px] font-bold rounded-md flex items-center justify-center gap-0.5 transition-all cursor-pointer ${
-                            opt.mood === 'Ice'
-                              ? 'bg-[#2E2520] text-white shadow-2xs'
-                              : 'text-[#8E867C] hover:text-[#201C1A]'
-                          }`}
-                          title="Dingin"
-                        >
-                          <Snowflake className="w-2.5 h-2.5 shrink-0" />
-                          <span className="text-[8px] sm:text-[9px]">Ice</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setOption(p.id, 'mood', 'Hot')}
-                          className={`flex-1 py-1 text-[9px] font-bold rounded-md flex items-center justify-center gap-0.5 transition-all cursor-pointer ${
-                            opt.mood === 'Hot'
-                              ? 'bg-[#964B3B] text-white shadow-2xs'
-                              : 'text-[#8E867C] hover:text-[#201C1A]'
-                          }`}
-                          title="Panas"
-                        >
-                          <Flame className="w-2.5 h-2.5 shrink-0" />
-                          <span className="text-[8px] sm:text-[9px]">Hot</span>
-                        </button>
-                      </div>
+                  <div className="space-y-1.5 pt-1.5 border-t border-[#ECE7DE]">
+                    {/* Mood: Hot vs Ice */}
+                    <div className="bg-white p-0.5 rounded-xl border border-[#EAE5DC] flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setOption(p.id, 'mood', 'Ice')}
+                        className={`flex-1 py-1 px-1.5 text-[10px] font-bold rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                          opt.mood === 'Ice'
+                            ? 'bg-[#2E2520] text-white shadow-2xs'
+                            : 'text-[#8E867C] hover:text-[#201C1A]'
+                        }`}
+                        title="Dingin"
+                      >
+                        <Snowflake className="w-3 h-3 shrink-0" />
+                        <span>Ice</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOption(p.id, 'mood', 'Hot')}
+                        className={`flex-1 py-1 px-1.5 text-[10px] font-bold rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                          opt.mood === 'Hot'
+                            ? 'bg-[#964B3B] text-white shadow-2xs'
+                            : 'text-[#8E867C] hover:text-[#201C1A]'
+                        }`}
+                        title="Panas"
+                      >
+                        <Flame className="w-3 h-3 shrink-0" />
+                        <span>Hot</span>
+                      </button>
+                    </div>
 
-                      {/* Sugar Level */}
-                      <div>
+                    {/* Sugar & Ice Dropdowns (2 Equal Columns) */}
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <div className="relative">
                         <select
                           value={opt.sugar}
                           onChange={(e) => setOption(p.id, 'sugar', e.target.value)}
-                          className="w-full h-full px-1 py-1 bg-white border border-[#EAE5DC] rounded-lg text-[9px] font-semibold text-[#4A4238] focus:outline-none cursor-pointer"
-                          title="Level Gula"
+                          className="w-full appearance-none pl-2 pr-5 py-1 bg-white border border-[#EAE5DC] rounded-lg text-[10px] font-semibold text-[#4A4238] focus:outline-none focus:ring-1 focus:ring-[#2E2520] cursor-pointer truncate"
+                          title="Tingkat Gula"
                         >
-                          <option value="Normal">Gl Nrml</option>
-                          <option value="70%">Gl 70%</option>
-                          <option value="50%">Gl 50%</option>
-                          <option value="30%">Gl 30%</option>
+                          <option value="Normal">Gula: Normal</option>
+                          <option value="70%">Gula: 70%</option>
+                          <option value="50%">Gula: 50%</option>
+                          <option value="30%">Gula: 30%</option>
                         </select>
+                        <ChevronDown className="w-3 h-3 text-[#9E968B] absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                       </div>
 
-                      {/* Ice Level */}
-                      <div>
+                      <div className="relative">
                         <select
                           value={opt.ice}
                           onChange={(e) => setOption(p.id, 'ice', e.target.value)}
-                          className="w-full h-full px-1 py-1 bg-white border border-[#EAE5DC] rounded-lg text-[9px] font-semibold text-[#4A4238] focus:outline-none cursor-pointer"
-                          title="Level Es"
+                          className="w-full appearance-none pl-2 pr-5 py-1 bg-white border border-[#EAE5DC] rounded-lg text-[10px] font-semibold text-[#4A4238] focus:outline-none focus:ring-1 focus:ring-[#2E2520] cursor-pointer truncate"
+                          title="Tingkat Es"
                         >
-                          <option value="Normal">Es Nrml</option>
-                          <option value="70%">Es 70%</option>
-                          <option value="50%">Es 50%</option>
-                          <option value="30%">Es 30%</option>
+                          <option value="Normal">Es: Normal</option>
+                          <option value="70%">Es: 70%</option>
+                          <option value="50%">Es: 50%</option>
+                          <option value="30%">Es: 30%</option>
                         </select>
+                        <ChevronDown className="w-3 h-3 text-[#9E968B] absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                       </div>
                     </div>
                   </div>
@@ -571,10 +730,10 @@ export default function POSClient({
                   <button
                     type="button"
                     onClick={() => addToCartWithOptions(p)}
-                    className="w-full py-1.5 px-2 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-xl text-[11px] transition-all flex items-center justify-center gap-1 shadow-2xs cursor-pointer"
+                    className="w-full py-2 px-2 bg-[#2E2520] hover:bg-[#453932] active:scale-[0.98] text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer mt-0.5"
                   >
-                    <Plus className="w-3 h-3" />
-                    <span>Tambah</span>
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>{p.price > 0 ? 'Tambah' : 'Input Harga'}</span>
                   </button>
                 </div>
               );
@@ -686,26 +845,51 @@ export default function POSClient({
                     </p>
                   )}
                 </div>
-                <span className="font-bold text-xs text-[#201C1A] whitespace-nowrap">
-                  {formatRupiah(item.product.price * item.quantity)}
-                </span>
+                <div className="text-right shrink-0">
+                  <span className="font-bold text-xs text-[#201C1A] whitespace-nowrap block">
+                    {formatRupiah((item.customPrice ?? item.product.price) * item.quantity)}
+                  </span>
+                  {item.customPrice !== undefined && (
+                    <span className="text-[9px] text-[#96631E] bg-[#FDF4E5] border border-[#F2E0C4] px-1 py-0.2 rounded font-medium">
+                      @{formatRupiah(item.customPrice)}
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="flex items-center justify-between pt-1 border-t border-[#F0ECE4]">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setEditingNoteItem({
-                      id: item.id,
-                      name: item.product.name,
-                      notes: item.notes,
-                    })
-                  }
-                  className="text-[9px] font-semibold text-[#8E867C] hover:text-[#201C1A] flex items-center gap-1 cursor-pointer"
-                >
-                  <Pencil className="w-2.5 h-2.5" />
-                  <span>{item.notes ? 'Edit Note' : '+ Note'}</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEditingNoteItem({
+                        id: item.id,
+                        name: item.product.name,
+                        notes: item.notes,
+                      })
+                    }
+                    className="text-[9px] font-semibold text-[#8E867C] hover:text-[#201C1A] flex items-center gap-1 cursor-pointer"
+                  >
+                    <Pencil className="w-2.5 h-2.5" />
+                    <span>{item.notes ? 'Edit Note' : '+ Note'}</span>
+                  </button>
+                  {item.customPrice !== undefined && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPriceModalProduct({
+                          product: item.product,
+                          priceInput: String(item.customPrice),
+                          beanNotes: item.notes,
+                        })
+                      }
+                      className="text-[9px] font-semibold text-[#96631E] hover:text-[#664311] flex items-center gap-0.5 cursor-pointer"
+                    >
+                      <Pencil className="w-2.5 h-2.5" />
+                      <span>Ubah Harga</span>
+                    </button>
+                  )}
+                </div>
 
                 <div className="flex items-center gap-1">
                   <button
@@ -914,6 +1098,135 @@ export default function POSClient({
                 className="flex-1 py-2 px-3 bg-[#2E2520] hover:bg-[#453932] text-white font-bold rounded-xl text-xs cursor-pointer"
               >
                 Simpan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* MODAL: INPUT HARGA MENU DINAMIS (SPESIAL BEANS) */}
+      {/* ============================================================ */}
+      {priceModalProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl border border-[#EBE7DF] p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-[#F0ECE4] pb-2">
+              <div>
+                <h4 className="font-bold text-sm text-[#201C1A]">Tentukan Harga Menu</h4>
+                <p className="text-[11px] text-[#54382B] font-semibold">{priceModalProduct.product.name}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPriceModalProduct(null)}
+                className="text-[#9E968B] hover:text-[#201C1A] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-[#4A4238] mb-1">
+                  Nominal Harga Satuan (Rp) <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-[#8E867C]">
+                    Rp
+                  </span>
+                  <input
+                    type="number"
+                    autoFocus
+                    min={1000}
+                    step={1000}
+                    placeholder="Contoh: 25000"
+                    value={priceModalProduct.priceInput}
+                    onChange={(e) =>
+                      setPriceModalProduct((prev) =>
+                        prev ? { ...prev, priceInput: e.target.value } : null
+                      )
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const num = parseInt(priceModalProduct.priceInput, 10);
+                        if (num > 0) {
+                          addToCartWithOptions(
+                            priceModalProduct.product,
+                            num,
+                            priceModalProduct.beanNotes.trim() || undefined
+                          );
+                          setPriceModalProduct(null);
+                        }
+                      }
+                    }}
+                    className="w-full pl-10 pr-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl text-sm font-bold text-[#201C1A] focus:outline-none focus:ring-2 focus:ring-[#2E2520]"
+                  />
+                </div>
+              </div>
+
+              {/* Quick Preset Buttons */}
+              <div className="flex flex-wrap gap-1.5 pt-0.5">
+                {[15000, 20000, 25000, 30000, 35000].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() =>
+                      setPriceModalProduct((prev) =>
+                        prev ? { ...prev, priceInput: String(preset) } : null
+                      )
+                    }
+                    className="px-2.5 py-1 rounded-xl text-[10px] font-bold bg-[#FAF8F5] border border-[#ECE7DE] text-[#54382B] hover:bg-[#2E2520] hover:text-white transition-all cursor-pointer"
+                  >
+                    {formatRupiah(preset)}
+                  </button>
+                ))}
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#4A4238] mb-1">
+                  Catatan Varian / Biji Kopi (Opsional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Gayo Anaerob / Ethiopia Guji"
+                  value={priceModalProduct.beanNotes}
+                  onChange={(e) =>
+                    setPriceModalProduct((prev) =>
+                      prev ? { ...prev, beanNotes: e.target.value } : null
+                    )
+                  }
+                  className="w-full px-3.5 py-2 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl text-xs text-[#201C1A] focus:outline-none focus:ring-2 focus:ring-[#2E2520]"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2 border-t border-[#F0ECE4]">
+              <button
+                type="button"
+                onClick={() => setPriceModalProduct(null)}
+                className="flex-1 py-2 px-3 bg-[#F4EFE7] hover:bg-[#EBE4D8] text-[#4A4238] font-bold rounded-xl text-xs cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={
+                  !priceModalProduct.priceInput ||
+                  parseInt(priceModalProduct.priceInput, 10) <= 0
+                }
+                onClick={() => {
+                  const num = parseInt(priceModalProduct.priceInput, 10);
+                  if (num > 0) {
+                    addToCartWithOptions(
+                      priceModalProduct.product,
+                      num,
+                      priceModalProduct.beanNotes.trim() || undefined
+                    );
+                    setPriceModalProduct(null);
+                  }
+                }}
+                className="flex-1 py-2 px-3 bg-[#2E2520] hover:bg-[#453932] disabled:opacity-50 text-white font-bold rounded-xl text-xs cursor-pointer shadow-xs transition-colors"
+              >
+                Simpan & Tambah
               </button>
             </div>
           </div>

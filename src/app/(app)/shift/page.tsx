@@ -3,15 +3,26 @@ import { shifts, outlets, user, orders } from '@/lib/schema';
 import { getOutlets } from '@/lib/queries';
 import { requireAuthRole } from '@/lib/auth-helpers';
 import ShiftClient from './shift-client';
-import { desc, eq, isNull, and, or, gte, sql } from 'drizzle-orm';
+import { desc, asc, eq, isNull, isNotNull, and, or, gte, lte, sql, inArray, like } from 'drizzle-orm';
+import { getDateRangeFromParams } from '@/lib/utils';
 
 export default async function ShiftPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ outletId?: string; page?: string }>;
+  searchParams?: Promise<{ 
+    outletId?: string; 
+    page?: string;
+    sort?: string;
+    dir?: string;
+    period?: string;
+    from?: string;
+    to?: string;
+    status?: string;
+    q?: string;
+  }>;
 }) {
   const params = searchParams ? await searchParams : {};
-  const { effectiveOutletId, accessibleOutlets } = await requireAuthRole(
+  const { effectiveOutletId, accessibleOutlets, accessibleOutletIds } = await requireAuthRole(
     ['owner', 'manager', 'kasir'],
     params?.outletId
   );
@@ -19,6 +30,8 @@ export default async function ShiftPage({
   const page = Math.max(1, Number(params?.page || 1));
   const pageSize = 15;
   const offset = (page - 1) * pageSize;
+
+  const { startEpoch, endEpoch, label } = getDateRangeFromParams(params);
 
   let activeShift: any = null;
   let recentShifts: any[] = [];
@@ -40,6 +53,50 @@ export default async function ShiftPage({
   };
 
   try {
+    const conditions = [];
+
+    // Outlet condition
+    if (params?.outletId === 'all') {
+      conditions.push(inArray(shifts.outletId, accessibleOutletIds));
+    } else {
+      conditions.push(eq(shifts.outletId, outletId));
+    }
+
+    // Date range filter
+    if (startEpoch > 0) conditions.push(gte(shifts.openedAt, startEpoch));
+    if (endEpoch > 0) conditions.push(lte(shifts.openedAt, endEpoch));
+
+    // Status filter
+    if (params?.status === 'active') {
+      conditions.push(isNull(shifts.closedAt));
+    } else if (params?.status === 'closed') {
+      conditions.push(isNotNull(shifts.closedAt));
+    }
+
+    // Search query (cashier name or shift notes)
+    if (params?.q && params.q.trim()) {
+      const term = `%${params.q.trim()}%`;
+      conditions.push(or(like(shifts.notes, term), like(user.name, term)));
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // Sorting
+    const sort = params?.sort || 'openedAt';
+    const dir = params?.dir === 'asc' ? 'asc' : 'desc';
+    let orderBy = dir === 'asc' ? asc(shifts.openedAt) : desc(shifts.openedAt);
+
+    if (sort === 'closedAt') orderBy = dir === 'asc' ? asc(shifts.closedAt) : desc(shifts.closedAt);
+    else if (sort === 'openingCash') orderBy = dir === 'asc' ? asc(shifts.openingCash) : desc(shifts.openingCash);
+    else if (sort === 'expectedCash') orderBy = dir === 'asc' ? asc(shifts.expectedCash) : desc(shifts.expectedCash);
+    else if (sort === 'closingCash') orderBy = dir === 'asc' ? asc(shifts.closingCash) : desc(shifts.closingCash);
+    else if (sort === 'kasir') orderBy = dir === 'asc' ? asc(user.name) : desc(user.name);
+    else if (sort === 'diff' || sort === 'selisih') {
+      orderBy = dir === 'asc'
+        ? sql`(${shifts.closingCash} - ${shifts.expectedCash}) ASC`
+        : sql`(${shifts.closingCash} - ${shifts.expectedCash}) DESC`;
+    }
+
     const [activeList, countRes, rawShifts] = await Promise.all([
       db
         .select()
@@ -49,16 +106,19 @@ export default async function ShiftPage({
       db
         .select({ count: sql<number>`COUNT(*)` })
         .from(shifts)
-        .where(eq(shifts.outletId, outletId)),
+        .leftJoin(user, eq(shifts.kasirId, user.id))
+        .where(whereClause),
       db
         .select({
           shift: shifts,
           kasir: user,
+          outlet: outlets,
         })
         .from(shifts)
         .leftJoin(user, eq(shifts.kasirId, user.id))
-        .where(eq(shifts.outletId, outletId))
-        .orderBy(desc(shifts.openedAt))
+        .leftJoin(outlets, eq(shifts.outletId, outlets.id))
+        .where(whereClause)
+        .orderBy(orderBy)
         .limit(pageSize)
         .offset(offset),
     ]);
@@ -70,6 +130,7 @@ export default async function ShiftPage({
     recentShifts = rawShifts.map((r) => ({
       ...r.shift,
       kasirName: r.kasir?.name || 'Kasir',
+      outletName: r.outlet?.name || 'Kopi Seruni',
     }));
 
     if (activeShift) {
@@ -117,12 +178,13 @@ export default async function ShiftPage({
       activeShift={activeShift}
       activeShiftSales={activeShiftSales}
       recentShifts={recentShifts}
-      outletId={outletId}
+      outletId={params?.outletId || outletId}
       allOutlets={allOutlets}
       totalItems={totalItems}
       totalPages={totalPages}
       currentPage={page}
       pageSize={pageSize}
+      periodLabel={label}
     />
   );
 }

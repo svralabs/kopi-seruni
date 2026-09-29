@@ -508,3 +508,173 @@ export async function generateExpensesPdf(
   doc.end();
   return promise;
 }
+
+// ============================================================================
+// 4. LAPORAN REKAP SHIFT KASIR (SHIFTS REPORT)
+// ============================================================================
+export interface ShiftPdfRow {
+  shift: {
+    id: string;
+    openedAt: number;
+    closedAt?: number | null;
+    openingCash: number;
+    expectedCash?: number | null;
+    closingCash?: number | null;
+    notes?: string | null;
+  };
+  outlet?: { name: string } | null;
+  user?: { name: string } | null;
+}
+
+export async function generateShiftsPdf(
+  rows: ShiftPdfRow[],
+  meta: {
+    outletName: string;
+    periodLabel: string;
+    statusLabel?: string;
+    printedAt: string;
+  }
+): Promise<Buffer> {
+  const doc = new PDFDocument({ margin: 36, size: 'A4', bufferPages: true });
+  const chunks: Buffer[] = [];
+  doc.on('data', (c) => chunks.push(c));
+
+  const promise = new Promise<Buffer>((resolve, reject) => {
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+  });
+
+  let totalOpening = 0;
+  let totalClosing = 0;
+  let totalDiff = 0;
+
+  rows.forEach((r) => {
+    totalOpening += r.shift.openingCash || 0;
+    if (r.shift.closingCash != null) totalClosing += r.shift.closingCash;
+    if (r.shift.closedAt && r.shift.closingCash != null && r.shift.expectedCash != null) {
+      totalDiff += (r.shift.closingCash - r.shift.expectedCash);
+    }
+  });
+
+  let y = drawHeader(doc, 'Laporan Rekap Shift Kasir', [
+    { label: 'Cabang Outlet', value: meta.outletName },
+    { label: 'Periode Laporan', value: meta.periodLabel },
+    { label: 'Total Sesi Shift', value: `${rows.length} sesi` },
+    { label: 'Total Kas Fisik', value: cleanRp(totalClosing) },
+  ]);
+
+  const left = 36;
+  const contentWidth = 523;
+
+  const cols = [
+    { label: 'No', width: 20, align: 'center' as const },
+    { label: 'Kasir', width: 68, align: 'left' as const },
+    { label: 'Waktu Buka', width: 75, align: 'left' as const },
+    { label: 'Waktu Tutup', width: 75, align: 'left' as const },
+    { label: 'Modal Awal', width: 65, align: 'right' as const },
+    { label: 'Target Kas', width: 65, align: 'right' as const },
+    { label: 'Kas Fisik', width: 65, align: 'right' as const },
+    { label: 'Selisih', width: 90, align: 'right' as const },
+  ];
+
+  const drawTableHeader = (currY: number) => {
+    doc.rect(left, currY, contentWidth, 18).fill(COLORS.bgHeader);
+    let curX = left;
+    doc.font('Helvetica-Bold').fontSize(7.5).fillColor(COLORS.white);
+    cols.forEach((col) => {
+      doc.text(col.label, curX + 2, currY + 5, { width: col.width - 4, align: col.align });
+      curX += col.width;
+    });
+    return currY + 18;
+  };
+
+  y = drawTableHeader(y);
+
+  rows.forEach((r, idx) => {
+    if (y > doc.page.height - 55) {
+      doc.addPage();
+      y = drawTableHeader(36);
+    }
+
+    const isAlt = idx % 2 === 1;
+    if (isAlt) {
+      doc.rect(left, y, contentWidth, 16).fill(COLORS.bgRowAlt);
+    }
+
+    doc.strokeColor(COLORS.borderColor).lineWidth(0.5).moveTo(left, y + 16).lineTo(left + contentWidth, y + 16).stroke();
+
+    let curX = left;
+    const openDate = new Date(r.shift.openedAt * 1000).toLocaleString('id-ID', {
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const closeDate = r.shift.closedAt
+      ? new Date(r.shift.closedAt * 1000).toLocaleString('id-ID', {
+          day: '2-digit',
+          month: 'short',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : 'Aktif';
+
+    const diff = r.shift.closedAt && r.shift.closingCash != null && r.shift.expectedCash != null
+      ? r.shift.closingCash - r.shift.expectedCash
+      : null;
+
+    doc.font('Helvetica').fontSize(7.5).fillColor(COLORS.textDark);
+
+    // No
+    doc.text(String(idx + 1), curX + 2, y + 4.5, { width: cols[0].width - 4, align: cols[0].align });
+    curX += cols[0].width;
+
+    // Kasir
+    doc.font('Helvetica-Bold').text(r.user?.name || 'Kasir', curX + 2, y + 4.5, { width: cols[1].width - 4, align: cols[1].align });
+    curX += cols[1].width;
+
+    // Buka
+    doc.font('Helvetica').text(openDate, curX + 2, y + 4.5, { width: cols[2].width - 4, align: cols[2].align });
+    curX += cols[2].width;
+
+    // Tutup
+    doc.text(closeDate, curX + 2, y + 4.5, { width: cols[3].width - 4, align: cols[3].align });
+    curX += cols[3].width;
+
+    // Modal Awal
+    doc.text(cleanRp(r.shift.openingCash || 0), curX + 2, y + 4.5, { width: cols[4].width - 4, align: cols[4].align });
+    curX += cols[4].width;
+
+    // Target Kas
+    doc.text(r.shift.expectedCash != null ? cleanRp(r.shift.expectedCash) : '-', curX + 2, y + 4.5, { width: cols[5].width - 4, align: cols[5].align });
+    curX += cols[5].width;
+
+    // Kas Fisik
+    doc.text(r.shift.closingCash != null ? cleanRp(r.shift.closingCash) : '-', curX + 2, y + 4.5, { width: cols[6].width - 4, align: cols[6].align });
+    curX += cols[6].width;
+
+    // Selisih
+    if (diff != null) {
+      const color = diff === 0 ? COLORS.accentGreen : diff > 0 ? '#1D638B' : COLORS.accentRed;
+      const text = diff > 0 ? `+${cleanRp(diff)}` : cleanRp(diff);
+      doc.font('Helvetica-Bold').fillColor(color).text(text, curX + 2, y + 4.5, { width: cols[7].width - 4, align: cols[7].align });
+    } else {
+      doc.font('Helvetica').fillColor(COLORS.textMuted).text('Berjalan', curX + 2, y + 4.5, { width: cols[7].width - 4, align: cols[7].align });
+    }
+
+    y += 16;
+  });
+
+  if (y > doc.page.height - 55) {
+    doc.addPage();
+    y = 36;
+  }
+  doc.rect(left, y, contentWidth, 20).fill('#EDE8DF');
+  doc.font('Helvetica-Bold').fontSize(8).fillColor(COLORS.primary);
+  doc.text('TOTAL REKONSILIASI KAS FISIK', left + 10, y + 6);
+  doc.fillColor(COLORS.primary).text(cleanRp(totalClosing), left + contentWidth - 130, y + 6, { width: 120, align: 'right' });
+
+  applyFooters(doc);
+  doc.end();
+  return promise;
+}

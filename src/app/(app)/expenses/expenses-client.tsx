@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { formatRupiah, formatDate, formatDateTime } from '@/lib/utils';
 import { createExpense, updateExpense, deleteExpense } from '@/app/actions/expenses';
 import type { Outlet } from '@/lib/schema';
@@ -43,16 +43,28 @@ export default function ExpensesClient({
   totalAmount: number;
   currentOutletId?: string;
 }) {
+  const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<any | null>(null);
   const [deletingExpense, setDeletingExpense] = useState<any | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const searchParams = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [isPending, startTransition] = useTransition();
 
-  const searchParams = useSearchParams();
   const currentOutlet = searchParams.get('outletId') || currentOutletId || 'out_default';
   const outletMap = Object.fromEntries(outlets.map((o) => [o.id, o.name]));
   const averageAmount = totalItems > 0 ? Math.round(totalAmount / totalItems) : 0;
+
+  const updateFilter = (key: string, value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value && value !== 'all' && value.trim() !== '') {
+      params.set(key, value.trim());
+    } else {
+      params.delete(key);
+    }
+    params.set('page', '1');
+    router.push(`?${params.toString()}`);
+  };
 
   const handleConfirmDelete = () => {
     if (!deletingExpense) return;
@@ -67,15 +79,9 @@ export default function ExpensesClient({
     });
   };
 
-  const filteredList = expensesList.filter((e) => {
-    const desc = e.description?.toLowerCase() || '';
-    const cat = e.categoryName?.toLowerCase() || '';
-    const out = e.outletName?.toLowerCase() || '';
-    const q = searchQuery.toLowerCase();
-    return desc.includes(q) || cat.includes(q) || out.includes(q);
-  });
+  const filteredList = expensesList;
 
-  const getExportUrl = (format: 'pdf' | 'csv') => {
+  const getExportUrl = (format: 'pdf' | 'xlsx') => {
     const params = new URLSearchParams(searchParams.toString());
     params.set('format', format);
     params.delete('page');
@@ -104,14 +110,14 @@ export default function ExpensesClient({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Export Excel / CSV */}
+          {/* Export Excel (.xlsx) */}
           <a
-            href={getExportUrl('csv')}
+            href={getExportUrl('xlsx')}
             download
             className="flex items-center gap-2 bg-white px-3.5 py-2.5 rounded-2xl border border-[#EBE7DF] hover:bg-[#FAF8F5] text-xs font-bold text-[#2D7A47] shadow-xs transition-colors"
           >
             <FileSpreadsheet className="w-4 h-4 text-[#2D7A47]" />
-            <span>Ekspor Excel (.csv)</span>
+            <span>Ekspor Excel (.xlsx)</span>
           </a>
 
           {/* Export PDF (Server-Side Backend) */}
@@ -176,9 +182,13 @@ export default function ExpensesClient({
             <Search className="w-4 h-4 text-[#8E867C] absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Cari keterangan / kategori / cabang..."
+              placeholder="Cari keterangan / ID pengeluaran (Enter untuk mencari)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') updateFilter('q', e.currentTarget.value);
+              }}
+              onBlur={(e) => updateFilter('q', e.target.value)}
               className="w-full pl-9 pr-3.5 py-2 bg-[#F9F7F2] border border-[#E5E0D6] rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
             />
           </div>

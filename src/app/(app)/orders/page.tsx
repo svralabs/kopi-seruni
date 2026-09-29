@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { orders, outlets, user } from '@/lib/schema';
+import { orders, outlets, user, orderItems } from '@/lib/schema';
 import { getOutlets } from '@/lib/queries';
 import { requireAuthRole } from '@/lib/auth-helpers';
 import OrdersClient, { type OrderWithDetails } from './orders-client';
@@ -101,13 +101,30 @@ export default async function OrdersPage({
     totalItems = Number(countRes[0]?.count || 0);
     totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
 
+    const orderIds = baseOrders.map((b) => b.order.id);
+    const itemsByOrderId: Record<string, typeof orderItems.$inferSelect[]> = {};
+
+    if (orderIds.length > 0) {
+      const allItems = await db
+        .select()
+        .from(orderItems)
+        .where(inArray(orderItems.orderId, orderIds));
+
+      for (const item of allItems) {
+        if (!itemsByOrderId[item.orderId]) {
+          itemsByOrderId[item.orderId] = [];
+        }
+        itemsByOrderId[item.orderId].push(item);
+      }
+    }
+
     ordersList = baseOrders.map((b) => ({
       ...b.order,
       outletName: b.outlet?.name || 'Kopi Seruni',
       outletAddress: b.outlet?.address,
       outletPhone: b.outlet?.phone,
       kasirName: b.user?.name || 'Kasir',
-      items: [],
+      items: itemsByOrderId[b.order.id] || [],
     }));
   } catch (e) {
     console.warn('Error fetching orders:', e);

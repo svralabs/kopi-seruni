@@ -4,7 +4,7 @@ import { getOutlets, getExpenseCategories } from '@/lib/queries';
 import { requireAuthRole } from '@/lib/auth-helpers';
 import ExpensesClient from './expenses-client';
 import { getDateRangeFromParams } from '@/lib/utils';
-import { desc, eq, sql, and, gte, lte, inArray } from 'drizzle-orm';
+import { desc, eq, sql, and, gte, lte, inArray, like, or } from 'drizzle-orm';
 
 export default async function ExpensesPage({
   searchParams,
@@ -15,6 +15,7 @@ export default async function ExpensesPage({
     period?: string;
     from?: string;
     to?: string;
+    q?: string;
   }>;
 }) {
   const params = await searchParams;
@@ -43,6 +44,11 @@ export default async function ExpensesPage({
     }
     if (startEpoch > 0) conditions.push(gte(expenses.expenseDate, startEpoch));
     if (endEpoch > 0) conditions.push(lte(expenses.expenseDate, endEpoch));
+
+    if (params?.q) {
+      const query = `%${params.q}%`;
+      conditions.push(or(like(expenses.description, query), like(expenses.id, query)));
+    }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 

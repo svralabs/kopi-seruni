@@ -24,9 +24,15 @@ export function PWAInstallBanner() {
       return;
     }
 
-    // Cek apakah user sudah pernah menutup banner
+    // Cek apakah user sudah pernah menutup banner secara permanen
     const isDismissed = localStorage.getItem('seruni_pwa_dismissed') === 'true';
     if (isDismissed) {
+      return;
+    }
+
+    // Cek apakah banner sudah pernah tampil pada sesi browser ini (hanya tampil di first load)
+    const hasShownInSession = sessionStorage.getItem('seruni_pwa_shown_session') === 'true';
+    if (hasShownInSession) {
       return;
     }
 
@@ -35,6 +41,7 @@ export function PWAInstallBanner() {
     const isIosDevice = /iPad|iPhone|iPod/.test(ua) && !(window as unknown as { MSStream?: unknown }).MSStream;
 
     if (isIosDevice) {
+      sessionStorage.setItem('seruni_pwa_shown_session', 'true');
       setIsIOS(true);
       setIsVisible(true);
       return;
@@ -43,6 +50,7 @@ export function PWAInstallBanner() {
     // Tangani event beforeinstallprompt untuk Android / Chromium
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
+      sessionStorage.setItem('seruni_pwa_shown_session', 'true');
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       setIsVisible(true);
     };
@@ -75,6 +83,7 @@ export function PWAInstallBanner() {
 
   const handleDismiss = () => {
     setIsVisible(false);
+    sessionStorage.setItem('seruni_pwa_shown_session', 'true');
     localStorage.setItem('seruni_pwa_dismissed', 'true');
   };
 

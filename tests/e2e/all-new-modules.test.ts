@@ -10,18 +10,27 @@ import {
   rawMaterialStock,
   rawMaterialMovements,
   outlets,
+  user,
 } from '../../src/lib/schema';
 
 import { eq, and } from 'drizzle-orm';
 
 describe('E2E Integration Test: Phase 1-5 Extended POS Modules', () => {
   const TEST_OUTLET = `out_ext_test_${Date.now().toString().slice(-4)}`;
+  const TEST_USER = `usr_ext_test_${Date.now().toString().slice(-4)}`;
   const now = Math.floor(Date.now() / 1000);
   const dscId = `dsc_test_${Date.now().toString().slice(-4)}`;
   const rawId = `rm_test_${Date.now().toString().slice(-4)}`;
   const rmsId = `rms_test_${Date.now().toString().slice(-4)}`;
 
   beforeAll(async () => {
+    await db.insert(user).values({
+      id: TEST_USER,
+      name: 'Tester Ext Modules',
+      email: `tester_ext_${Date.now()}@seruni.test`,
+      emailVerified: true,
+    }).onConflictDoNothing();
+
     await db.insert(outlets).values({
       id: TEST_OUTLET,
       name: 'Kopi Seruni - Extended Test Outlet',
@@ -46,6 +55,7 @@ describe('E2E Integration Test: Phase 1-5 Extended POS Modules', () => {
     await db.delete(settings).where(eq(settings.outletId, TEST_OUTLET));
     await db.delete(discounts).where(eq(discounts.id, dscId));
     await db.delete(outlets).where(eq(outlets.id, TEST_OUTLET));
+    await db.delete(user).where(eq(user.id, TEST_USER));
   });
 
   it('Module 1: Create & Toggle Discount/Promo Voucher', async () => {
@@ -111,7 +121,7 @@ describe('E2E Integration Test: Phase 1-5 Extended POS Modules', () => {
         type: 'purchase',
         quantity: restockQty,
         notes: 'Restock bahan baku biji kopi 5kg',
-        createdBy: 'thnUQLaR2qQnLPhbx5ZrpErIZgkvaZ2x',
+        createdBy: TEST_USER,
         createdAt: now,
       });
     });

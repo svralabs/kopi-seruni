@@ -33,7 +33,7 @@ export default function NavbarPills({
   const showOutletPill = !hideOutletPages.some((p) => pathname === p || pathname.startsWith(p + '/'));
 
   // 3. Show date filter presets only on relevant reporting and analytic pages
-  const dateFilterPages = ['/dashboard', '/profit-loss', '/orders', '/expenses', '/bagi-hasil'];
+  const dateFilterPages = ['/dashboard', '/profit-loss', '/orders', '/expenses', '/bagi-hasil', '/shift'];
   const showDateFilterPill = dateFilterPages.some((p) => pathname === p || pathname.startsWith(p + '/'));
 
   const rawOutletId = searchParams?.get('outletId');

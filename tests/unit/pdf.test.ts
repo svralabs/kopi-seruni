@@ -103,5 +103,43 @@ describe('Unit Test: Server-Side PDF Generator', () => {
     const expRes = await getExpenses(expReq);
     expect(expRes.status).toBe(200);
     expect(expRes.headers.get('Content-Type')).toBe('application/pdf');
+
+    // Shifts Export Route
+    const { GET: getShifts } = await import('@/app/api/export/shifts/route');
+    const shiftsReq = new NextRequest('http://localhost:3000/api/export/shifts?format=pdf&period=this_month');
+    const shiftsRes = await getShifts(shiftsReq);
+    expect(shiftsRes.status).toBe(200);
+    expect(shiftsRes.headers.get('Content-Type')).toBe('application/pdf');
+  });
+
+  it('should generate valid PDF for Shifts report with rows', async () => {
+    const { generateShiftsPdf } = await import('@/lib/pdf-generator');
+    const dummyShifts = [
+      {
+        shift: {
+          id: 'shf_01',
+          openedAt: 1725350000,
+          closedAt: 1725380000,
+          openingCash: 100000,
+          expectedCash: 350000,
+          closingCash: 350000,
+          notes: 'Shift pagi lancar',
+        },
+        outlet: { name: 'Outlet Pusat' },
+        user: { name: 'Kasir Satu' },
+      },
+    ];
+
+    const buf = await generateShiftsPdf(dummyShifts, {
+      outletName: 'Outlet Pusat',
+      periodLabel: 'Bulan Ini',
+      statusLabel: 'Semua Status',
+      printedAt: '30 Sep 2026, 14:00',
+    });
+
+    expect(buf).toBeInstanceOf(Buffer);
+    expect(buf.length).toBeGreaterThan(1000);
+    const magic = buf.subarray(0, 5).toString('ascii');
+    expect(magic).toBe('%PDF-');
   });
 });

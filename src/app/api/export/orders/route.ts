@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { orders, outlets, user } from '@/lib/schema';
-import { eq, and, desc, asc, gte, lte, like, or } from 'drizzle-orm';
+import { eq, and, desc, asc, gte, lte, like, or, inArray } from 'drizzle-orm';
 import { formatDateTime, getDateRangeFromParams } from '@/lib/utils';
 import { generateOrdersPdf } from '@/lib/pdf-generator';
+import { generateOrdersExcel } from '@/lib/excel-generator';
+import { auth } from '@/lib/auth';
+import { userOutletRoles } from '@/lib/schema';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -30,12 +33,33 @@ export async function GET(request: NextRequest) {
   const to = searchParams.get('to') || undefined;
   const sort = searchParams.get('sort') || undefined;
   const dir = searchParams.get('dir') || 'desc';
-  const format = searchParams.get('format') || 'csv';
+  const format = searchParams.get('format') || 'xlsx';
 
   const { startEpoch, endEpoch, label } = getDateRangeFromParams({ period, from, to });
 
   const conditions = [];
-  if (outletId !== 'all') conditions.push(eq(orders.outletId, outletId));
+
+  try {
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (session?.user?.id) {
+      const roles = await db
+        .select({ outletId: userOutletRoles.outletId })
+        .from(userOutletRoles)
+        .where(eq(userOutletRoles.userId, session.user.id));
+      if (roles.length > 0) {
+        const allowedIds = roles.map((r) => r.outletId);
+        if (outletId === 'all') {
+          conditions.push(inArray(orders.outletId, allowedIds));
+        } else if (!allowedIds.includes(outletId)) {
+          return new NextResponse('Akses ditolak ke cabang ini', { status: 403 });
+        }
+      }
+    }
+  } catch {}
+
+  if (outletId !== 'all' && !conditions.some((c: any) => c === eq(orders.outletId, outletId))) {
+    conditions.push(eq(orders.outletId, outletId));
+  }
   if (startEpoch > 0) conditions.push(gte(orders.createdAt, startEpoch));
   if (endEpoch > 0) conditions.push(lte(orders.createdAt, endEpoch));
   if (status !== 'all') conditions.push(eq(orders.status, status as any));
@@ -87,30 +111,54 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // 2. CSV Export (Default)
-  const headers = ['No Struk', 'Waktu', 'Cabang Outlet', 'Kasir', 'Pelanggan', 'Subtotal', 'Diskon', 'PPN', 'Total', 'Metode Bayar', 'Status'];
-  
-  const csvRows = rows.map((r) => [
-    `"${r.order.id}"`,
-    `"${formatDateTime(r.order.createdAt)}"`,
-    `"${r.outlet?.name || 'Pusat'}"`,
-    `"${r.user?.name || 'Kasir'}"`,
-    `"${r.order.customerName || 'Walk-in'}"`,
-    r.order.subtotal,
-    r.order.discountAmount || 0,
-    r.order.taxAmount || 0,
-    r.order.total,
-    `"${r.order.paymentMethod.toUpperCase()}"`,
-    `"${r.order.status.toUpperCase()}"`,
-  ]);
+  // 2. CSV Export (Fallback)
+  if (format === 'csv') {
+    const headers = ['No Struk', 'Waktu', 'Cabang Outlet', 'Kasir', 'Pelanggan', 'Subtotal', 'Diskon', 'PPN', 'Total', 'Metode Bayar', 'Status'];
+    
+    const csvRows = rows.map((r) => [
+      `"${r.order.id}"`,
+      `"${formatDateTime(r.order.createdAt)}"`,
+      `"${r.outlet?.name || 'Pusat'}"`,
+      `"${r.user?.name || 'Kasir'}"`,
+      `"${r.order.customerName || 'Walk-in'}"`,
+      r.order.subtotal,
+      r.order.discountAmount || 0,
+      r.order.taxAmount || 0,
+      r.order.total,
+      `"${r.order.paymentMethod.toUpperCase()}"`,
+      `"${r.order.status.toUpperCase()}"`,
+    ]);
 
-  const csvContent = '\uFEFF' + [headers.join(','), ...csvRows.map((e) => e.join(','))].join('\n');
+    const csvContent = '\uFEFF' + [headers.join(','), ...csvRows.map((e) => e.join(','))].join('\n');
 
-  return new NextResponse(csvContent, {
+    return new NextResponse(csvContent, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="laporan-penjualan-seruni-${Date.now()}.csv"`,
+      },
+    });
+  }
+
+  // 3. Excel (.xlsx) Export (Default)
+  const filterInfo: string[] = [];
+  if (status !== 'all') filterInfo.push(`Status: ${status.toUpperCase()}`);
+  if (payment !== 'all') filterInfo.push(`Metode: ${payment.toUpperCase()}`);
+  if (q) filterInfo.push(`Cari: "${q}"`);
+  const statusLabel = filterInfo.length > 0 ? filterInfo.join(' | ') : 'Semua Status';
+
+  const excelBuffer = await generateOrdersExcel(rows, {
+    outletName,
+    periodLabel: label,
+    statusLabel,
+    printedAt: new Date().toLocaleString('id-ID'),
+  });
+
+  return new NextResponse(new Uint8Array(excelBuffer), {
     status: 200,
     headers: {
-      'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': `attachment; filename="laporan-penjualan-seruni-${Date.now()}.csv"`,
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="laporan-penjualan-seruni-${Date.now()}.xlsx"`,
     },
   });
 }
