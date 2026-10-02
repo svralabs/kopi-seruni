@@ -56,9 +56,11 @@ export default async function StaffPage() {
           role: row.role || 'kasir',
           outletIds: row.outlet?.id ? [row.outlet.id] : ['out_default'],
           outletNames: row.outlet?.name ? [row.outlet.name] : [],
-          createdAt: row.user.createdAt
-            ? formatDate(Math.floor(new Date(row.user.createdAt).getTime() / 1000))
-            : '-',
+          createdAt: (() => {
+            if (!row.user.createdAt) return '-';
+            const time = new Date(row.user.createdAt).getTime();
+            return isNaN(time) ? '-' : formatDate(Math.floor(time / 1000));
+          })(),
         });
       } else {
         const existing = userMap.get(row.user.id)!;

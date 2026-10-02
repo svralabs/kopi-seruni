@@ -134,18 +134,65 @@ export default function StaffClient({
     setIsConfirmEditOpen(true);
   };
 
+  const handleAddStaff = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addName.trim()) {
+      toast.error('Nama pengguna tidak boleh kosong');
+      return;
+    }
+    if (!addEmail.trim()) {
+      toast.error('Email pengguna tidak boleh kosong');
+      return;
+    }
+    if (!addPassword.trim() || addPassword.trim().length < 6) {
+      toast.error('Password minimal 6 karakter');
+      return;
+    }
+    if (addOutletIds.length === 0) {
+      toast.error('Pilih minimal 1 cabang penempatan');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('name', addName.trim());
+    formData.append('email', addEmail.trim().toLowerCase());
+    formData.append('password', addPassword.trim());
+    formData.append('role', isManager ? 'kasir' : addRole);
+    for (const id of addOutletIds) {
+      formData.append('outletIds', id);
+    }
+
+    startTransition(async () => {
+      try {
+        const res = await createStaff(formData);
+        if (!res.success) {
+          toast.error(res.error || 'Gagal menambahkan pengguna');
+          return;
+        }
+        toast.success(`Pengguna "${addName}" berhasil ditambahkan`);
+        setIsAddModalOpen(false);
+      } catch (err: any) {
+        toast.error(err?.message || 'Gagal menambahkan pengguna');
+      }
+    });
+  };
+
   const handleExecuteUpdate = () => {
     if (!editingStaff) return;
 
     startTransition(async () => {
       try {
-        await updateStaffUser(editingStaff.id, {
+        const res = await updateStaffUser(editingStaff.id, {
           name: editName.trim(),
           email: editEmail.trim(),
           role: isEditingSelf ? (editingStaff.role as any) : editRole,
           outletIds: isEditingSelf ? editingStaff.outletIds : editOutletIds,
           newPassword: editNewPassword.trim() || undefined,
         });
+        if (!res.success) {
+          toast.error(res.error || 'Gagal memperbarui data pengguna');
+          return;
+        }
         toast.success(
           isEditingSelf
             ? 'Profil akun Anda berhasil diperbarui'
@@ -163,7 +210,11 @@ export default function StaffClient({
     if (!deletingStaff) return;
     startTransition(async () => {
       try {
-        await deleteStaff(deletingStaff.id);
+        const res = await deleteStaff(deletingStaff.id);
+        if (!res.success) {
+          toast.error(res.error || 'Gagal menghapus akun pengguna');
+          return;
+        }
         toast.success(`Akun "${deletingStaff.name}" berhasil dihapus`);
         setDeletingStaff(null);
       } catch (err: any) {
@@ -407,21 +458,7 @@ export default function StaffClient({
             </div>
 
             <form
-              action={async (formData) => {
-                if (addOutletIds.length === 0) {
-                  toast.error('Pilih minimal 1 cabang penempatan');
-                  return;
-                }
-                startTransition(async () => {
-                  try {
-                    await createStaff(formData);
-                    toast.success(`Pengguna "${addName}" berhasil ditambahkan`);
-                    setIsAddModalOpen(false);
-                  } catch (err: any) {
-                    toast.error(err?.message || 'Gagal menambahkan pengguna');
-                  }
-                });
-              }}
+              onSubmit={handleAddStaff}
               className="space-y-3.5 text-xs"
             >
               {/* Name */}

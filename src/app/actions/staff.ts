@@ -1,94 +1,141 @@
 'use server';
 
 import { db } from '@/lib/db';
-import { user, userOutletRoles, outlets } from '@/lib/schema';
+import { user, userOutletRoles, outlets, session as sessionTable } from '@/lib/schema';
 import { account } from '@/lib/auth-schema';
 import { getOutlets } from '@/lib/queries';
-import { auth } from '@/lib/auth';
 import { hashPassword } from 'better-auth/crypto';
 import { getSession, getUserAccessibleOutlets } from '@/lib/auth-helpers';
 import { eq, and, ne } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
 
-export async function createStaff(formData: FormData) {
-  const session = await getSession();
-  if (!session) redirect('/login');
-
-  const { isOwner, userRole, accessibleOutletIds } = await getUserAccessibleOutlets(session.user.id);
-  if (!isOwner && userRole !== 'manager') {
-    throw new Error('Akses ditolak: Hanya Owner dan Manager yang berhak menambah staf');
-  }
-
-  const name = formData.get('name') as string;
-  const email = formData.get('email') as string;
-  const password = formData.get('password') as string;
-  let role = (formData.get('role') as 'kasir' | 'manager' | 'owner') || 'kasir';
-
-  // Support multiple outlet checkboxes or single select
-  const rawOutletIds = formData.getAll('outletIds') as string[];
-  const singleOutletId = formData.get('outletId') as string;
-  let selectedOutletIds = rawOutletIds.length > 0 ? rawOutletIds : singleOutletId ? [singleOutletId] : [];
-
-  if (!name || !email || !password) {
-    throw new Error('Nama, email, dan password wajib diisi');
-  }
-
-  if (password.length < 6) {
-    throw new Error('Password minimal 6 karakter');
-  }
-
-  // Manager constraints: can only create 'kasir' for own outlets
-  if (!isOwner && userRole === 'manager') {
-    if (role !== 'kasir') {
-      throw new Error('Akses ditolak: Manager hanya berhak mendaftarkan staf Kasir');
+export async function createStaff(formData: FormData): Promise<{ success: boolean; error?: string }> {
+  try {
+    const session = await getSession();
+    if (!session) {
+      return { success: false, error: 'Sesi anda telah berakhir. Silakan login kembali.' };
     }
-    selectedOutletIds = selectedOutletIds.filter((id) => id !== 'all');
-    if (selectedOutletIds.length === 0) {
-      selectedOutletIds = [accessibleOutletIds[0]];
+
+    const { isOwner, userRole, accessibleOutletIds } = await getUserAccessibleOutlets(session.user.id);
+    if (!isOwner && userRole !== 'manager') {
+      return { success: false, error: 'Akses ditolak: Hanya Owner dan Manager yang berhak menambah staf' };
     }
-    for (const outId of selectedOutletIds) {
-      if (!accessibleOutletIds.includes(outId)) {
-        throw new Error('Akses ditolak: Manager hanya dapat menugaskan staf ke cabang yang dinaunginya');
+
+    const name = (formData.get('name') as string)?.trim();
+    const rawEmail = (formData.get('email') as string)?.trim();
+    const password = (formData.get('password') as string)?.trim();
+    let role = (formData.get('role') as 'kasir' | 'manager' | 'owner') || 'kasir';
+
+    // Support multiple outlet checkboxes or single select
+    const rawOutletIds = formData.getAll('outletIds') as string[];
+    const singleOutletId = formData.get('outletId') as string;
+    let selectedOutletIds = rawOutletIds.length > 0 ? rawOutletIds : singleOutletId ? [singleOutletId] : [];
+
+    if (!name || !rawEmail || !password) {
+      return { success: false, error: 'Nama, email, dan password wajib diisi' };
+    }
+
+    const cleanEmail = rawEmail.toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
+      return { success: false, error: 'Format email tidak valid' };
+    }
+
+    if (password.length < 6) {
+      return { success: false, error: 'Password minimal 6 karakter' };
+    }
+
+    // Manager constraints: can only create 'kasir' for own outlets
+    if (!isOwner && userRole === 'manager') {
+      if (role !== 'kasir') {
+        return { success: false, error: 'Akses ditolak: Manager hanya berhak mendaftarkan staf Kasir' };
+      }
+      selectedOutletIds = selectedOutletIds.filter((id) => id !== 'all');
+      if (selectedOutletIds.length === 0) {
+        selectedOutletIds = [accessibleOutletIds[0]];
+      }
+      for (const outId of selectedOutletIds) {
+        if (!accessibleOutletIds.includes(outId)) {
+          return {
+            success: false,
+            error: 'Akses ditolak: Manager hanya dapat menugaskan staf ke cabang yang dinaunginya',
+          };
+        }
       }
     }
-  }
 
-  try {
-    // 1. Create User via BetterAuth
-    const newUser = await auth.api.signUpEmail({
-      body: {
-        name: name.trim(),
-        email: email.trim().toLowerCase(),
-        password,
-      },
-    });
+    // Check duplicate email in user table
+    const [existingUser] = await db
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.email, cleanEmail))
+      .limit(1);
 
-    if (!newUser?.user?.id) {
-      throw new Error('Gagal membuat user BetterAuth');
+    if (existingUser) {
+      return { success: false, error: `Email "${cleanEmail}" sudah digunakan oleh akun lain.` };
     }
 
     const allOutlets = await getOutlets();
-    const now = Math.floor(Date.now() / 1000);
-
     if (isOwner && (selectedOutletIds.includes('all') || selectedOutletIds.length === 0)) {
       selectedOutletIds = allOutlets.map((o) => o.id);
     }
 
-    // 2. Assign Outlet Roles
-    for (const outId of selectedOutletIds) {
-      await db.insert(userOutletRoles).values({
-        id: `uor_${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}`,
-        userId: newUser.user.id,
-        outletId: outId,
-        role,
-        createdAt: now,
-      });
+    if (selectedOutletIds.length === 0) {
+      return { success: false, error: 'Pilih minimal 1 cabang penempatan untuk staf baru.' };
     }
 
-    revalidatePath('/staff');
+    const newUserId = crypto.randomUUID().replace(/-/g, '').slice(0, 32);
+    const hashedPassword = await hashPassword(password);
+    const now = new Date();
+    const nowUnix = Math.floor(now.getTime() / 1000);
+
+    // Atomic transaction: Insert User, Account, and Outlet Roles
+    await db.transaction(async (tx) => {
+      // 1. User table
+      await tx.insert(user).values({
+        id: newUserId,
+        name,
+        email: cleanEmail,
+        emailVerified: false,
+        image: null,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // 2. Account table with credential provider and local:credential issuer
+      await tx.insert(account).values({
+        id: `acc_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`,
+        accountId: newUserId,
+        providerId: 'credential',
+        userId: newUserId,
+        password: hashedPassword,
+        issuer: 'local:credential',
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // 3. User Outlet Roles
+      for (const outId of selectedOutletIds) {
+        await tx.insert(userOutletRoles).values({
+          id: `uor_${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}`,
+          userId: newUserId,
+          outletId: outId,
+          role,
+          createdAt: nowUnix,
+        });
+      }
+    });
+
+    try {
+      revalidatePath('/staff');
+    } catch (e) {
+      console.warn('revalidatePath warning:', e);
+    }
+
+    return { success: true };
   } catch (err: any) {
-    throw new Error(err?.message || 'Gagal mendaftarkan staff baru');
+    console.error('createStaff error:', err);
+    return { success: false, error: err?.message || 'Gagal mendaftarkan staff baru' };
   }
 }
 
@@ -101,104 +148,185 @@ export async function updateStaffUser(
     outletIds: string[];
     newPassword?: string;
   }
-) {
-  const session = await getSession();
-  if (!session) redirect('/login');
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const session = await getSession();
+    if (!session) {
+      return { success: false, error: 'Sesi anda telah berakhir. Silakan login kembali.' };
+    }
 
-  const { isOwner, userRole, accessibleOutletIds } = await getUserAccessibleOutlets(session.user.id);
-  if (!isOwner && userRole !== 'manager') {
-    throw new Error('Akses ditolak: Anda tidak memiliki wewenang untuk mengelola data pengguna');
+    const { isOwner, userRole, accessibleOutletIds } = await getUserAccessibleOutlets(session.user.id);
+    if (!isOwner && userRole !== 'manager') {
+      return { success: false, error: 'Akses ditolak: Anda tidak memiliki wewenang untuk mengelola data pengguna' };
+    }
+
+    const { name, email, role, outletIds, newPassword } = payload;
+
+    if (!name || !name.trim()) {
+      return { success: false, error: 'Nama pengguna tidak boleh kosong' };
+    }
+
+    if (!email || !email.trim()) {
+      return { success: false, error: 'Email tidak boleh kosong' };
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Check email uniqueness if changed
+    const [existingUserWithEmail] = await db
+      .select({ id: user.id })
+      .from(user)
+      .where(and(ne(user.id, userId), eq(user.email, cleanEmail)))
+      .limit(1);
+
+    if (existingUserWithEmail) {
+      return { success: false, error: `Email "${cleanEmail}" sudah digunakan oleh pengguna lain` };
+    }
+
+    const isSelf = session.user.id === userId;
+
+    if (!isSelf) {
+      // If editing someone else, enforce strict branch-manager RBAC
+      if (!isOwner && userRole === 'manager') {
+        const targetRoles = await db
+          .select()
+          .from(userOutletRoles)
+          .where(eq(userOutletRoles.userId, userId));
+
+        if (targetRoles.some((r) => r.role === 'owner')) {
+          return { success: false, error: 'Akses ditolak: Manager tidak diizinkan mengubah data akun Owner' };
+        }
+
+        if (targetRoles.some((r) => r.role === 'manager')) {
+          return { success: false, error: 'Akses ditolak: Manager tidak diizinkan mengubah data akun sesama Manager' };
+        }
+
+        const targetOutletIds = targetRoles.map((r) => r.outletId);
+        const isTargetInManagerBranch = targetOutletIds.some((id) => accessibleOutletIds.includes(id));
+        if (!isTargetInManagerBranch && targetRoles.length > 0) {
+          return { success: false, error: 'Akses ditolak: Staf ini bukan bagian dari cabang yang Anda naungi' };
+        }
+
+        if (role !== 'kasir') {
+          return { success: false, error: 'Akses ditolak: Manager tidak dapat mengubah peran staf menjadi Manager atau Owner' };
+        }
+
+        const requestedOutletIds = Array.isArray(outletIds) ? outletIds : [outletIds];
+        for (const outId of requestedOutletIds) {
+          if (!accessibleOutletIds.includes(outId)) {
+            return { success: false, error: 'Akses ditolak: Tidak dapat menugaskan staf ke cabang di luar wewenang Anda' };
+          }
+        }
+      }
+    }
+
+    // 1. Update basic user profile (Name & Email)
+    await db
+      .update(user)
+      .set({
+        name: name.trim(),
+        email: cleanEmail,
+        updatedAt: new Date(),
+      })
+      .where(eq(user.id, userId));
+
+    // 2. Update password if provided
+    if (newPassword && newPassword.trim().length > 0) {
+      if (newPassword.trim().length < 6) {
+        return { success: false, error: 'Password baru minimal 6 karakter' };
+      }
+      const hashedPassword = await hashPassword(newPassword.trim());
+      await db
+        .update(account)
+        .set({
+          password: hashedPassword,
+          issuer: 'local:credential',
+          updatedAt: new Date(),
+        })
+        .where(and(eq(account.userId, userId), eq(account.providerId, 'credential')));
+    }
+
+    // 3. Update outlet assignments and role (ONLY IF NOT SELF-EDIT)
+    if (!isSelf) {
+      const allOutlets = await getOutlets();
+      let targetOutletIds = Array.isArray(outletIds) ? outletIds : [outletIds];
+      if (isOwner && (targetOutletIds.includes('all') || targetOutletIds.length === 0)) {
+        targetOutletIds = allOutlets.map((o) => o.id);
+      } else {
+        targetOutletIds = targetOutletIds.filter((id) => id !== 'all');
+      }
+
+      const now = Math.floor(Date.now() / 1000);
+      await db.delete(userOutletRoles).where(eq(userOutletRoles.userId, userId));
+
+      for (const outId of targetOutletIds) {
+        await db.insert(userOutletRoles).values({
+          id: `uor_${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}`,
+          userId,
+          outletId: outId,
+          role: role as any,
+          createdAt: now,
+        });
+      }
+    }
+
+    try {
+      revalidatePath('/staff');
+    } catch (e) {
+      console.warn('revalidatePath warning:', e);
+    }
+    return { success: true };
+  } catch (err: any) {
+    console.error('updateStaffUser error:', err);
+    return { success: false, error: err?.message || 'Gagal memperbarui data pengguna' };
   }
+}
 
-  const { name, email, role, outletIds, newPassword } = payload;
+export async function updateStaffRole(
+  userId: string,
+  outletIds: string[] | string,
+  role: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const session = await getSession();
+    if (!session) {
+      return { success: false, error: 'Sesi anda telah berakhir. Silakan login kembali.' };
+    }
 
-  if (!name || !name.trim()) {
-    throw new Error('Nama pengguna tidak boleh kosong');
-  }
+    const { isOwner, userRole, accessibleOutletIds } = await getUserAccessibleOutlets(session.user.id);
+    if (!isOwner && userRole !== 'manager') {
+      return { success: false, error: 'Akses ditolak: Anda tidak memiliki wewenang untuk mengubah hak akses pengguna' };
+    }
 
-  if (!email || !email.trim()) {
-    throw new Error('Email tidak boleh kosong');
-  }
+    if (session.user.id === userId) {
+      return { success: false, error: 'Tidak dapat mengubah peran akun Anda sendiri' };
+    }
 
-  const cleanEmail = email.trim().toLowerCase();
-
-  // Check email uniqueness if changed
-  const [existingUserWithEmail] = await db
-    .select({ id: user.id })
-    .from(user)
-    .where(and(ne(user.id, userId), eq(user.email, cleanEmail)))
-    .limit(1);
-
-  if (existingUserWithEmail) {
-    throw new Error(`Email "${cleanEmail}" sudah digunakan oleh pengguna lain`);
-  }
-
-  const isSelf = session.user.id === userId;
-
-  if (!isSelf) {
-    // If editing someone else, enforce strict branch-manager RBAC
     if (!isOwner && userRole === 'manager') {
       const targetRoles = await db
         .select()
         .from(userOutletRoles)
         .where(eq(userOutletRoles.userId, userId));
 
-      if (targetRoles.some((r) => r.role === 'owner')) {
-        throw new Error('Akses ditolak: Manager tidak diizinkan mengubah data akun Owner');
-      }
-
-      if (targetRoles.some((r) => r.role === 'manager')) {
-        throw new Error('Akses ditolak: Manager tidak diizinkan mengubah data akun sesama Manager');
-      }
-
-      const targetOutletIds = targetRoles.map((r) => r.outletId);
-      const isTargetInManagerBranch = targetOutletIds.some((id) => accessibleOutletIds.includes(id));
-      if (!isTargetInManagerBranch && targetRoles.length > 0) {
-        throw new Error('Akses ditolak: Staf ini bukan bagian dari cabang yang Anda naungi');
+      if (targetRoles.some((r) => r.role === 'owner' || r.role === 'manager')) {
+        return { success: false, error: 'Akses ditolak: Manager tidak dapat mengubah hak akses Owner atau Manager' };
       }
 
       if (role !== 'kasir') {
-        throw new Error('Akses ditolak: Manager tidak dapat mengubah peran staf menjadi Manager atau Owner');
+        return { success: false, error: 'Akses ditolak: Manager hanya dapat menugaskan peran Kasir' };
       }
 
       const requestedOutletIds = Array.isArray(outletIds) ? outletIds : [outletIds];
       for (const outId of requestedOutletIds) {
         if (!accessibleOutletIds.includes(outId)) {
-          throw new Error('Akses ditolak: Tidak dapat menugaskan staf ke cabang di luar wewenang Anda');
+          return { success: false, error: 'Akses ditolak: Cabang di luar wewenang Anda' };
         }
       }
     }
-  }
 
-  // 1. Update basic user profile (Name & Email)
-  await db
-    .update(user)
-    .set({
-      name: name.trim(),
-      email: cleanEmail,
-      updatedAt: new Date(),
-    })
-    .where(eq(user.id, userId));
-
-  // 2. Update password if provided
-  if (newPassword && newPassword.trim().length > 0) {
-    if (newPassword.trim().length < 6) {
-      throw new Error('Password baru minimal 6 karakter');
-    }
-    const hashedPassword = await hashPassword(newPassword.trim());
-    await db
-      .update(account)
-      .set({
-        password: hashedPassword,
-        updatedAt: new Date(),
-      })
-      .where(and(eq(account.userId, userId), eq(account.providerId, 'credential')));
-  }
-
-  // 3. Update outlet assignments and role (ONLY IF NOT SELF-EDIT)
-  // Self-edit preserves user role and outlet assignments to prevent accidental lockouts/escalation
-  if (!isSelf) {
+    const now = Math.floor(Date.now() / 1000);
     const allOutlets = await getOutlets();
+
     let targetOutletIds = Array.isArray(outletIds) ? outletIds : [outletIds];
     if (isOwner && (targetOutletIds.includes('all') || targetOutletIds.length === 0)) {
       targetOutletIds = allOutlets.map((o) => o.id);
@@ -206,7 +334,7 @@ export async function updateStaffUser(
       targetOutletIds = targetOutletIds.filter((id) => id !== 'all');
     }
 
-    const now = Math.floor(Date.now() / 1000);
+    // Reset / replace assigned roles
     await db.delete(userOutletRoles).where(eq(userOutletRoles.userId, userId));
 
     for (const outId of targetOutletIds) {
@@ -218,110 +346,71 @@ export async function updateStaffUser(
         createdAt: now,
       });
     }
-  }
 
-  revalidatePath('/staff');
-  return { success: true };
+    try {
+      revalidatePath('/staff');
+    } catch (e) {
+      console.warn('revalidatePath warning:', e);
+    }
+    return { success: true };
+  } catch (err: any) {
+    console.error('updateStaffRole error:', err);
+    return { success: false, error: err?.message || 'Gagal memperbarui hak akses pengguna' };
+  }
 }
 
-export async function updateStaffRole(userId: string, outletIds: string[] | string, role: string) {
-  const session = await getSession();
-  if (!session) redirect('/login');
-
-  const { isOwner, userRole, accessibleOutletIds } = await getUserAccessibleOutlets(session.user.id);
-  if (!isOwner && userRole !== 'manager') {
-    throw new Error('Akses ditolak: Anda tidak memiliki wewenang untuk mengubah hak akses pengguna');
-  }
-
-  if (session.user.id === userId) {
-    throw new Error('Tidak dapat mengubah peran akun Anda sendiri');
-  }
-
-  if (!isOwner && userRole === 'manager') {
-    const targetRoles = await db
-      .select()
-      .from(userOutletRoles)
-      .where(eq(userOutletRoles.userId, userId));
-
-    if (targetRoles.some((r) => r.role === 'owner' || r.role === 'manager')) {
-      throw new Error('Akses ditolak: Manager tidak dapat mengubah hak akses Owner atau Manager');
+export async function deleteStaff(userId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const session = await getSession();
+    if (!session) {
+      return { success: false, error: 'Sesi anda telah berakhir. Silakan login kembali.' };
     }
 
-    if (role !== 'kasir') {
-      throw new Error('Akses ditolak: Manager hanya dapat menugaskan peran Kasir');
+    if (session.user.id === userId) {
+      return { success: false, error: 'Tidak dapat menghapus akun yang sedang login' };
     }
 
-    const requestedOutletIds = Array.isArray(outletIds) ? outletIds : [outletIds];
-    for (const outId of requestedOutletIds) {
-      if (!accessibleOutletIds.includes(outId)) {
-        throw new Error('Akses ditolak: Cabang di luar wewenang Anda');
+    const { isOwner, userRole, accessibleOutletIds } = await getUserAccessibleOutlets(session.user.id);
+    if (!isOwner && userRole !== 'manager') {
+      return { success: false, error: 'Akses ditolak: Hanya Owner dan Manager yang berhak menghapus staf' };
+    }
+
+    if (!isOwner && userRole === 'manager') {
+      const targetRoles = await db
+        .select()
+        .from(userOutletRoles)
+        .where(eq(userOutletRoles.userId, userId));
+
+      if (targetRoles.some((r) => r.role === 'owner')) {
+        return { success: false, error: 'Akses ditolak: Manager tidak dapat menghapus akun Owner' };
+      }
+      if (targetRoles.some((r) => r.role === 'manager')) {
+        return { success: false, error: 'Akses ditolak: Manager tidak dapat menghapus akun Manager' };
+      }
+
+      const targetOutletIds = targetRoles.map((r) => r.outletId);
+      const isInBranch = targetOutletIds.some((id) => accessibleOutletIds.includes(id));
+      if (!isInBranch && targetRoles.length > 0) {
+        return { success: false, error: 'Akses ditolak: Staf ini bukan bagian dari cabang yang Anda naungi' };
       }
     }
-  }
 
-  const now = Math.floor(Date.now() / 1000);
-  const allOutlets = await getOutlets();
-
-  let targetOutletIds = Array.isArray(outletIds) ? outletIds : [outletIds];
-  if (isOwner && (targetOutletIds.includes('all') || targetOutletIds.length === 0)) {
-    targetOutletIds = allOutlets.map((o) => o.id);
-  } else {
-    targetOutletIds = targetOutletIds.filter((id) => id !== 'all');
-  }
-
-  // Reset / replace assigned roles
-  await db.delete(userOutletRoles).where(eq(userOutletRoles.userId, userId));
-
-  for (const outId of targetOutletIds) {
-    await db.insert(userOutletRoles).values({
-      id: `uor_${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}`,
-      userId,
-      outletId: outId,
-      role: role as any,
-      createdAt: now,
+    await db.transaction(async (tx) => {
+      await tx.delete(sessionTable).where(eq(sessionTable.userId, userId));
+      await tx.delete(userOutletRoles).where(eq(userOutletRoles.userId, userId));
+      await tx.delete(account).where(eq(account.userId, userId));
+      await tx.delete(user).where(eq(user.id, userId));
     });
-  }
 
-  revalidatePath('/staff');
-  return { success: true };
-}
-
-export async function deleteStaff(userId: string) {
-  const session = await getSession();
-  if (!session) redirect('/login');
-
-  if (session.user.id === userId) {
-    throw new Error('Tidak dapat menghapus akun yang sedang login');
-  }
-
-  const { isOwner, userRole, accessibleOutletIds } = await getUserAccessibleOutlets(session.user.id);
-  if (!isOwner && userRole !== 'manager') {
-    throw new Error('Akses ditolak: Hanya Owner dan Manager yang berhak menghapus staf');
-  }
-
-  if (!isOwner && userRole === 'manager') {
-    const targetRoles = await db
-      .select()
-      .from(userOutletRoles)
-      .where(eq(userOutletRoles.userId, userId));
-
-    if (targetRoles.some((r) => r.role === 'owner')) {
-      throw new Error('Akses ditolak: Manager tidak dapat menghapus akun Owner');
-    }
-    if (targetRoles.some((r) => r.role === 'manager')) {
-      throw new Error('Akses ditolak: Manager tidak dapat menghapus akun Manager');
+    try {
+      revalidatePath('/staff');
+    } catch (e) {
+      console.warn('revalidatePath warning:', e);
     }
 
-    const targetOutletIds = targetRoles.map((r) => r.outletId);
-    const isInBranch = targetOutletIds.some((id) => accessibleOutletIds.includes(id));
-    if (!isInBranch && targetRoles.length > 0) {
-      throw new Error('Akses ditolak: Staf ini bukan bagian dari cabang yang Anda naungi');
-    }
+    return { success: true };
+  } catch (err: any) {
+    console.error('deleteStaff error:', err);
+    return { success: false, error: err?.message || 'Gagal menghapus akun pengguna' };
   }
-
-  await db.delete(userOutletRoles).where(eq(userOutletRoles.userId, userId));
-  await db.delete(account).where(eq(account.userId, userId));
-  await db.delete(user).where(eq(user.id, userId));
-
-  revalidatePath('/staff');
 }
