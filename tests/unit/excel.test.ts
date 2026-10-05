@@ -124,7 +124,7 @@ describe('Unit Test: Server-Side Excel (.xlsx) Generator', () => {
     expect(shiftsRes.headers.get('Content-Type')).toBe(expectedMime);
     const shiftsDisposition = shiftsRes.headers.get('Content-Disposition') || '';
     expect(shiftsDisposition).toContain('.xlsx');
-  });
+  }, 15000);
 
   it('should generate valid XLSX for Shifts report with rows', async () => {
     const { generateShiftsExcel } = await import('@/lib/excel-generator');

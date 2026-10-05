@@ -22,6 +22,7 @@ export async function createStaff(formData: FormData): Promise<{ success: boolea
     }
 
     const name = (formData.get('name') as string)?.trim();
+    const rawUsername = (formData.get('username') as string)?.trim();
     const rawEmail = (formData.get('email') as string)?.trim();
     const password = (formData.get('password') as string)?.trim();
     let role = (formData.get('role') as 'kasir' | 'manager' | 'owner') || 'kasir';
@@ -31,11 +32,20 @@ export async function createStaff(formData: FormData): Promise<{ success: boolea
     const singleOutletId = formData.get('outletId') as string;
     let selectedOutletIds = rawOutletIds.length > 0 ? rawOutletIds : singleOutletId ? [singleOutletId] : [];
 
-    if (!name || !rawEmail || !password) {
-      return { success: false, error: 'Nama, email, dan password wajib diisi' };
+    if (!name || !rawUsername || !password) {
+      return { success: false, error: 'Nama, username, dan password wajib diisi' };
     }
 
-    const cleanEmail = rawEmail.toLowerCase();
+    const cleanUsername = rawUsername.toLowerCase();
+    if (cleanUsername.length < 3 || cleanUsername.length > 30) {
+      return { success: false, error: 'Username minimal 3 dan maksimal 30 karakter' };
+    }
+    const usernameRegex = /^[a-z0-9_.-]+$/;
+    if (!usernameRegex.test(cleanUsername)) {
+      return { success: false, error: 'Username hanya boleh mengandung huruf kecil, angka, titik, strip, atau underscore' };
+    }
+
+    const cleanEmail = rawEmail ? rawEmail.toLowerCase() : `${cleanUsername}@kopiseruni.id`;
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(cleanEmail)) {
       return { success: false, error: 'Format email tidak valid' };
@@ -62,6 +72,17 @@ export async function createStaff(formData: FormData): Promise<{ success: boolea
           };
         }
       }
+    }
+
+    // Check duplicate username in user table
+    const [existingUsername] = await db
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.username, cleanUsername))
+      .limit(1);
+
+    if (existingUsername) {
+      return { success: false, error: `Username "${cleanUsername}" sudah digunakan oleh akun lain.` };
     }
 
     // Check duplicate email in user table
@@ -98,6 +119,8 @@ export async function createStaff(formData: FormData): Promise<{ success: boolea
         email: cleanEmail,
         emailVerified: false,
         image: null,
+        username: cleanUsername,
+        displayUsername: rawUsername,
         createdAt: now,
         updatedAt: now,
       });
@@ -143,6 +166,7 @@ export async function updateStaffUser(
   userId: string,
   payload: {
     name: string;
+    username?: string;
     email: string;
     role: 'kasir' | 'manager' | 'owner';
     outletIds: string[];
@@ -160,10 +184,35 @@ export async function updateStaffUser(
       return { success: false, error: 'Akses ditolak: Anda tidak memiliki wewenang untuk mengelola data pengguna' };
     }
 
-    const { name, email, role, outletIds, newPassword } = payload;
+    const { name, username: rawUsername, email, role, outletIds, newPassword } = payload;
 
     if (!name || !name.trim()) {
       return { success: false, error: 'Nama pengguna tidak boleh kosong' };
+    }
+
+    let cleanUsername: string | undefined = undefined;
+    if (rawUsername !== undefined) {
+      cleanUsername = rawUsername.trim().toLowerCase();
+      if (!cleanUsername) {
+        return { success: false, error: 'Username tidak boleh kosong' };
+      }
+      if (cleanUsername.length < 3 || cleanUsername.length > 30) {
+        return { success: false, error: 'Username minimal 3 dan maksimal 30 karakter' };
+      }
+      const usernameRegex = /^[a-z0-9_.-]+$/;
+      if (!usernameRegex.test(cleanUsername)) {
+        return { success: false, error: 'Username hanya boleh mengandung huruf kecil, angka, titik, strip, atau underscore' };
+      }
+
+      const [existingUserWithUsername] = await db
+        .select({ id: user.id })
+        .from(user)
+        .where(and(ne(user.id, userId), eq(user.username, cleanUsername)))
+        .limit(1);
+
+      if (existingUserWithUsername) {
+        return { success: false, error: `Username "${cleanUsername}" sudah digunakan oleh pengguna lain` };
+      }
     }
 
     if (!email || !email.trim()) {
@@ -220,11 +269,14 @@ export async function updateStaffUser(
       }
     }
 
-    // 1. Update basic user profile (Name & Email)
+    // 1. Update basic user profile (Name, Username, Email)
     await db
       .update(user)
       .set({
         name: name.trim(),
+        ...(cleanUsername !== undefined
+          ? { username: cleanUsername, displayUsername: rawUsername?.trim() }
+          : {}),
         email: cleanEmail,
         updatedAt: new Date(),
       })

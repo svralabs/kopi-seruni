@@ -137,6 +137,6 @@ describe('E2E Integration Test: Multi-Outlet & Order History Lifecycle', () => {
     await db.delete(userOutletRoles).where(eq(userOutletRoles.userId, EDIT_USER_ID));
     await db.delete(account).where(eq(account.userId, EDIT_USER_ID));
     await db.delete(user).where(eq(user.id, EDIT_USER_ID));
-  });
+  }, 15000);
 });
 

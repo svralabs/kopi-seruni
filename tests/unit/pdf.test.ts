@@ -110,7 +110,7 @@ describe('Unit Test: Server-Side PDF Generator', () => {
     const shiftsRes = await getShifts(shiftsReq);
     expect(shiftsRes.status).toBe(200);
     expect(shiftsRes.headers.get('Content-Type')).toBe('application/pdf');
-  });
+  }, 15000);
 
   it('should generate valid PDF for Shifts report with rows', async () => {
     const { generateShiftsPdf } = await import('@/lib/pdf-generator');

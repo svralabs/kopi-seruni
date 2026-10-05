@@ -39,6 +39,7 @@ export default async function StaffPage() {
       {
         id: string;
         name: string;
+        username: string | null;
         email: string;
         role: string;
         outletIds: string[];
@@ -52,6 +53,7 @@ export default async function StaffPage() {
         userMap.set(row.user.id, {
           id: row.user.id,
           name: row.user.name,
+          username: row.user.username || null,
           email: row.user.email,
           role: row.role || 'kasir',
           outletIds: row.outlet?.id ? [row.outlet.id] : ['out_default'],
@@ -80,6 +82,7 @@ export default async function StaffPage() {
       return {
         id: s.id,
         name: s.name,
+        username: s.username,
         email: s.email,
         role: s.role,
         outletIds: s.outletIds,

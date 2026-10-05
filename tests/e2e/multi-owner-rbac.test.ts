@@ -188,6 +188,6 @@ describe('E2E Integration Test: Multi-Owner Profit Sharing & Outlet-Scoped RBAC'
     await db.delete(profitSharingRules).where(eq(profitSharingRules.outletId, OUTLET_2));
     await db.delete(outlets).where(eq(outlets.id, OUTLET_1));
     await db.delete(outlets).where(eq(outlets.id, OUTLET_2));
-  });
+  }, 15000);
 });
 

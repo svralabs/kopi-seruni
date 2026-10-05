@@ -3,10 +3,10 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { authClient } from '@/lib/auth-client';
-import { Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { User, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
 
 export default function LoginForm() {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -18,14 +18,27 @@ export default function LoginForm() {
     setIsLoading(true);
     setError(null);
 
+    const cleanIdentifier = identifier.trim();
+    if (!cleanIdentifier) {
+      setError('Username atau email wajib diisi');
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      const res = await authClient.signIn.email({
-        email,
-        password,
-      });
+      const isEmail = cleanIdentifier.includes('@');
+      const res = isEmail
+        ? await authClient.signIn.email({
+            email: cleanIdentifier.toLowerCase(),
+            password,
+          })
+        : await authClient.signIn.username({
+            username: cleanIdentifier.toLowerCase(),
+            password,
+          });
 
       if (res.error) {
-        setError(res.error.message || 'Email atau password salah');
+        setError(res.error.message || 'Username/email atau kata sandi salah');
       } else {
         router.push('/dashboard');
         router.refresh();
@@ -47,16 +60,18 @@ export default function LoginForm() {
 
       <div>
         <label className="block font-bold text-[#4A4238] mb-1.5">
-          Email Kasir / Owner
+          Username atau Email
         </label>
         <div className="relative">
-          <Mail className="w-4 h-4 text-[#9E968B] absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <User className="w-4 h-4 text-[#9E968B] absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
-            type="email"
+            type="text"
             required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="owner@kopiseruni.com"
+            autoCapitalize="none"
+            autoCorrect="off"
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
+            placeholder="Contoh: kasir1 atau owner@kopiseruni.com"
             className="w-full pl-10 pr-3.5 py-2.5 bg-[#F9F7F2] border border-[#E5E0D6] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#2E2520] text-[#201C1A]"
           />
         </div>
