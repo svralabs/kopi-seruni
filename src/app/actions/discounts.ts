@@ -2,7 +2,7 @@
 
 import { db } from '@/lib/db';
 import { discounts } from '@/lib/schema';
-import { getSession } from '@/lib/auth-helpers';
+import { getSession, getCurrentUserRole } from '@/lib/auth-helpers';
 import { eq } from 'drizzle-orm';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -10,6 +10,11 @@ import { redirect } from 'next/navigation';
 export async function createDiscount(formData: FormData) {
   const session = await getSession();
   if (!session) redirect('/login');
+
+  const { role } = await getCurrentUserRole(session.user.id);
+  if (role === 'kasir') {
+    throw new Error('Akses Ditolak: Kasir tidak memiliki izin untuk mengelola diskon.');
+  }
 
   const outletId = (formData.get('outletId') as string) || 'out_default';
   const name = formData.get('name') as string;
@@ -52,6 +57,11 @@ export async function toggleDiscount(id: string, currentStatus: number) {
   const session = await getSession();
   if (!session) redirect('/login');
 
+  const { role } = await getCurrentUserRole(session.user.id);
+  if (role === 'kasir') {
+    throw new Error('Akses Ditolak: Kasir tidak memiliki izin untuk mengelola diskon.');
+  }
+
   const nextStatus = currentStatus === 1 ? 0 : 1;
 
   await db
@@ -67,6 +77,11 @@ export async function toggleDiscount(id: string, currentStatus: number) {
 export async function updateDiscount(id: string, formData: FormData) {
   const session = await getSession();
   if (!session) redirect('/login');
+
+  const { role } = await getCurrentUserRole(session.user.id);
+  if (role === 'kasir') {
+    throw new Error('Akses Ditolak: Kasir tidak memiliki izin untuk mengelola diskon.');
+  }
 
   const outletId = (formData.get('outletId') as string) || 'out_default';
   const name = formData.get('name') as string;
@@ -106,6 +121,11 @@ export async function updateDiscount(id: string, formData: FormData) {
 export async function deleteDiscount(id: string) {
   const session = await getSession();
   if (!session) redirect('/login');
+
+  const { role } = await getCurrentUserRole(session.user.id);
+  if (role === 'kasir') {
+    throw new Error('Akses Ditolak: Kasir tidak memiliki izin untuk mengelola diskon.');
+  }
 
   const now = Math.floor(Date.now() / 1000);
 

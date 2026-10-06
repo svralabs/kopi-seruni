@@ -2,7 +2,7 @@
 
 import { db } from '@/lib/db';
 import { products } from '@/lib/schema';
-import { getSession } from '@/lib/auth-helpers';
+import { getSession, getCurrentUserRole } from '@/lib/auth-helpers';
 import { eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -10,6 +10,11 @@ import { redirect } from 'next/navigation';
 export async function createProduct(formData: FormData) {
   const session = await getSession();
   if (!session) redirect('/login');
+
+  const { role } = await getCurrentUserRole(session.user.id);
+  if (role === 'kasir') {
+    throw new Error('Akses Ditolak: Kasir tidak memiliki izin untuk mengelola master produk.');
+  }
 
   const name = formData.get('name') as string;
   const categoryId = (formData.get('categoryId') as string) || null;
@@ -48,6 +53,11 @@ export async function createProduct(formData: FormData) {
 export async function updateProduct(productId: string, formData: FormData) {
   const session = await getSession();
   if (!session) redirect('/login');
+
+  const { role } = await getCurrentUserRole(session.user.id);
+  if (role === 'kasir') {
+    throw new Error('Akses Ditolak: Kasir tidak memiliki izin untuk mengelola master produk.');
+  }
 
   const name = formData.get('name') as string;
   const categoryId = (formData.get('categoryId') as string) || null;
@@ -92,6 +102,11 @@ export async function updateProduct(productId: string, formData: FormData) {
 export async function deleteProduct(productId: string) {
   const session = await getSession();
   if (!session) redirect('/login');
+
+  const { role } = await getCurrentUserRole(session.user.id);
+  if (role === 'kasir') {
+    throw new Error('Akses Ditolak: Kasir tidak memiliki izin untuk mengelola master produk.');
+  }
 
   const now = Math.floor(Date.now() / 1000);
 

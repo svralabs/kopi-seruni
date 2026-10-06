@@ -59,12 +59,22 @@ export async function updateExpense(id: string, formData: FormData) {
   const session = await getSession();
   if (!session) redirect('/login');
 
+  const { role, allRoles } = await getCurrentUserRole(session.user.id);
+  if (role === 'kasir') {
+    throw new Error('Akses Ditolak: Kasir tidak memiliki izin untuk mengubah pengeluaran.');
+  }
+
   const description = formData.get('description') as string;
   const amount = Math.round(Number(formData.get('amount')) || 0);
   const paymentMethod = (formData.get('paymentMethod') as string) || 'cash';
   const categoryId = (formData.get('categoryId') as string) || null;
   const expenseDateInput = formData.get('expenseDate') as string;
   const outletId = (formData.get('outletId') as string) || 'out_default';
+
+  const hasAccess = role === 'owner' || allRoles.some((r) => r.outletId === outletId);
+  if (!hasAccess) {
+    throw new Error('Akses Ditolak: Anda tidak memiliki izin untuk mengelola pengeluaran di cabang ini.');
+  }
 
   if (!description || amount <= 0) {
     throw new Error('Deskripsi dan nominal pengeluaran wajib diisi');
@@ -97,6 +107,11 @@ export async function updateExpense(id: string, formData: FormData) {
 export async function deleteExpense(id: string) {
   const session = await getSession();
   if (!session) redirect('/login');
+
+  const { role } = await getCurrentUserRole(session.user.id);
+  if (role === 'kasir') {
+    throw new Error('Akses Ditolak: Kasir tidak memiliki izin untuk menghapus pengeluaran.');
+  }
 
   const { eq } = await import('drizzle-orm');
 

@@ -39,6 +39,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const session = await auth.api.getSession({ headers: request.headers });
+    if (!session && process.env.NODE_ENV === 'production') {
+      return new NextResponse('Akses ditolak: Sesi tidak valid atau telah berakhir.', { status: 401 });
+    }
     if (session?.user?.id) {
       const roles = await db
         .select({ outletId: userOutletRoles.outletId })
@@ -53,7 +56,11 @@ export async function GET(request: NextRequest) {
         }
       }
     }
-  } catch {}
+  } catch {
+    if (process.env.NODE_ENV === 'production') {
+      return new NextResponse('Akses ditolak: Sesi tidak valid atau telah berakhir.', { status: 401 });
+    }
+  }
 
   if (outletId !== 'all' && !conditions.some((c: any) => c === eq(shifts.outletId, outletId))) {
     conditions.push(eq(shifts.outletId, outletId));

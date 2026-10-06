@@ -42,6 +42,14 @@ export async function closeShift(shiftId: string, outletId: string, closingCash:
     .where(eq(shifts.id, shiftId))
     .limit(1);
   if (!shift) throw new Error('Shift tidak ditemukan');
+  if (shift.closedAt) throw new Error('Shift ini sudah ditutup sebelumnya.');
+
+  const { role, allRoles } = await getCurrentUserRole(session.user.id);
+  const isShiftCashier = shift.kasirId === session.user.id;
+  const isManagerOrOwner = role === 'owner' || (role === 'manager' && allRoles.some((r) => r.outletId === outletId));
+  if (!isShiftCashier && !isManagerOrOwner) {
+    throw new Error('Akses Ditolak: Anda tidak berhak menutup shift kasir lain.');
+  }
 
   const [cashResult] = await db
     .select({ total: sql<number>`COALESCE(SUM(total), 0)` })

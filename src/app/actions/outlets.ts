@@ -32,6 +32,11 @@ export async function createOutlet(formData: FormData) {
   const session = await getSession();
   if (!session) redirect('/login');
 
+  const { isOwner } = await getUserAccessibleOutlets(session.user.id);
+  if (!isOwner) {
+    throw new Error('Akses ditolak: Hanya Owner yang berhak menambah cabang outlet baru');
+  }
+
   const name = formData.get('name') as string;
   const address = (formData.get('address') as string) || null;
   const phone = (formData.get('phone') as string) || null;

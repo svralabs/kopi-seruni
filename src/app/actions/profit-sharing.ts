@@ -17,9 +17,9 @@ export async function createRule(formData: FormData) {
   const outletId = (formData.get('outletId') as string) || 'out_default';
   const frequency = (formData.get('frequency') as string) || 'monthly';
 
-  const { accessibleOutletIds } = await getUserAccessibleOutlets(session.user.id);
-  if (!accessibleOutletIds.includes(outletId)) {
-    throw new Error('Akses Ditolak: Anda tidak memiliki izin untuk mengelola bagi hasil di cabang ini.');
+  const { isOwner, accessibleOutletIds } = await getUserAccessibleOutlets(session.user.id);
+  if (!isOwner || !accessibleOutletIds.includes(outletId)) {
+    throw new Error('Akses Ditolak: Hanya Owner yang berhak mengelola bagi hasil.');
   }
 
   if (!name || percentage <= 0 || percentage > 100) {
@@ -60,6 +60,11 @@ export async function updateRule(id: string, formData: FormData) {
   const session = await getSession();
   if (!session) redirect('/login');
 
+  const { isOwner, accessibleOutletIds } = await getUserAccessibleOutlets(session.user.id);
+  if (!isOwner) {
+    throw new Error('Akses Ditolak: Hanya Owner yang berhak mengelola bagi hasil.');
+  }
+
   const name = formData.get('name') as string;
   const percentage = Math.round(Number(formData.get('percentage')) || 0);
   const frequency = (formData.get('frequency') as string) || 'monthly';
@@ -74,6 +79,9 @@ export async function updateRule(id: string, formData: FormData) {
     .where(eq(profitSharingRules.id, id));
 
   if (!targetRule) throw new Error('Data aturan bagi hasil tidak ditemukan');
+  if (!accessibleOutletIds.includes(targetRule.outletId)) {
+    throw new Error('Akses Ditolak: Anda tidak memiliki akses ke cabang ini.');
+  }
 
   const otherRules = await db
     .select()
@@ -112,6 +120,11 @@ export async function updateRule(id: string, formData: FormData) {
 export async function toggleRule(id: string, currentStatus: number) {
   const session = await getSession();
   if (!session) redirect('/login');
+
+  const { isOwner } = await getUserAccessibleOutlets(session.user.id);
+  if (!isOwner) {
+    throw new Error('Akses Ditolak: Hanya Owner yang berhak mengelola bagi hasil.');
+  }
 
   const nextStatus = currentStatus === 1 ? 0 : 1;
 
@@ -155,6 +168,11 @@ export async function deleteRule(id: string) {
   const session = await getSession();
   if (!session) redirect('/login');
 
+  const { isOwner } = await getUserAccessibleOutlets(session.user.id);
+  if (!isOwner) {
+    throw new Error('Akses Ditolak: Hanya Owner yang berhak mengelola bagi hasil.');
+  }
+
   await db.delete(profitSharingRules).where(eq(profitSharingRules.id, id));
 
   revalidateTag('profit_sharing_rules', 'max');
@@ -171,9 +189,9 @@ export async function generateProfitSharing(
   const session = await getSession();
   if (!session) redirect('/login');
 
-  const { accessibleOutletIds } = await getUserAccessibleOutlets(session.user.id);
-  if (!accessibleOutletIds.includes(outletId)) {
-    throw new Error('Akses Ditolak: Anda tidak memiliki izin untuk mengelola bagi hasil di cabang ini.');
+  const { isOwner, accessibleOutletIds } = await getUserAccessibleOutlets(session.user.id);
+  if (!isOwner || !accessibleOutletIds.includes(outletId)) {
+    throw new Error('Akses Ditolak: Hanya Owner yang berhak mengelola bagi hasil.');
   }
 
   let calculatedNetProfit = manualNetProfit || 0;

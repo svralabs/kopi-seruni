@@ -2,7 +2,7 @@
 
 import { db } from '@/lib/db';
 import { settings, outlets } from '@/lib/schema';
-import { getSession } from '@/lib/auth-helpers';
+import { getSession, getCurrentUserRole } from '@/lib/auth-helpers';
 import { eq, and } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -12,6 +12,17 @@ export async function saveSettings(formData: FormData) {
   if (!session) redirect('/login');
 
   const outletId = (formData.get('outletId') as string) || 'out_default';
+
+  const { role, allRoles } = await getCurrentUserRole(session.user.id);
+  if (role === 'kasir') {
+    throw new Error('Akses Ditolak: Kasir tidak memiliki izin untuk mengubah pengaturan.');
+  }
+
+  const hasAccess = role === 'owner' || allRoles.some((r) => r.outletId === outletId);
+  if (!hasAccess) {
+    throw new Error('Akses Ditolak: Anda tidak memiliki izin untuk mengubah pengaturan di cabang ini.');
+  }
+
   const taxRate = formData.get('taxRate') as string;
   const receiptFooter = formData.get('receiptFooter') as string;
   const phone = formData.get('phone') as string;

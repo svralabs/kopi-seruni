@@ -92,6 +92,16 @@ export async function adjustStock(formData: FormData) {
   const notes = (formData.get('notes') as string) || null;
   const outletId = (formData.get('outletId') as string) || 'out_default';
 
+  const { role, allRoles } = await getCurrentUserRole(session.user.id);
+  if (role === 'kasir') {
+    throw new Error('Akses Ditolak: Kasir tidak memiliki izin untuk mengubah stok.');
+  }
+
+  const hasAccess = role === 'owner' || allRoles.some((r) => r.outletId === outletId);
+  if (!hasAccess) {
+    throw new Error('Akses Ditolak: Anda tidak memiliki izin untuk mengelola stok di cabang ini.');
+  }
+
   if (!productId || quantity === 0) {
     throw new Error('Produk dan jumlah penyesuaian wajib diisi');
   }
